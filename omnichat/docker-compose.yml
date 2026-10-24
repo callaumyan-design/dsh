@@ -1,0 +1,22 @@
+services:
+  omnichat:
+    build: .
+    # Or skip building and use the image published by this repo's GitHub Actions workflow:
+    # image: ghcr.io/callaumyan-design/omnichat:latest
+    container_name: omnichat
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/data
+    environment:
+      # Optional: a long random string used to encrypt stored API keys.
+      # If unset, one is generated and kept in ./data/secret.key (back it up with the database).
+      # APP_SECRET: "change-me-to-a-long-random-string"
+      # Let other people register after the first (admin) account exists. Can also be toggled in the UI.
+      ALLOW_REGISTER: "false"
+      # Behind a reverse proxy (nginx, Caddy, Cloudflare Tunnel)? Trust X-Forwarded-For for login rate limiting.
+      # TRUST_PROXY: "true"
+      # Server in mainland China? Route outbound AI API calls through a proxy:
+      # HTTPS_PROXY: "http://host.docker.internal:7890"
+      # NO_PROXY: "localhost,127.0.0.1,.cn"

@@ -1,0 +1,193 @@
+// End-to-end smoke test against a running server and scripts/mock-ai.mjs.
+//   node scripts/e2e.cjs http://localhost:3100 http://127.0.0.1:3199 ./screenshots
+const { chromium } = require('playwright');
+const path = require('node:path');
+const fs = require('node:fs');
+
+const APP = process.argv[2] || 'http://localhost:3100';
+const MOCK = process.argv[3] || 'http://127.0.0.1:3199';
+const OUT = path.resolve(process.argv[4] || 'screenshots');
+fs.mkdirSync(OUT, { recursive: true });
+
+const step = (s) => console.log(`\n▶ ${s}`);
+const openPages = [];
+const ok = (s) => console.log(`  ✓ ${s}`);
+
+async function addProvider(page, presetLabel, { key, url, expectModel, testModel }) {
+  const dlg = page.getByRole('dialog').first();
+  await dlg.getByRole('button', { name: '添加服务商' }).click();
+  await page.getByRole('dialog').last().getByRole('button', { name: new RegExp(presetLabel) }).click();
+  await dlg.getByPlaceholder('sk-...').fill(key);
+  await dlg.getByPlaceholder('https://api.example.com/v1').fill(url);
+  await dlg.getByRole('button', { name: '保存', exact: true }).click();
+  await dlg.getByText(/已保存密钥/).waitFor();
+  await dlg.getByRole('button', { name: '获取模型' }).click();
+  await dlg.locator(`span[title="${expectModel}"]`).waitFor({ timeout: 15000 });
+  ok(`${presetLabel}: models fetched`);
+  if (testModel) await dlg.locator('select').filter({ hasText: '自动选择测试模型' }).selectOption(testModel);
+  await dlg.getByRole('button', { name: '测试连接' }).click();
+  await dlg.getByText(/连接成功/).waitFor({ timeout: 15000 });
+  ok(`${presetLabel}: connection test passed`);
+}
+
+async function pickModel(page, model) {
+  await page.locator('header button').filter({ has: page.locator('svg.lucide-chevron-down') }).first().click();
+  await page.getByPlaceholder(/搜索模型|Search models/).fill(model);
+  await page.locator('div[role="button"]').first().click();
+}
+
+async function waitIdle(page) {
+  await page.waitForTimeout(150);
+  await page.waitForFunction(() => !document.querySelector('[aria-label="停止生成"],[aria-label="Stop"]'), null, { timeout: 20000 });
+}
+
+async function send(page, text) {
+  const box = page.locator('textarea').last();
+  await box.fill(text);
+  await box.press('Enter');
+}
+
+(async () => {
+  const browser = await chromium.launch();
+  const errors = [];
+  const ctxA = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1440, height: 900 }, colorScheme: 'light' });
+  const a = await ctxA.newPage();
+  openPages.push(a);
+  a.on('pageerror', (e) => errors.push(`A pageerror: ${e.message}`));
+  a.on('console', (m) => m.type() === 'error' && errors.push(`A console: ${m.text()}`));
+
+  step('First run: create admin');
+  await a.goto(APP);
+  await a.getByText('创建管理员账户').waitFor();
+  await a.screenshot({ path: path.join(OUT, '01-setup.png') });
+  await a.getByPlaceholder('用户名').fill('admin');
+  await a.getByPlaceholder('密码（至少 6 位）').fill('secret123');
+  await a.getByPlaceholder('确认密码').fill('secret123');
+  await a.getByRole('button', { name: '创建并进入' }).click();
+  await a.getByText('先连接一个 AI 服务').waitFor();
+  ok('admin created, welcome screen shown');
+  await a.screenshot({ path: path.join(OUT, '02-welcome-empty.png') });
+
+  step('Add providers (OpenAI-compatible, Anthropic-compatible, Gemini-compatible)');
+  await a.getByRole('button', { name: '添加服务商' }).first().click();
+  await a.getByText('模型服务').first().waitFor();
+  await addProvider(a, '自定义（OpenAI 兼容）', { key: 'sk-mock', url: `${MOCK}/v1`, expectModel: 'mock-gpt', testModel: 'mock-gpt' });
+  await a.screenshot({ path: path.join(OUT, '03-provider-settings.png') });
+  await addProvider(a, '自定义（Anthropic 兼容）', { key: 'sk-ant-mock', url: `${MOCK}/anthropic/v1`, expectModel: 'claude-mock-5-5' });
+  await addProvider(a, '自定义（Gemini 兼容）', { key: 'gm-mock', url: `${MOCK}/gemini/v1beta`, expectModel: 'gemini-mock-2.5-flash' });
+  await a.keyboard.press('Escape');
+  await a.waitForTimeout(300);
+
+  step('Chat with OpenAI-compatible model (streaming, markdown, code, table, math)');
+  await pickModel(a, 'mock-gpt');
+  await send(a, '你好，介绍一下你自己');
+  await a.getByText('Hello from mock-gpt').waitFor({ timeout: 15000 });
+  await a.locator('.code-block').first().waitFor();
+  await a.locator('.md table').first().waitFor();
+  await a.locator('.katex').first().waitFor();
+  await waitIdle(a);
+  ok('reply rendered with code block, table and KaTeX');
+  await a.waitForFunction(() => document.body.innerText.includes('Mock Chat Title'), null, { timeout: 15000 });
+  ok('auto title generated');
+
+  step('Reasoning model (reasoning_content) and <think> tag model');
+  await pickModel(a, 'mock-reasoner');
+  await send(a, 'Second question');
+  await a.getByText(/已思考/).first().waitFor({ timeout: 15000 });
+  ok('reasoning block shown');
+  await waitIdle(a);
+  await pickModel(a, 'mock-think-tag');
+  await send(a, 'Third question');
+  await a.getByText('Hello from mock-think-tag').waitFor({ timeout: 15000 });
+  const leaked = await a.locator('.md').filter({ hasText: '<think>' }).count();
+  if (leaked) throw new Error('<think> tag leaked into content');
+  ok('<think> content split into reasoning');
+  await waitIdle(a);
+
+  step('Claude (Anthropic) and Gemini adapters');
+  await pickModel(a, 'claude-mock-5-5');
+  await send(a, 'Hi Claude');
+  await a.getByText('Hello from claude-mock-5-5').waitFor({ timeout: 15000 });
+  await waitIdle(a);
+  ok('Anthropic streaming works');
+  await pickModel(a, 'gemini-mock-2.5-flash');
+  await send(a, 'Hi Gemini');
+  await a.getByText('Hello from gemini-mock-2.5-flash').waitFor({ timeout: 15000 });
+  await waitIdle(a);
+  ok('Gemini streaming works');
+
+  step('Regenerate creates a second version');
+  await a.getByRole('button', { name: '重新生成' }).last().click();
+  await a.getByText('2/2').waitFor({ timeout: 15000 });
+  ok('version switcher shows 2/2');
+  await a.waitForTimeout(800);
+  await a.screenshot({ path: path.join(OUT, '04-chat-desktop-light.png') });
+
+  step('Error surface');
+  await pickModel(a, 'mock-error');
+  await send(a, 'This will fail');
+  await a.getByText(/intentionally broken/).waitFor({ timeout: 15000 });
+  ok('provider error displayed with retry');
+
+  step('Second device: sign in on a phone-sized browser and see the same history');
+  await a.waitForTimeout(1500); // let the outbox flush
+  const ctxB = await browser.newContext({ locale: 'en-US', viewport: { width: 390, height: 844 }, colorScheme: 'dark', isMobile: true, hasTouch: true });
+  const b = await ctxB.newPage();
+  openPages.push(b);
+  b.on('pageerror', (e) => errors.push(`B pageerror: ${e.message}`));
+  await b.goto(APP);
+  await b.getByPlaceholder('Username').fill('admin');
+  await b.getByPlaceholder(/Password/).fill('secret123');
+  await b.getByRole('button', { name: 'Sign in' }).click();
+  await b.getByText(/Good (morning|afternoon|evening)|Up late/).waitFor();
+  await b.screenshot({ path: path.join(OUT, '05-mobile-welcome-dark.png') });
+  await b.getByRole('button', { name: 'Open sidebar' }).first().click();
+  await b.getByText('Mock Chat Title').click();
+  await b.getByText('Hello from mock-gpt').waitFor({ timeout: 15000 });
+  ok('conversation and messages synced to second device');
+  await b.waitForTimeout(500);
+  await b.screenshot({ path: path.join(OUT, '06-mobile-chat-dark.png') });
+
+  step('Reply from the phone appears on the desktop');
+  await pickModel(b, 'mock-gpt');
+  await b.locator('textarea').last().fill('Sent from my phone');
+  await b.getByRole('button', { name: 'Send' }).click();
+  await b.getByText('Hello from mock-gpt! You said: "Sent from my phone"').waitFor({ timeout: 15000 });
+  await b.waitForTimeout(1500);
+  await a.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await a.getByText('Sent from my phone').first().waitFor({ timeout: 25000 });
+  ok('desktop received the phone message');
+
+  step('Dark desktop + settings screenshots');
+  await a.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await ctxA.close();
+  const ctxC = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1440, height: 900 }, colorScheme: 'dark' });
+  const c = await ctxC.newPage();
+  await c.goto(APP);
+  await c.getByPlaceholder('用户名').fill('admin');
+  await c.getByPlaceholder('密码（至少 6 位）').fill('secret123');
+  await c.getByRole('button', { name: '登录' }).click();
+  await c.getByText('Mock Chat Title').click();
+  await c.getByText('Sent from my phone').first().waitFor({ timeout: 15000 });
+  await c.waitForTimeout(600);
+  await c.screenshot({ path: path.join(OUT, '07-chat-desktop-dark.png') });
+  await c.keyboard.press('Control+,');
+  await c.getByText('模型服务').first().waitFor();
+  await c.waitForTimeout(300);
+  await c.screenshot({ path: path.join(OUT, '08-settings-dark.png') });
+
+  await browser.close();
+  if (errors.length) {
+    console.log('\nBrowser errors:\n' + errors.join('\n'));
+  }
+  console.log('\nAll e2e checks passed.');
+})().catch(async (err) => {
+  console.error('\nE2E FAILED:', err.message.split('\n').slice(0, 6).join('\n'));
+  for (const [i, p] of openPages.entries()) {
+    try {
+      await p.screenshot({ path: path.join(OUT, `fail-${i}.png`) });
+      console.error(`--- page ${i} text ---\n` + (await p.evaluate(() => document.body.innerText)).slice(0, 3000));
+    } catch {}
+  }
+  process.exit(1);
+});

@@ -1,0 +1,290 @@
+import { useCallback, useEffect, useState } from 'react';
+import { KeyRound, LogOut, Monitor, ShieldCheck, Smartphone, Trash2 } from 'lucide-react';
+import { Badge, Button, Field, IconButton, Input, Row, Switch } from '@/components/ui/primitives';
+import { api } from '@/lib/api';
+import { pendingCount } from '@/lib/sync';
+import { isMac } from '@/lib/utils';
+import { logout, useAuth } from '@/store/auth';
+import { useData } from '@/store/data';
+import { confirmDialog, promptDialog, toast } from '@/store/ui';
+import { useLang, useT } from '@/i18n';
+import { APP_VERSION } from '../../../shared/types';
+import { Logo } from '@/components/layout/Logo';
+
+interface SessionInfo {
+  id: string;
+  userAgent: string;
+  ip: string;
+  createdAt: number;
+  lastSeen: number;
+  current: boolean;
+}
+
+function describeUA(ua: string) {
+  const os = /Windows/.test(ua)
+    ? 'Windows'
+    : /iPhone|iPad/.test(ua)
+      ? 'iOS'
+      : /Android/.test(ua)
+        ? 'Android'
+        : /Mac OS X/.test(ua)
+          ? 'macOS'
+          : /Linux/.test(ua)
+            ? 'Linux'
+            : '';
+  const browser = /Edg\//.test(ua) ? 'Edge' : /Chrome\//.test(ua) ? 'Chrome' : /Firefox\//.test(ua) ? 'Firefox' : /Safari\//.test(ua) ? 'Safari' : '';
+  return [browser, os].filter(Boolean).join(' · ') || ua.slice(0, 40) || 'Unknown';
+}
+
+export function AccountTab() {
+  const t = useT();
+  const lang = useLang();
+  const user = useAuth((s) => s.user);
+  const [oldPw, setOldPw] = useState('');
+  const [newPw, setNewPw] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [sessions, setSessions] = useState<SessionInfo[]>([]);
+
+  const loadSessions = useCallback(async () => {
+    try {
+      setSessions((await api<{ sessions: SessionInfo[] }>('/api/auth/sessions')).sessions);
+    } catch {
+      /* offline */
+    }
+  }, []);
+  useEffect(() => {
+    void loadSessions();
+  }, [loadSessions]);
+
+  const fmt = (ts: number) => new Date(ts).toLocaleString(lang === 'zh' ? 'zh-CN' : 'en-US');
+
+  return (
+    <div className="space-y-6 p-5">
+      <div className="flex items-center gap-3">
+        <span className="flex size-12 items-center justify-center rounded-full bg-accent text-lg font-semibold text-accent-fg">
+          {(user?.username ?? '?').slice(0, 1).toUpperCase()}
+        </span>
+        <div>
+          <div className="flex items-center gap-2 font-semibold">
+            {user?.username}
+            {user?.isAdmin && <Badge className="bg-accent-soft text-accent">{t('account.admin')}</Badge>}
+          </div>
+          <div className="text-xs text-fg-subtle">{user && t('account.since', { date: fmt(user.createdAt) })}</div>
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          className="ml-auto"
+          icon={<LogOut className="size-4" />}
+          onClick={async () => {
+            if (pendingCount() > 0 && !(await confirmDialog({ title: t('account.pendingLogout'), danger: true }))) return;
+            await logout();
+          }}
+        >
+          {t('account.logout')}
+        </Button>
+      </div>
+
+      <form
+        className="space-y-3 rounded-xl border border-line p-4"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setSaving(true);
+          try {
+            await api('/api/auth/password', { body: { oldPassword: oldPw, newPassword: newPw } });
+            setOldPw('');
+            setNewPw('');
+            toast(t('account.passwordChanged'), 'success');
+            void loadSessions();
+          } catch (err) {
+            toast((err as Error).message, 'error');
+          } finally {
+            setSaving(false);
+          }
+        }}
+      >
+        <div className="flex items-center gap-2 text-sm font-medium">
+          <KeyRound className="size-4" />
+          {t('account.changePassword')}
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label={t('account.oldPassword')}>
+            <Input type="password" autoComplete="current-password" value={oldPw} onChange={(e) => setOldPw(e.target.value)} />
+          </Field>
+          <Field label={t('account.newPassword')}>
+            <Input type="password" autoComplete="new-password" value={newPw} onChange={(e) => setNewPw(e.target.value)} />
+          </Field>
+        </div>
+        <Button type="submit" size="sm" variant="primary" loading={saving} disabled={!oldPw || newPw.length < 6}>
+          {t('account.updatePassword')}
+        </Button>
+      </form>
+
+      <div>
+        <div className="mb-2 text-sm font-medium">{t('account.devices')}</div>
+        <p className="mb-3 text-xs text-fg-subtle">{t('account.devicesDesc')}</p>
+        <div className="divide-y divide-line rounded-xl border border-line">
+          {sessions.map((s) => (
+            <div key={s.id} className="flex items-center gap-3 px-3 py-2.5">
+              {/Mobile|iPhone|Android/.test(s.userAgent) ? <Smartphone className="size-5 text-fg-muted" /> : <Monitor className="size-5 text-fg-muted" />}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 text-sm">
+                  {describeUA(s.userAgent)}
+                  {s.current && <Badge className="bg-success/15 text-success">{t('account.thisDevice')}</Badge>}
+                </div>
+                <div className="truncate text-xs text-fg-subtle">
+                  {s.ip} · {t('account.lastActive', { date: fmt(s.lastSeen) })}
+                </div>
+              </div>
+              {!s.current && (
+                <IconButton
+                  size="sm"
+                  aria-label={t('account.revoke')}
+                  title={t('account.revoke')}
+                  onClick={async () => {
+                    await api(`/api/auth/sessions/${s.id}`, { method: 'DELETE' });
+                    void loadSessions();
+                  }}
+                >
+                  <LogOut />
+                </IconButton>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface AdminUser {
+  id: string;
+  username: string;
+  isAdmin: boolean;
+  createdAt: number;
+  conversations: number;
+}
+
+export function AdminTab() {
+  const t = useT();
+  const me = useAuth((s) => s.user);
+  const [allowRegister, setAllowRegister] = useState(false);
+  const [users, setUsers] = useState<AdminUser[]>([]);
+
+  const load = useCallback(async () => {
+    try {
+      const [cfg, us] = await Promise.all([api<{ allowRegister: boolean }>('/api/admin/config'), api<{ users: AdminUser[] }>('/api/admin/users')]);
+      setAllowRegister(cfg.allowRegister);
+      setUsers(us.users);
+    } catch (err) {
+      toast((err as Error).message, 'error');
+    }
+  }, []);
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  return (
+    <div className="space-y-5 p-5">
+      <div className="rounded-xl border border-line px-4">
+        <Row title={t('admin.allowRegister')} desc={t('admin.allowRegisterDesc')}>
+          <Switch
+            checked={allowRegister}
+            onChange={async (v) => {
+              const r = await api<{ allowRegister: boolean }>('/api/admin/config', { method: 'PUT', body: { allowRegister: v } });
+              setAllowRegister(r.allowRegister);
+            }}
+          />
+        </Row>
+      </div>
+      <div>
+        <div className="mb-2 text-sm font-medium">{t('admin.users')}</div>
+        <div className="divide-y divide-line rounded-xl border border-line">
+          {users.map((u) => (
+            <div key={u.id} className="flex items-center gap-3 px-3 py-2.5">
+              <span className="flex size-8 items-center justify-center rounded-full bg-muted text-sm font-semibold">{u.username.slice(0, 1).toUpperCase()}</span>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  {u.username}
+                  {u.isAdmin && <ShieldCheck className="size-3.5 text-accent" />}
+                </div>
+                <div className="text-xs text-fg-subtle">{t('admin.userStats', { n: u.conversations, date: new Date(u.createdAt).toLocaleDateString() })}</div>
+              </div>
+              <IconButton
+                size="sm"
+                title={t('admin.resetPassword')}
+                aria-label={t('admin.resetPassword')}
+                onClick={async () => {
+                  const pw = await promptDialog({ title: t('admin.resetPasswordFor', { name: u.username }), value: '', placeholder: t('account.newPassword') });
+                  if (!pw) return;
+                  try {
+                    await api(`/api/admin/users/${u.id}/password`, { body: { password: pw } });
+                    toast(t('account.passwordChanged'), 'success');
+                  } catch (err) {
+                    toast((err as Error).message, 'error');
+                  }
+                }}
+              >
+                <KeyRound />
+              </IconButton>
+              {u.id !== me?.id && (
+                <IconButton
+                  size="sm"
+                  title={t('common.delete')}
+                  aria-label={t('common.delete')}
+                  onClick={async () => {
+                    if (await confirmDialog({ title: t('admin.deleteUser', { name: u.username }), message: t('data.irreversible'), danger: true, confirmText: t('common.delete') })) {
+                      await api(`/api/admin/users/${u.id}`, { method: 'DELETE' });
+                      void load();
+                    }
+                  }}
+                >
+                  <Trash2 />
+                </IconButton>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function AboutTab() {
+  const t = useT();
+  const status = useData((s) => s.syncStatus);
+  const mod = isMac() ? '⌘' : 'Ctrl';
+  const shortcuts: [string, string][] = [
+    [`${mod} + Shift + O`, t('about.scNew')],
+    [`${mod} + K`, t('about.scSearch')],
+    [`${mod} + ,`, t('about.scSettings')],
+    [`${mod} + Shift + S`, t('about.scSidebar')],
+    ['Shift + Enter', t('about.scNewline')],
+  ];
+  return (
+    <div className="space-y-6 p-5">
+      <div className="flex items-center gap-3">
+        <Logo className="size-12" />
+        <div>
+          <div className="text-lg font-semibold">OmniChat</div>
+          <div className="text-xs text-fg-subtle">
+            v{APP_VERSION} · {t('about.syncStatus')}: {t(`sync.${status}` as 'sync.idle')}
+          </div>
+        </div>
+      </div>
+      <p className="text-sm leading-relaxed text-fg-muted">{t('about.desc')}</p>
+      <div>
+        <div className="mb-2 text-sm font-medium">{t('about.shortcuts')}</div>
+        <div className="divide-y divide-line rounded-xl border border-line">
+          {shortcuts.map(([k, d]) => (
+            <div key={k} className="flex items-center justify-between px-3 py-2 text-sm">
+              <span className="text-fg-muted">{d}</span>
+              <kbd className="rounded-md border border-line bg-muted px-1.5 py-0.5 font-mono text-xs">{k}</kbd>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="rounded-xl bg-muted p-4 text-xs leading-relaxed text-fg-muted">{t('about.privacy')}</div>
+    </div>
+  );
+}
