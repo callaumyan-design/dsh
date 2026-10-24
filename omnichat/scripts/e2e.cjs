@@ -89,6 +89,12 @@ async function send(page, text) {
   ok('reply rendered with code block, table and KaTeX');
   await a.waitForFunction(() => document.body.innerText.includes('Mock Chat Title'), null, { timeout: 15000 });
   ok('auto title generated');
+  await a.locator('header').getByRole('button', { name: '更多' }).click();
+  await a.getByRole('button', { name: '重命名' }).click();
+  await a.getByRole('dialog').last().locator('input').fill('E2E Main');
+  await a.getByRole('dialog').last().getByRole('button', { name: '保存' }).click();
+  await a.locator('aside').getByText('E2E Main').waitFor();
+  ok('conversation renamed');
 
   step('Reasoning model (reasoning_content) and <think> tag model');
   await pickModel(a, 'mock-reasoner');
@@ -200,7 +206,42 @@ async function send(page, text) {
   await a.locator('[data-model-tabs] button').first().waitFor({ timeout: 15000 });
   await a.getByText('Hello from claude-mock-5-5! You said: "Compare yourselves"').waitFor({ timeout: 15000 });
   ok('selected answer and tabs persist after reload');
-  await a.getByText('Mock Chat Title').click();
+  await a.locator('aside').getByText('E2E Main').click();
+
+  step('Web search: Gemini grounding, Qwen enable_search, Claude web_search tool');
+  await a.evaluate(async (mock) => {
+    const mk = (id, presetId, name, type, baseUrl, apiKey, model) => ({
+      kind: 'provider',
+      id,
+      data: { id, presetId, name, type, baseUrl, apiKey, models: [{ id: model }], enabled: true, mode: 'proxy', createdAt: Date.now() },
+    });
+    await fetch('/api/sync/push', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${localStorage.getItem('omnichat.token')}` },
+      body: JSON.stringify({
+        ops: [
+          mk('qwen-mock', 'qwen', 'Qwen Mock', 'openai', `${mock}/v1`, 'sk-mock', 'qwen-plus'),
+          mk('claude-official-mock', 'anthropic', 'Claude Official Mock', 'anthropic', `${mock}/anthropic/v1`, 'sk-ant-mock', 'claude-opus-5-5'),
+        ],
+      }),
+    });
+  }, MOCK);
+  await a.reload();
+  await a.waitForSelector('aside');
+  for (const model of ['gemini-mock-2.5-flash', 'qwen-plus', 'claude-opus-5-5']) {
+    await a.getByRole('button', { name: '新对话' }).first().click();
+    await pickModel(a, model);
+    await a.getByRole('button', { name: /联网/ }).click();
+    await send(a, `Search the web please (${model})`);
+    await a.getByText(/参考来源（2）/).waitFor({ timeout: 15000 });
+    await waitIdle(a);
+    await a.locator('a[href="https://en.wikipedia.org/wiki/Chatbot"]').first().waitFor();
+    ok(`${model}: search enabled and 2 sources shown`);
+  }
+  const searchLog = (await (await fetch(`${MOCK}/__log`)).json()).slice(-6);
+  if (searchLog.filter((x) => x.search).length < 3) throw new Error('mock did not receive search-enabled requests');
+  await a.screenshot({ path: path.join(OUT, '10-web-search.png') });
+  await a.locator('aside').getByText('E2E Main').click();
 
   step('Second device: sign in on a phone-sized browser and see the same history');
   await a.waitForTimeout(1500); // let the outbox flush
@@ -215,7 +256,7 @@ async function send(page, text) {
   await b.getByText(/Good (morning|afternoon|evening)|Up late/).waitFor();
   await b.screenshot({ path: path.join(OUT, '05-mobile-welcome-dark.png') });
   await b.getByRole('button', { name: 'Open sidebar' }).first().click();
-  await b.getByText('Mock Chat Title').click();
+  await b.getByText('E2E Main').click();
   await b.getByText('Hello from mock-gpt').first().waitFor({ timeout: 15000 });
   ok('conversation and messages synced to second device');
   await b.waitForTimeout(500);
@@ -240,7 +281,7 @@ async function send(page, text) {
   await c.getByPlaceholder('用户名').fill('admin');
   await c.getByPlaceholder('密码（至少 6 位）').fill('secret123');
   await c.getByRole('button', { name: '登录' }).click();
-  await c.getByText('Mock Chat Title').click();
+  await c.getByText('E2E Main').click();
   await c.getByText('Sent from my phone').first().waitFor({ timeout: 15000 });
   await c.waitForTimeout(600);
   await c.screenshot({ path: path.join(OUT, '07-chat-desktop-dark.png') });

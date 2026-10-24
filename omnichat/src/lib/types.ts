@@ -19,7 +19,14 @@ export interface ChatParams {
   contextCount?: number;
   reasoningEffort?: ReasoningEffort;
   stream?: boolean;
+  /** Use the provider's native web search when it has one. */
+  webSearch?: boolean;
   extraBody?: Record<string, unknown>;
+}
+
+export interface Source {
+  url: string;
+  title?: string;
 }
 
 export interface Attachment {
@@ -56,6 +63,10 @@ export interface MessageVersion {
   firstTokenMs?: number;
   reasoningMs?: number;
   finishReason?: string;
+  /** Web pages the answer cited (provider-native search). */
+  sources?: Source[];
+  /** Transient while streaming: the query being searched. */
+  searching?: string;
   createdAt?: number;
 }
 

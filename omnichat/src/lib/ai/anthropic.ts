@@ -13,7 +13,8 @@ import {
   type ChatTurn,
 } from './transport';
 import { splitDataUrl } from '../utils';
-import type { ModelInfo, Provider, Usage } from '../types';
+import type { ModelInfo, Provider, Source, Usage } from '../types';
+import { searchMode } from './search';
 
 const BUDGETS: Record<string, number> = { minimal: 1024, low: 2048, medium: 8192, high: 16384, xhigh: 32000, max: 32000 };
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
@@ -72,6 +73,9 @@ export async function anthropicChat(req: ChatRequest): Promise<ChatResult> {
     body.max_tokens = Math.max(Number(body.max_tokens), budget + 4096);
     thinking = true;
   }
+  if (params.webSearch && searchMode(p, req.model) === 'anthropic') {
+    body.tools = [{ type: 'web_search_20250305', name: 'web_search', max_uses: 5 }];
+  }
   if (!thinking && info.sampling) {
     if (params.temperature !== undefined) body.temperature = Math.min(1, params.temperature);
     else if (params.topP !== undefined) body.top_p = params.topP;
@@ -95,6 +99,7 @@ export async function anthropicChat(req: ChatRequest): Promise<ChatResult> {
     for (const b of j.content ?? []) {
       if (b.type === 'thinking' && b.thinking) req.onDelta({ reasoning: b.thinking });
       else if (b.type === 'text' && b.text) req.onDelta({ content: b.text });
+      else if (b.type === 'web_search_tool_result') req.onDelta({ sources: resultSources(b) });
     }
     return {
       usage: { input: j.usage?.input_tokens, output: j.usage?.output_tokens, cached: j.usage?.cache_read_input_tokens },
@@ -103,6 +108,7 @@ export async function anthropicChat(req: ChatRequest): Promise<ChatResult> {
   }
 
   let finishReason: string | undefined;
+  const toolInput = new Map<number, string>();
   for await (const ev of readSSE(res)) {
     let j: any;
     try {
@@ -122,12 +128,29 @@ export async function anthropicChat(req: ChatRequest): Promise<ChatResult> {
         const b = j.content_block ?? {};
         if (b.type === 'thinking' && b.thinking) req.onDelta({ reasoning: b.thinking });
         else if (b.type === 'text' && b.text) req.onDelta({ content: b.text });
+        else if (b.type === 'server_tool_use') toolInput.set(j.index, '');
+        else if (b.type === 'web_search_tool_result') req.onDelta({ sources: resultSources(b) });
         break;
       }
       case 'content_block_delta': {
         const d = j.delta ?? {};
         if (d.type === 'text_delta' && d.text) req.onDelta({ content: d.text });
         else if (d.type === 'thinking_delta' && d.thinking) req.onDelta({ reasoning: d.thinking });
+        else if (d.type === 'input_json_delta' && toolInput.has(j.index)) toolInput.set(j.index, toolInput.get(j.index)! + (d.partial_json ?? ''));
+        else if (d.type === 'citations_delta' && d.citation?.url) req.onDelta({ sources: [{ url: d.citation.url, title: d.citation.title }] });
+        break;
+      }
+      case 'content_block_stop': {
+        const input = toolInput.get(j.index);
+        if (input !== undefined) {
+          toolInput.delete(j.index);
+          try {
+            const q = JSON.parse(input || '{}').query;
+            if (q) req.onDelta({ searching: String(q) });
+          } catch {
+            /* partial input */
+          }
+        }
         break;
       }
       case 'message_delta':
@@ -141,6 +164,11 @@ export async function anthropicChat(req: ChatRequest): Promise<ChatResult> {
     }
   }
   return { usage, finishReason };
+}
+
+function resultSources(block: any): Source[] {
+  const list = Array.isArray(block.content) ? block.content : [];
+  return list.filter((r: any) => r?.url).map((r: any) => ({ url: String(r.url), title: r.title ? String(r.title) : undefined }));
 }
 
 export async function anthropicModels(p: Provider): Promise<ModelInfo[]> {

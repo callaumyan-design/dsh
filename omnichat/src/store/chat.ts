@@ -3,7 +3,8 @@ import { create } from 'zustand';
 import { streamChat } from '@/lib/ai';
 import { localLocks } from '@/lib/sync';
 import { throttle, truncate, uid } from '@/lib/utils';
-import type { Attachment, Conversation, Message, MessageVersion, Provider } from '@/lib/types';
+import type { Attachment, Conversation, Message, MessageVersion, Provider, Source } from '@/lib/types';
+import { mergeSources } from '@/lib/ai/search';
 import type { ChatTurn } from '@/lib/ai';
 import { t } from '@/i18n';
 import {
@@ -65,6 +66,7 @@ function snapshot(m: Message): MessageVersion {
     firstTokenMs: m.firstTokenMs,
     reasoningMs: m.reasoningMs,
     finishReason: m.finishReason,
+    sources: m.sources,
   };
 }
 
@@ -84,7 +86,7 @@ export function newConversation(opts: Partial<Conversation> = {}): Conversation 
     model: target?.model,
     systemPrompt: draft.systemPrompt ?? settings.defaultSystemPrompt,
     promptId: draft.promptId,
-    params: settings.defaultParams ? { ...settings.defaultParams } : undefined,
+    params: settings.defaultParams || draft.webSearch ? { ...settings.defaultParams, ...(draft.webSearch ? { webSearch: true } : {}) } : undefined,
     createdAt: Date.now(),
     lastMessageAt: Date.now(),
     ...opts,
@@ -171,7 +173,15 @@ async function streamOne(
   let firstAt = 0;
   let reasoningStart = 0;
   let reasoningEnd = 0;
-  const snap = (): MessageVersion => ({ ...v, content, reasoning: reasoning || undefined });
+  const sources: Source[] = [];
+  let searching: string | undefined;
+  const snap = (): MessageVersion => ({
+    ...v,
+    content,
+    reasoning: reasoning || undefined,
+    sources: sources.length ? [...sources] : undefined,
+    searching: v.status === 'streaming' ? searching : undefined,
+  });
   try {
     const result = await streamChat({
       provider: target.provider,
@@ -182,7 +192,9 @@ async function streamOne(
       signal,
       onDelta: (d) => {
         const now = performance.now();
-        if (!firstAt) firstAt = now;
+        if (d.sources) mergeSources(sources, d.sources);
+        if (d.searching) searching = d.searching;
+        if (!firstAt && (d.content || d.reasoning)) firstAt = now;
         if (d.reasoning) {
           if (!reasoningStart) reasoningStart = now;
           reasoning += d.reasoning;

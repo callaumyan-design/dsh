@@ -16,12 +16,13 @@ import {
   Trash2,
   Volume2,
   File as FileIcon,
+  Globe,
   Loader2,
 } from 'lucide-react';
 import { Button, Dropdown, IconButton, MenuDivider, MenuItem, Modal, Textarea } from '@/components/ui/primitives';
 import { ProviderAvatar } from '@/components/ui/ProviderAvatar';
 import { cn, copyText, formatBytes, formatDuration, formatNumber } from '@/lib/utils';
-import type { Attachment, Message } from '@/lib/types';
+import type { Attachment, Message, Source } from '@/lib/types';
 import { deleteMessage, editMessage, forkConversation, regenerate, retryLast, selectVersionLocal, switchVersion } from '@/store/chat';
 import { useData } from '@/store/data';
 import { confirmDialog, toast } from '@/store/ui';
@@ -129,6 +130,49 @@ function speak(text: string) {
   const u = new SpeechSynthesisUtterance(plain);
   u.lang = /[一-鿿]/.test(plain) ? 'zh-CN' : 'en-US';
   window.speechSynthesis.speak(u);
+}
+
+function hostOf(url: string) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return url;
+  }
+}
+
+function Sources({ sources }: { sources: Source[] }) {
+  const t = useT();
+  const [all, setAll] = useState(false);
+  const shown = all ? sources : sources.slice(0, 6);
+  return (
+    <div className="mt-3">
+      <div className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-fg-muted">
+        <Globe className="size-3.5" />
+        {t('search.sources', { n: sources.length })}
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {shown.map((s, i) => (
+          <a
+            key={s.url}
+            href={s.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={s.title ? `${s.title}\n${s.url}` : s.url}
+            className="inline-flex max-w-[16rem] items-center gap-1.5 rounded-lg border border-line px-2 py-1 text-xs text-fg-muted transition-colors hover:border-line-strong hover:text-fg"
+          >
+            <span className="flex size-4 shrink-0 items-center justify-center rounded bg-muted text-[10px] tabular-nums">{i + 1}</span>
+            <span className="truncate">{s.title || hostOf(s.url)}</span>
+            {s.title && <span className="shrink-0 text-fg-subtle">{hostOf(s.url)}</span>}
+          </a>
+        ))}
+        {sources.length > 6 && (
+          <button type="button" onClick={() => setAll((v) => !v)} className="rounded-lg px-2 py-1 text-xs text-accent hover:underline">
+            {all ? t('search.less') : t('search.more', { n: sources.length - 6 })}
+          </button>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function finishNotice(reason: string | undefined, t: ReturnType<typeof useT>) {
@@ -276,6 +320,12 @@ function AssistantMessage({ m, streaming, isLast }: { m: Message; streaming: boo
           </div>
         )}
         {m.reasoning && <Reasoning text={m.reasoning} ms={m.reasoningMs} active={reasoningActive} />}
+        {streaming && m.searching && !m.content && (
+          <div className="mb-2 inline-flex items-center gap-1.5 text-xs text-fg-muted">
+            <Globe className="size-3.5 animate-pulse text-accent" />
+            {t('search.searching', { query: m.searching })}
+          </div>
+        )}
         {m.content ? (
           <div className={cn(streaming && 'streaming-tail')}>
             <Markdown content={m.content} streaming={streaming} />
@@ -287,6 +337,7 @@ function AssistantMessage({ m, streaming, isLast }: { m: Message; streaming: boo
             <span />
           </div>
         ) : null}
+        {!!m.sources?.length && <Sources sources={m.sources} />}
         {m.status === 'error' && (
           <div className="mt-2 flex items-start gap-2 rounded-xl border border-danger/30 bg-danger/5 px-3 py-2.5 text-sm text-danger">
             <AlertTriangle className="mt-0.5 size-4 shrink-0" />

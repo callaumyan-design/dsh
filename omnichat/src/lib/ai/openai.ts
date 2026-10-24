@@ -1,6 +1,7 @@
 // OpenAI Chat Completions protocol — also spoken by DeepSeek, Qwen, Kimi, GLM, Doubao, OpenRouter, Ollama and most others.
 import { getQuirks, type ReasoningStyle } from './presets';
 import { createThinkParser, readSSE } from './sse';
+import { applyOpenAISearch, openAISources, searchMode } from './search';
 import {
   embeddedError,
   JSON_HEADERS,
@@ -91,6 +92,10 @@ export async function openaiChat(req: ChatRequest): Promise<ChatResult> {
   if (params.topP !== undefined) body.top_p = params.topP;
   if (params.maxTokens) body[quirks.maxTokensField ?? 'max_tokens'] = params.maxTokens;
   applyReasoning(body, params.reasoningEffort, quirks.reasoning ?? 'openai');
+  if (params.webSearch) {
+    const mode = searchMode(p, req.model);
+    if (mode) applyOpenAISearch(body, mode);
+  }
   mergeExtra(body, p.extraBody, params.extraBody);
 
   const res = await providerFetch(p, '/chat/completions', {
@@ -123,6 +128,8 @@ export async function openaiChat(req: ChatRequest): Promise<ChatResult> {
     const err = embeddedError(j);
     if (err && !j.choices) throw err;
     const msg = j.choices?.[0]?.message ?? {};
+    const sources = openAISources(j);
+    if (sources.length) req.onDelta({ sources });
     const r = reasoningOf(msg);
     if (r) req.onDelta({ reasoning: r });
     handleContent(msg.content);
@@ -144,6 +151,8 @@ export async function openaiChat(req: ChatRequest): Promise<ChatResult> {
       const err = embeddedError(j);
       if (err) throw err;
     }
+    const sources = openAISources(j);
+    if (sources.length) req.onDelta({ sources });
     const choice = j.choices?.[0];
     const delta = choice?.delta ?? choice?.message;
     if (delta) {

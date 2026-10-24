@@ -1,13 +1,46 @@
 import { useEffect, useLayoutEffect, useRef } from 'react';
-import { ArrowUp, FileText, Image as ImageIcon, Loader2, Paperclip, Square, X, File as FileIcon } from 'lucide-react';
+import { ArrowUp, FileText, Globe, Image as ImageIcon, Loader2, Paperclip, Square, X, File as FileIcon } from 'lucide-react';
 import { IconButton } from '@/components/ui/primitives';
 import { cn, formatBytes } from '@/lib/utils';
 import { addFiles, clearDraft, draftKey, getDraft, setDraft, useComposer } from '@/store/composer';
-import { sendMessage, stopGeneration, useChat } from '@/store/chat';
-import { useData } from '@/store/data';
+import { resolveTarget, sendMessage, stopGeneration, useChat } from '@/store/chat';
+import { updateConversation, useData } from '@/store/data';
+import { searchMode } from '@/lib/ai/search';
 import { useUI } from '@/store/ui';
 import { CompareButton, CompareChips } from './CompareButton';
 import { useT } from '@/i18n';
+
+/** Turns on provider-native web search; shown only when the current model's provider has one. */
+function WebSearchToggle() {
+  const t = useT();
+  const activeId = useUI((s) => s.activeId);
+  const draft = useUI((s) => s.draft);
+  const conv = useData((s) => (activeId ? s.conversations[activeId] : undefined));
+  useData((s) => s.providers);
+  const target = conv ? resolveTarget(conv.providerId, conv.model) : resolveTarget(draft.providerId, draft.model);
+  const mode = target ? searchMode(target.provider, target.model) : null;
+  if (!mode || mode === 'builtin') return null;
+  const on = conv ? !!conv.params?.webSearch : !!draft.webSearch;
+  const toggle = () => {
+    if (conv) updateConversation(conv.id, { params: { ...conv.params, webSearch: on ? undefined : true } });
+    else useUI.setState({ draft: { ...draft, webSearch: !on } });
+  };
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      title={t('search.toggle')}
+      aria-pressed={on}
+      className={cn(
+        'focus-ring inline-flex h-9 items-center gap-1.5 rounded-lg px-2 text-sm transition-colors',
+        on ? 'bg-accent-soft text-accent' : 'text-fg-muted hover:bg-muted hover:text-fg',
+      )}
+    >
+      <Globe className="size-[18px]" />
+      <span className="hidden text-xs font-medium sm:inline">{t('search.label')}</span>
+    </button>
+  );
+}
 
 export function Composer({ compact }: { compact?: boolean }) {
   const t = useT();
@@ -155,12 +188,14 @@ export function Composer({ compact }: { compact?: boolean }) {
             <ImageIcon />
           </IconButton>
           <CompareButton value={compare} onChange={(v) => setDraft(key, { compare: v })} />
+          <WebSearchToggle />
           <div className="ml-auto flex items-center gap-2">
             <span className="hidden text-[11px] text-fg-subtle sm:inline">
               {sendKey === 'enter' ? t('composer.hintEnter') : t('composer.hintModEnter')}
             </span>
             {streaming ? (
               <button
+                key="stop"
                 type="button"
                 aria-label={t('composer.stop')}
                 title={t('composer.stop')}
@@ -171,6 +206,7 @@ export function Composer({ compact }: { compact?: boolean }) {
               </button>
             ) : (
               <button
+                key="send"
                 type="button"
                 aria-label={t('composer.send')}
                 title={t('composer.send')}

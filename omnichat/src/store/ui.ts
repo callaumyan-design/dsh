@@ -31,7 +31,7 @@ interface UIState {
   chatSettingsOpen: boolean;
   searchOpen: boolean;
   /** Model chosen on the welcome screen before a conversation exists. */
-  draft: { providerId?: string; model?: string; promptId?: string; systemPrompt?: string };
+  draft: { providerId?: string; model?: string; promptId?: string; systemPrompt?: string; webSearch?: boolean };
   toasts: Toast[];
   confirm: ConfirmRequest | null;
   prompt: PromptRequest | null;

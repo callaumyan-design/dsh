@@ -64,6 +64,22 @@ const DEMO_ANSWER = [
   '> 实际工程中常用**随机选取 pivot** 或**三数取中**来避免最坏情况。',
 ].join('\n');
 
+const SEARCH_RESULTS = [
+  { title: 'OmniChat on GitHub', url: 'https://github.com/callaumyan-design/dsh' },
+  { title: 'Chatbot - Wikipedia', url: 'https://en.wikipedia.org/wiki/Chatbot' },
+];
+
+function wantsSearch(body) {
+  return !!(
+    body.enable_search ||
+    body.web_search_options ||
+    body.enable_enhancement ||
+    body.web_search?.enable ||
+    (body.plugins ?? []).some((p) => p.id === 'web') ||
+    (body.tools ?? []).some((t) => t.type === 'web_search' || t.name === 'web_search' || t.google_search)
+  );
+}
+
 function chunks(text, size = 6) {
   const out = [];
   for (let i = 0; i < text.length; i += size) out.push(text.slice(i, i + size));
@@ -124,7 +140,7 @@ const server = http.createServer(async (req, res) => {
       const body = await readBody(req);
       const lastMsg = body.messages?.[body.messages.length - 1];
       const images = Array.isArray(lastMsg?.content) ? lastMsg.content.filter((p) => p.type === 'image_url').length : 0;
-      log.push({ api: 'openai', images, body: { ...body, messages: body.messages?.length } });
+      log.push({ api: 'openai', images, search: wantsSearch(body), body: { ...body, messages: body.messages?.length } });
       if (body.model === 'mock-error') return json(res, 400, { error: { message: 'This model is intentionally broken' } });
       const user = lastUserText(body.messages ?? []);
       const text = answerFor(user, body.model, 'Mock Chat Title');
@@ -140,6 +156,7 @@ const server = http.createServer(async (req, res) => {
           await sleep(15);
         }
       }
+      if (wantsSearch(body)) send({ choices: [{ delta: {} }], search_info: { search_results: SEARCH_RESULTS } });
       const content = body.model === 'mock-think-tag' ? `<think>Tag-based reasoning here.</think>\n\n${text}` : text;
       for (const c of chunks(content)) {
         if (res.destroyed) return;
@@ -160,7 +177,7 @@ const server = http.createServer(async (req, res) => {
     if (p === '/anthropic/v1/models') return json(res, 200, { data: [{ id: 'claude-mock-5-5', display_name: 'Claude Mock' }], has_more: false });
     if (p === '/anthropic/v1/messages') {
       const body = await readBody(req);
-      log.push({ api: 'anthropic', body: { ...body, messages: body.messages?.length } });
+      log.push({ api: 'anthropic', search: wantsSearch(body), body: { ...body, messages: body.messages?.length } });
       const user = lastUserText(body.messages ?? []);
       const text = answerFor(user, body.model, 'Claude Title');
       sse(res);
@@ -173,6 +190,16 @@ const server = http.createServer(async (req, res) => {
           ev('content_block_delta', { index: idx, delta: { type: 'thinking_delta', thinking: c } });
           await sleep(12);
         }
+        ev('content_block_stop', { index: idx++ });
+      }
+      if (wantsSearch(body)) {
+        ev('content_block_start', { index: idx, content_block: { type: 'server_tool_use', id: 'srvtoolu_1', name: 'web_search', input: {} } });
+        ev('content_block_delta', { index: idx, delta: { type: 'input_json_delta', partial_json: JSON.stringify({ query: user }) } });
+        ev('content_block_stop', { index: idx++ });
+        ev('content_block_start', {
+          index: idx,
+          content_block: { type: 'web_search_tool_result', tool_use_id: 'srvtoolu_1', content: SEARCH_RESULTS.map((r) => ({ type: 'web_search_result', ...r })) },
+        });
         ev('content_block_stop', { index: idx++ });
       }
       ev('content_block_start', { index: idx, content_block: { type: 'text', text: '' } });
@@ -196,7 +223,7 @@ const server = http.createServer(async (req, res) => {
     const m = /\/models\/([^:]+):(streamGenerateContent|generateContent)/.exec(p);
     if (m) {
       const body = await readBody(req);
-      log.push({ api: 'gemini', model: m[1], body: { ...body, contents: body.contents?.length } });
+      log.push({ api: 'gemini', model: m[1], search: wantsSearch(body), body: { ...body, contents: body.contents?.length } });
       const user = lastUserText(body.contents ?? []);
       const text = answerFor(user, m[1], 'Gemini Title');
       sse(res);
@@ -210,7 +237,10 @@ const server = http.createServer(async (req, res) => {
         send({ candidates: [{ content: { role: 'model', parts: [{ text: c }] } }] });
         await sleep(15);
       }
-      send({ candidates: [{ content: { role: 'model', parts: [] }, finishReason: 'STOP' }], usageMetadata: { promptTokenCount: 30, candidatesTokenCount: 80, thoughtsTokenCount: 10 } });
+      const grounding = wantsSearch(body)
+        ? { groundingMetadata: { webSearchQueries: [user], groundingChunks: SEARCH_RESULTS.map((r) => ({ web: { uri: r.url, title: r.title } })) } }
+        : {};
+      send({ candidates: [{ content: { role: 'model', parts: [] }, finishReason: 'STOP', ...grounding }], usageMetadata: { promptTokenCount: 30, candidatesTokenCount: 80, thoughtsTokenCount: 10 } });
       return res.end();
     }
   }

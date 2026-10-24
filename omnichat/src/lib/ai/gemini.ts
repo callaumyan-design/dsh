@@ -88,6 +88,7 @@ export async function geminiChat(req: ChatRequest): Promise<ChatResult> {
   if (tc) generationConfig.thinkingConfig = tc;
 
   const body: Record<string, unknown> = { contents: buildContents(req) };
+  if (params.webSearch) body.tools = [{ google_search: {} }];
   if (req.system) body.systemInstruction = { parts: [{ text: req.system }] };
   if (Object.keys(generationConfig).length) body.generationConfig = generationConfig;
   mergeExtra(body, p.extraBody, params.extraBody);
@@ -107,6 +108,16 @@ export async function geminiChat(req: ChatRequest): Promise<ChatResult> {
       if (typeof part.text !== 'string' || !part.text) continue;
       if (part.thought) req.onDelta({ reasoning: part.text });
       else req.onDelta({ content: part.text });
+    }
+    const gm = cand?.groundingMetadata;
+    if (gm) {
+      const q = gm.webSearchQueries?.[0];
+      if (q) req.onDelta({ searching: String(q) });
+      const sources = (gm.groundingChunks ?? [])
+        .map((c: any) => c?.web)
+        .filter((w: any) => w?.uri)
+        .map((w: any) => ({ url: String(w.uri), title: w.title ? String(w.title) : undefined }));
+      if (sources.length) req.onDelta({ sources });
     }
     if (cand?.finishReason) finishReason = cand.finishReason;
     if (j.usageMetadata) usage = mapUsage(j.usageMetadata);

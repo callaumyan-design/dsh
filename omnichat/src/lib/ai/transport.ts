@@ -1,7 +1,7 @@
 import { ANTHROPIC_DEFAULT_VERSION, applyAuth, joinUrl } from '../../../shared/provider-auth';
 import { api, proxyFetch } from '../api';
 import { flushNow, hasPending } from '../sync';
-import type { Attachment, ChatParams, Provider, Usage } from '../types';
+import type { Attachment, ChatParams, Provider, Source, Usage } from '../types';
 
 export interface ChatTurn {
   role: 'user' | 'assistant';
@@ -12,6 +12,10 @@ export interface ChatTurn {
 export interface Delta {
   content?: string;
   reasoning?: string;
+  /** Pages cited by provider-native web search. */
+  sources?: Source[];
+  /** A web search the model is running. */
+  searching?: string;
 }
 
 export interface ChatRequest {

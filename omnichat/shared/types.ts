@@ -34,6 +34,8 @@ export interface ProviderData {
   headers?: Record<string, string>;
   /** JSON merged into every chat request body; escape hatch for vendor-specific options. */
   extraBody?: Record<string, unknown>;
+  /** OpenAI only: use the Responses API (/responses) instead of Chat Completions. */
+  useResponsesApi?: boolean;
   /** Set by the server: whether a key is stored, and a masked preview. */
   hasKey?: boolean;
   keyHint?: string;
