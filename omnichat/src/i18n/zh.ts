@@ -106,6 +106,7 @@ export const zh = {
   'composer.disclaimer': 'AI 可能会出错，请核实重要信息。',
   'composer.dropHere': '松开以添加文件',
   'composer.tooLarge': '{name} 太大（上限 {size}）',
+  'composer.totalTooLarge': '附件总大小超出单条消息可同步的上限（{size}）',
   'composer.unsupported': '暂不支持该文件类型：{name}',
 
   'msg.thinking': '思考中…',

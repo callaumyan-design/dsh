@@ -33,6 +33,15 @@ let pollTimer: ReturnType<typeof setInterval> | null = null;
 let active = false;
 
 const OVERLAP_MS = 5000;
+
+/** Per-push limits announced by the server (Cloudflare D1 needs small batches). */
+let limits = { maxOps: 200, maxRecordBytes: 32 * 1024 * 1024 };
+export function setSyncLimits(l?: { maxOps: number; maxRecordBytes: number }) {
+  if (l) limits = { maxOps: Math.max(1, Math.min(200, l.maxOps)), maxRecordBytes: l.maxRecordBytes };
+}
+export function getSyncLimits() {
+  return limits;
+}
 const keyOf = (op: { kind: string; id: string }) => `${op.kind}:${op.id}`;
 
 const persistOutbox = debounce(() => {
@@ -102,7 +111,7 @@ async function doFlush() {
       let size = 0;
       for (const [key, entry] of outbox) {
         const len = JSON.stringify(entry.op).length;
-        if (chunk.length && (single || size + len > 4_000_000 || chunk.length >= 200)) break;
+        if (chunk.length && (single || size + len > 4_000_000 || chunk.length >= limits.maxOps)) break;
         chunk.push({ key, ...entry });
         size += len;
       }

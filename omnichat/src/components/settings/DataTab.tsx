@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/primitives';
 import { api, getToken } from '@/lib/api';
 import { idb } from '@/lib/idb';
 import { chunkOps, planImport } from '@/lib/importers';
-import { pendingCount, pull } from '@/lib/sync';
+import { getSyncLimits, pendingCount, pull } from '@/lib/sync';
 import { downloadFile, readFileAsText } from '@/lib/utils';
 import { removeConversation, useData } from '@/store/data';
 import { confirmDialog, openConversation, toast } from '@/store/ui';
@@ -59,7 +59,7 @@ export function DataTab() {
         confirmText: t('data.import'),
       });
       if (!ok) return;
-      const chunks = chunkOps(plan.ops);
+      const chunks = chunkOps(plan.ops, getSyncLimits().maxOps);
       for (let i = 0; i < chunks.length; i++) {
         setProgress(`${i + 1}/${chunks.length}`);
         await api('/api/sync/push', { body: { ops: chunks[i] } });

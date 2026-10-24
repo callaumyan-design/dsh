@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { api, ApiError, getToken, onUnauthorized, setToken } from '@/lib/api';
-import { resetSync } from '@/lib/sync';
+import { resetSync, setSyncLimits } from '@/lib/sync';
 import { forgetProviderKey } from '@/lib/ai';
 import { hydrate, resetData } from './data';
 import type { AuthStatus, PublicUser } from '../../shared/types';
@@ -44,6 +44,7 @@ async function enter(user: PublicUser, offline = false) {
 
 export async function initAuth() {
   onUnauthorized(() => void signOutLocal());
+  const status = loadStatus();
   if (getToken()) {
     try {
       const { user } = await api<{ user: PublicUser }>('/api/auth/me');
@@ -58,13 +59,14 @@ export async function initAuth() {
       if (!(err instanceof ApiError) || err.status === 401) setToken(null);
     }
   }
-  await loadStatus();
+  await status;
   useAuth.setState({ phase: 'anonymous' });
 }
 
 export async function loadStatus() {
   try {
     const status = await api<AuthStatus>('/api/auth/status');
+    setSyncLimits(status.limits);
     useAuth.setState({ status });
   } catch {
     /* server unreachable */

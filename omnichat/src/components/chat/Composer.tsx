@@ -51,7 +51,8 @@ export function Composer({ compact }: { compact?: boolean }) {
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key !== 'Enter' || composing.current || e.nativeEvent.isComposing) return;
+    // keyCode 229: Safari reports the Enter that confirms an IME candidate this way.
+    if (e.key !== 'Enter' || composing.current || e.nativeEvent.isComposing || e.keyCode === 229) return;
     const coarse = window.matchMedia('(pointer: coarse)').matches;
     const mod = e.ctrlKey || e.metaKey;
     if (sendKey === 'enter') {

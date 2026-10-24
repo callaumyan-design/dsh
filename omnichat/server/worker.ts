@@ -27,6 +27,8 @@ const app = createApp({
   passwordIterations: (c) => Math.min(Number(env(c).PASSWORD_ITERATIONS) || 30_000, 100_000),
   defaultAllowRegister: (c) => bool(env(c).ALLOW_REGISTER),
   allowPrivateNetwork: (c) => bool(env(c).ALLOW_PRIVATE_NETWORK),
+  // D1: rows up to ~2 MB, and a small number of queries per request on the free plan.
+  limits: () => ({ maxOps: 20, maxRecordBytes: 1_900_000 }),
 });
 
 export default app;

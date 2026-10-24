@@ -129,6 +129,57 @@ async function send(page, text) {
   await a.getByText(/intentionally broken/).waitFor({ timeout: 15000 });
   ok('provider error displayed with retry');
 
+  step('Image attachment');
+  await waitIdle(a);
+  await pickModel(a, 'mock-gpt');
+  const png = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAKElEQVR42mNk+M9Qz0AEYBxVSF+FjIyM/xkYGBj+MzAwMIzaMGoDAwMAkmQF/2N0FvQAAAAASUVORK5CYII=',
+    'base64',
+  );
+  await a.locator('input[type="file"]').first().setInputFiles({ name: 'dot.png', mimeType: 'image/png', buffer: png });
+  await a.locator('textarea').last().fill('What is in this image?');
+  await a.waitForTimeout(300);
+  await a.locator('textarea').last().press('Enter');
+  await a.locator('img[alt="dot.png"]').first().waitFor({ timeout: 10000 });
+  await a.getByText('You said: "What is in this image?"').waitFor({ timeout: 15000 });
+  await waitIdle(a);
+  const log = await (await fetch(`${MOCK}/__log`)).json();
+  const last = log.filter((x) => x.api === 'openai').pop();
+  if (!last || last.images !== 1) throw new Error(`expected 1 image part in the request, got ${last && last.images}`);
+  ok('image sent with the message and reply received');
+
+  step('Full-text search, prompt library, ChatGPT import');
+  await a.getByPlaceholder('搜索对话…').fill('image');
+  await a.getByText('消息内容匹配').waitFor({ timeout: 10000 }).catch(() => {});
+  await a.getByPlaceholder('搜索对话…').fill('');
+  await a.keyboard.press('Control+,');
+  const settings = a.getByRole('dialog').first();
+  await settings.getByRole('button', { name: '提示词库' }).click();
+  await settings.getByRole('button', { name: '导入内置提示词' }).click();
+  await settings.getByText('中英互译', { exact: true }).waitFor();
+  ok('built-in prompts imported');
+  await settings.getByRole('button', { name: '数据管理' }).click();
+  const chatgpt = [
+    {
+      title: 'Imported from ChatGPT',
+      create_time: Date.now() / 1000 - 86400 * 3,
+      current_node: 'n3',
+      mapping: {
+        n1: { id: 'n1', parent: null, message: null },
+        n2: { id: 'n2', parent: 'n1', message: { author: { role: 'user' }, create_time: Date.now() / 1000 - 86400 * 3, content: { content_type: 'text', parts: ['How tall is Everest?'] } } },
+        n3: { id: 'n3', parent: 'n2', message: { author: { role: 'assistant' }, create_time: Date.now() / 1000 - 86400 * 3 + 5, metadata: { model_slug: 'gpt-4o' }, content: { content_type: 'text', parts: ['About 8,849 metres.'] } } },
+      },
+    },
+  ];
+  await settings.locator('input[type="file"]').setInputFiles({ name: 'conversations.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(chatgpt)) });
+  await a.getByRole('dialog').last().getByRole('button', { name: '导入数据' }).click();
+  await a.getByText(/已导入 1 个对话/).waitFor({ timeout: 15000 });
+  await a.keyboard.press('Escape');
+  await a.getByText('Imported from ChatGPT').click();
+  await a.getByText('About 8,849 metres.').waitFor({ timeout: 15000 });
+  ok('ChatGPT export imported and readable');
+  await a.getByText('Mock Chat Title').click();
+
   step('Second device: sign in on a phone-sized browser and see the same history');
   await a.waitForTimeout(1500); // let the outbox flush
   const ctxB = await browser.newContext({ locale: 'en-US', viewport: { width: 390, height: 844 }, colorScheme: 'dark', isMobile: true, hasTouch: true });
@@ -143,7 +194,7 @@ async function send(page, text) {
   await b.screenshot({ path: path.join(OUT, '05-mobile-welcome-dark.png') });
   await b.getByRole('button', { name: 'Open sidebar' }).first().click();
   await b.getByText('Mock Chat Title').click();
-  await b.getByText('Hello from mock-gpt').waitFor({ timeout: 15000 });
+  await b.getByText('Hello from mock-gpt').first().waitFor({ timeout: 15000 });
   ok('conversation and messages synced to second device');
   await b.waitForTimeout(500);
   await b.screenshot({ path: path.join(OUT, '06-mobile-chat-dark.png') });

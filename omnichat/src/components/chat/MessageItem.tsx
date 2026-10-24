@@ -115,6 +115,12 @@ function CopyAction({ text }: { text: string }) {
   );
 }
 
+function formatTime(ts: number) {
+  const d = new Date(ts);
+  const sameDay = new Date().toDateString() === d.toDateString();
+  return sameDay ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : d.toLocaleDateString([], { month: 'numeric', day: 'numeric' });
+}
+
 function speak(text: string) {
   if (!('speechSynthesis' in window)) return;
   window.speechSynthesis.cancel();
@@ -190,7 +196,7 @@ function UserMessage({ m }: { m: Message }) {
         </div>
       )}
       {m.content && (
-        <div className="max-w-[85%] rounded-2xl rounded-br-md bg-bubble px-4 py-2.5 text-fg">
+        <div className="max-w-[85%] rounded-2xl rounded-br-md bg-bubble px-4 py-2.5 text-fg" title={new Date(m.createdAt).toLocaleString()}>
           {renderMd ? <Markdown content={m.content} /> : <div className="leading-relaxed break-words whitespace-pre-wrap">{m.content}</div>}
         </div>
       )}
@@ -241,6 +247,9 @@ function AssistantMessage({ m, streaming, isLast }: { m: Message; streaming: boo
           </span>
           <span className="truncate font-medium text-fg-muted">{m.model ?? 'AI'}</span>
           {m.providerName && <span className="truncate">· {m.providerName}</span>}
+          <span className="shrink-0" title={new Date(m.createdAt).toLocaleString()}>
+            · {formatTime(m.createdAt)}
+          </span>
         </div>
         {m.reasoning && <Reasoning text={m.reasoning} ms={m.reasoningMs} active={reasoningActive} />}
         {m.content ? (

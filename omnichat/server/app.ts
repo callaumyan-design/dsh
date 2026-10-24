@@ -37,6 +37,13 @@ export interface AppOptions {
   /** Upstream fetch implementation (Node uses undici for proxies and long timeouts). */
   fetch?: typeof fetch;
   sessionDays?: number;
+  /** Per-push limits; Workers + D1 need much smaller values than SQLite. */
+  limits(c: Context): SyncLimits;
+}
+
+export interface SyncLimits {
+  maxOps: number;
+  maxRecordBytes: number;
 }
 
 interface UserRow {
@@ -209,6 +216,7 @@ export function createApp(opts: AppOptions) {
       hasUsers: await hasUsers(db),
       allowRegister: await allowRegister(c),
       version: APP_VERSION,
+      limits: opts.limits(c),
     };
     return c.json(status);
   });
@@ -422,89 +430,128 @@ export function createApp(opts: AppOptions) {
     });
   });
 
+  /** Runs `SELECT … WHERE user_id = ? AND id IN (…)` in chunks (D1 allows 100 bound parameters). */
+  async function selectIn<T>(db: DB, sqlPrefix: string, userId: string, ids: string[]): Promise<T[]> {
+    const out: T[] = [];
+    for (let i = 0; i < ids.length; i += 90) {
+      const chunk = ids.slice(i, i + 90);
+      out.push(...(await db.all<T>(`${sqlPrefix} (${chunk.map(() => '?').join(',')})`, [userId, ...chunk])));
+    }
+    return out;
+  }
+
+  // All writes of a push go into one transactional batch: a constant number of round trips
+  // regardless of size, which keeps Cloudflare D1 within its per-request query limits.
   app.post('/api/sync/push', bodyLimit({ maxSize: 64 * 1024 * 1024, onError: () => fail(413, 'Payload too large') }), async (c) => {
     const db = c.get('db');
     const user = c.get('user');
     const body = await c.req.json().catch(() => null);
     const ops: PushOp[] = Array.isArray(body?.ops) ? body.ops : fail(400, 'ops must be an array');
-    if (ops.length > 2000) fail(400, 'Too many operations in one push');
-    const results: { kind: string; id: string; updatedAt: number }[] = [];
-    const touched = new Set<string>();
-    const secret = await getSecret(c, db);
+    const limits = opts.limits(c);
+    if (ops.length > limits.maxOps) fail(400, `Too many operations in one push (max ${limits.maxOps})`);
 
+    const encoded = new Map<PushOp, string>();
     for (const op of ops) {
       if (!op || typeof op.id !== 'string' || !op.id || op.id.length > 100) fail(400, 'Invalid operation id');
+      if (op.kind !== 'message' && !ENTITY_KINDS.includes(op.kind)) fail(400, `Unknown kind: ${String(op.kind)}`);
+      if (op.deleted) continue;
+      if (op.data !== undefined && (typeof op.data !== 'object' || op.data === null || Array.isArray(op.data))) fail(400, 'Invalid data');
+      const json = JSON.stringify(op.data ?? {});
+      if (json.length > limits.maxRecordBytes) {
+        fail(413, `Item too large to sync (${(json.length / 1048576).toFixed(1)} MB; limit ${(limits.maxRecordBytes / 1048576).toFixed(1)} MB)`);
+      }
+      encoded.set(op, json);
+    }
+
+    const deletedMessageIds = ops.filter((o) => o.kind === 'message' && o.deleted).map((o) => o.id);
+    const keepKeyProviderIds = ops
+      .filter((o) => o.kind === 'provider' && !o.deleted && !('apiKey' in ((o.data ?? {}) as object)))
+      .map((o) => o.id);
+    const prevMessages = new Map(
+      (
+        await selectIn<{ id: string; conversation_id: string }>(db, 'SELECT id, conversation_id FROM messages WHERE user_id = ? AND id IN', user.id, deletedMessageIds)
+      ).map((r) => [r.id, r.conversation_id]),
+    );
+    const prevProviders = new Map(
+      (
+        await selectIn<{ id: string; data: string }>(db, "SELECT id, data FROM entities WHERE user_id = ? AND kind = 'provider' AND id IN", user.id, keepKeyProviderIds)
+      ).map((r) => [r.id, parseJson<ProviderData | null>(r.data, null)]),
+    );
+
+    const secret = await getSecret(c, db);
+    const stmts: Statement[] = [];
+    const results: { kind: string; id: string; updatedAt: number }[] = [];
+    const touched = new Set<string>();
+    const deletedConversations = new Set<string>();
+
+    for (const op of ops) {
       const t = now();
       if (op.kind === 'message') {
         if (op.deleted) {
-          const prev = await db.first<{ conversation_id: string }>('SELECT conversation_id FROM messages WHERE user_id = ? AND id = ?', [
-            user.id,
-            op.id,
-          ]);
-          if (prev) {
-            await db.run("UPDATE messages SET deleted = 1, data = '{}', updated_at = ? WHERE user_id = ? AND id = ?", [t, user.id, op.id]);
-            touched.add(prev.conversation_id);
+          const convId = prevMessages.get(op.id);
+          if (convId) {
+            stmts.push({ sql: "UPDATE messages SET deleted = 1, data = '{}', updated_at = ? WHERE user_id = ? AND id = ?", params: [t, user.id, op.id] });
+            touched.add(convId);
           }
         } else {
           const data = (op.data ?? {}) as { conversationId?: string; createdAt?: number };
           if (typeof data.conversationId !== 'string') fail(400, 'Message requires conversationId');
-          await db.run(
-            `INSERT INTO messages (user_id, id, conversation_id, data, created_at, updated_at, deleted) VALUES (?, ?, ?, ?, ?, ?, 0)
-             ON CONFLICT(user_id, id) DO UPDATE SET conversation_id = excluded.conversation_id, data = excluded.data,
-             created_at = excluded.created_at, updated_at = excluded.updated_at, deleted = 0`,
-            [user.id, op.id, data.conversationId, JSON.stringify(data), Number(data.createdAt) || t, t],
-          );
+          stmts.push({
+            sql: `INSERT INTO messages (user_id, id, conversation_id, data, created_at, updated_at, deleted) VALUES (?, ?, ?, ?, ?, ?, 0)
+                  ON CONFLICT(user_id, id) DO UPDATE SET conversation_id = excluded.conversation_id, data = excluded.data,
+                  created_at = excluded.created_at, updated_at = excluded.updated_at, deleted = 0`,
+            params: [user.id, op.id, data.conversationId, encoded.get(op)!, Number(data.createdAt) || t, t],
+          });
           touched.add(data.conversationId);
         }
         results.push({ kind: 'message', id: op.id, updatedAt: t });
         continue;
       }
 
-      if (!ENTITY_KINDS.includes(op.kind)) fail(400, `Unknown kind: ${String(op.kind)}`);
-      const stmts: Statement[] = [];
-      let data: Record<string, unknown> = op.deleted ? {} : { ...((op.data ?? {}) as Record<string, unknown>) };
-
+      let json = op.deleted ? '{}' : encoded.get(op)!;
       if (op.kind === 'provider') {
         if (op.deleted) {
           stmts.push({ sql: 'DELETE FROM secrets WHERE user_id = ? AND provider_id = ?', params: [user.id, op.id] });
         } else {
-          data = await prepareProvider(db, user, op.id, data as unknown as ProviderData, secret, stmts, t);
+          const prepared = await prepareProvider(user, op.id, op.data as ProviderData, prevProviders.get(op.id) ?? null, secret, stmts, t);
+          json = JSON.stringify(prepared);
         }
       }
       if (op.kind === 'conversation' && op.deleted) {
         stmts.push({ sql: 'DELETE FROM messages WHERE user_id = ? AND conversation_id = ?', params: [user.id, op.id] });
+        deletedConversations.add(op.id);
       }
       stmts.push({
         sql: `INSERT INTO entities (user_id, kind, id, data, updated_at, deleted) VALUES (?, ?, ?, ?, ?, ?)
               ON CONFLICT(user_id, kind, id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at, deleted = excluded.deleted`,
-        params: [user.id, op.kind, op.id, JSON.stringify(data), t, op.deleted ? 1 : 0],
+        params: [user.id, op.kind, op.id, json, t, op.deleted ? 1 : 0],
       });
-      await db.batch(stmts);
       if (op.kind === 'conversation') touched.delete(op.id);
       results.push({ kind: op.kind, id: op.id, updatedAt: t });
     }
 
     // Bump conversations whose messages changed so other devices know to refetch them.
     for (const convId of touched) {
-      await db.run("UPDATE entities SET updated_at = ? WHERE user_id = ? AND kind = 'conversation' AND id = ? AND deleted = 0", [
-        now(),
-        user.id,
-        convId,
-      ]);
+      if (deletedConversations.has(convId)) continue;
+      stmts.push({
+        sql: "UPDATE entities SET updated_at = ? WHERE user_id = ? AND kind = 'conversation' AND id = ? AND deleted = 0",
+        params: [now(), user.id, convId],
+      });
     }
+    await db.batch(stmts);
     return c.json({ now: now(), results });
   });
 
   /** Moves the write-only apiKey field into the encrypted secrets table. */
   async function prepareProvider(
-    db: DB,
     user: UserRow,
     id: string,
     data: ProviderData,
+    prev: ProviderData | null,
     secret: string,
     stmts: Statement[],
     t: number,
-  ): Promise<Record<string, unknown>> {
+  ): Promise<ProviderData> {
     const out: ProviderData = { ...data };
     if (typeof out.baseUrl === 'string' && out.baseUrl) {
       let url: URL;
@@ -532,16 +579,11 @@ export function createApp(opts: AppOptions) {
         delete out.keyHint;
       }
     } else {
-      const prev = await db.first<{ data: string }>("SELECT data FROM entities WHERE user_id = ? AND kind = 'provider' AND id = ?", [
-        user.id,
-        id,
-      ]);
-      const p = parseJson<ProviderData | null>(prev?.data, null);
-      out.hasKey = !!p?.hasKey;
-      if (p?.keyHint) out.keyHint = p.keyHint;
+      out.hasKey = !!prev?.hasKey;
+      if (prev?.keyHint) out.keyHint = prev.keyHint;
       else delete out.keyHint;
     }
-    return out as unknown as Record<string, unknown>;
+    return out;
   }
 
   async function loadProvider(c: Context<AppEnv>, id: string) {

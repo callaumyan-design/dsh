@@ -50,7 +50,10 @@ export function MessageList({ messages, streamingId, conversationId }: { message
       <div ref={ref} onScroll={onScroll} className="h-full overflow-y-auto overscroll-contain">
         <div className="mx-auto w-full max-w-3xl space-y-6 px-4 pt-4 pb-8 sm:px-6">
           {messages.map((m, i) => (
-            <MessageItem key={m.id} m={m} streaming={m.id === streamingId} isLast={i === messages.length - 1} />
+            // Off-screen older messages skip layout/paint, keeping long chats fast.
+            <div key={m.id} style={i < messages.length - 6 ? { contentVisibility: 'auto', containIntrinsicSize: 'auto 240px' } : undefined}>
+              <MessageItem m={m} streaming={m.id === streamingId} isLast={i === messages.length - 1} />
+            </div>
           ))}
         </div>
       </div>

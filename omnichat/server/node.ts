@@ -77,6 +77,7 @@ const app = createApp({
     }
   },
   fetch: upstreamFetch,
+  limits: () => ({ maxOps: 500, maxRecordBytes: 48 * 1024 * 1024 }),
 });
 
 const staticDir = env.STATIC_DIR

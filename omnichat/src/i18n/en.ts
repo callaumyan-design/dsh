@@ -108,6 +108,7 @@ export const en: Record<keyof typeof zh, string> = {
   'composer.disclaimer': 'AI can make mistakes. Check important information.',
   'composer.dropHere': 'Drop files to attach',
   'composer.tooLarge': '{name} is too large (limit {size})',
+  'composer.totalTooLarge': 'Attachments exceed what one message can sync ({size})',
   'composer.unsupported': 'Unsupported file type: {name}',
 
   'msg.thinking': 'Thinking…',

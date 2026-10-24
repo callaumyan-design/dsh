@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Upload } from 'lucide-react';
+import { Loader2, Upload } from 'lucide-react';
 import { addFiles } from '@/store/composer';
 import { useChat } from '@/store/chat';
 import { loadMessages, useData } from '@/store/data';
@@ -62,8 +62,10 @@ export function ChatView() {
         <ChatHeader conversationId={conv ? conv.id : null} />
         {conv ? (
           <>
-            {messages.length === 0 && loaded ? (
-              <div className="flex flex-1 items-center justify-center px-6 text-center text-sm text-fg-subtle">{t('chat.empty')}</div>
+            {messages.length === 0 ? (
+              <div className="flex flex-1 items-center justify-center px-6 text-center text-sm text-fg-subtle">
+                {loaded ? t('chat.empty') : <Loader2 className="size-5 animate-spin" />}
+              </div>
             ) : (
               <MessageList messages={messages} streamingId={streamingId} conversationId={conv.id} />
             )}

@@ -97,9 +97,14 @@ export function readFileAsText(file: Blob): Promise<string> {
 }
 
 /** Downscales large images so they sync quickly and fit provider limits. */
-export async function compressImage(file: File, maxSide = 2048, quality = 0.88): Promise<{ dataUrl: string; mime: string; size: number }> {
+export async function compressImage(
+  file: File,
+  maxSide = 2048,
+  quality = 0.88,
+  forceJpeg = false,
+): Promise<{ dataUrl: string; mime: string; size: number }> {
   const original = await readFileAsDataURL(file);
-  if (file.type === 'image/gif' || file.type === 'image/svg+xml') return { dataUrl: original, mime: file.type, size: file.size };
+  if (!forceJpeg && (file.type === 'image/gif' || file.type === 'image/svg+xml')) return { dataUrl: original, mime: file.type, size: file.size };
   try {
     const img = await new Promise<HTMLImageElement>((resolve, reject) => {
       const i = new Image();
@@ -108,12 +113,12 @@ export async function compressImage(file: File, maxSide = 2048, quality = 0.88):
       i.src = original;
     });
     const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
-    if (scale === 1 && file.size < 1.5 * 1024 * 1024) return { dataUrl: original, mime: file.type, size: file.size };
+    if (!forceJpeg && scale === 1 && file.size < 1.5 * 1024 * 1024) return { dataUrl: original, mime: file.type, size: file.size };
     const canvas = document.createElement('canvas');
     canvas.width = Math.round(img.width * scale);
     canvas.height = Math.round(img.height * scale);
     const ctx = canvas.getContext('2d')!;
-    const mime = file.type === 'image/png' && file.size < 4 * 1024 * 1024 ? 'image/png' : 'image/jpeg';
+    const mime = !forceJpeg && file.type === 'image/png' && file.size < 4 * 1024 * 1024 ? 'image/png' : 'image/jpeg';
     if (mime === 'image/jpeg') {
       ctx.fillStyle = '#fff';
       ctx.fillRect(0, 0, canvas.width, canvas.height);

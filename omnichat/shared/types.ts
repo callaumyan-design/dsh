@@ -77,6 +77,8 @@ export interface AuthStatus {
   hasUsers: boolean;
   allowRegister: boolean;
   version: string;
+  /** Sync limits of this deployment (smaller on Cloudflare Workers + D1). */
+  limits?: { maxOps: number; maxRecordBytes: number };
 }
 
 export const APP_VERSION = '1.0.0';

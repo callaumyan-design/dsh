@@ -243,7 +243,10 @@ export async function generate(conversationId: string, regenerateId?: string) {
       const all2 = [...versions, snapshot(msg)];
       msg = { ...msg, versions: all2, versionIndex: all2.length - 1 };
     }
-    saveMessage(msg);
+    // The conversation (or this message) may have been deleted while streaming.
+    const stillExists =
+      !!useData.getState().conversations[conversationId] && getMessages(conversationId).some((m) => m.id === msg.id);
+    if (stillExists) saveMessage(msg);
     localLocks.delete(lockKey);
     useChat.setState((s) => {
       const streaming = { ...s.streaming };

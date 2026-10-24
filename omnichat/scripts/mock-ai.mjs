@@ -74,8 +74,8 @@ function lastUserText(messages) {
   const m = [...messages].reverse().find((x) => x.role === 'user');
   if (!m) return '';
   if (typeof m.content === 'string') return m.content;
-  if (Array.isArray(m.content)) return m.content.map((p) => p.text ?? '').join(' ');
-  if (Array.isArray(m.parts)) return m.parts.map((p) => p.text ?? '').join(' ');
+  if (Array.isArray(m.content)) return m.content.map((p) => p.text).filter(Boolean).join(' ');
+  if (Array.isArray(m.parts)) return m.parts.map((p) => p.text).filter(Boolean).join(' ');
   return '';
 }
 
@@ -122,7 +122,9 @@ const server = http.createServer(async (req, res) => {
     if (p === '/v1/models') return json(res, 200, { object: 'list', data: ['mock-gpt', 'mock-reasoner', 'mock-think-tag', 'mock-error'].map((id) => ({ id, object: 'model' })) });
     if (p === '/v1/chat/completions') {
       const body = await readBody(req);
-      log.push({ api: 'openai', body: { ...body, messages: body.messages?.length } });
+      const lastMsg = body.messages?.[body.messages.length - 1];
+      const images = Array.isArray(lastMsg?.content) ? lastMsg.content.filter((p) => p.type === 'image_url').length : 0;
+      log.push({ api: 'openai', images, body: { ...body, messages: body.messages?.length } });
       if (body.model === 'mock-error') return json(res, 400, { error: { message: 'This model is intentionally broken' } });
       const user = lastUserText(body.messages ?? []);
       const text = answerFor(user, body.model, 'Mock Chat Title');
