@@ -1,6 +1,7 @@
 import { anthropicChat, anthropicModels } from './anthropic';
 import { geminiChat, geminiModels } from './gemini';
 import { openaiChat, openaiModels } from './openai';
+import { responsesChat } from './responses';
 import type { ChatRequest, ChatResult } from './transport';
 import type { ModelInfo, Provider } from '../types';
 
@@ -14,7 +15,7 @@ export function streamChat(req: ChatRequest): Promise<ChatResult> {
     case 'gemini':
       return geminiChat(req);
     default:
-      return openaiChat(req);
+      return req.provider.useResponsesApi ? responsesChat(req) : openaiChat(req);
   }
 }
 

@@ -243,6 +243,43 @@ async function send(page, text) {
   await a.screenshot({ path: path.join(OUT, '10-web-search.png') });
   await a.locator('aside').getByText('E2E Main').click();
 
+  step('OpenAI Responses API: reasoning summary, web search, summary fallback');
+  await a.evaluate(async (mock) => {
+    await fetch('/api/sync/push', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${localStorage.getItem('omnichat.token')}` },
+      body: JSON.stringify({
+        ops: [
+          {
+            kind: 'provider',
+            id: 'responses-mock',
+            data: {
+              presetId: 'openai', name: 'OpenAI Responses Mock', type: 'openai', baseUrl: `${mock}/v1`, apiKey: 'sk-mock', useResponsesApi: true,
+              models: [{ id: 'gpt-5-mock' }, { id: 'gpt-5-nosummary' }], enabled: true, mode: 'proxy', createdAt: Date.now(),
+            },
+          },
+        ],
+      }),
+    });
+  }, MOCK);
+  await a.reload();
+  await a.waitForSelector('aside');
+  await a.getByRole('button', { name: '新对话' }).first().click();
+  await pickModel(a, 'gpt-5-mock');
+  await a.getByRole('button', { name: /联网/ }).click();
+  await send(a, 'Use the responses API');
+  await a.getByText('Hello from gpt-5-mock').waitFor({ timeout: 15000 });
+  await waitIdle(a);
+  await a.getByText(/已思考/).first().waitFor();
+  await a.getByText(/参考来源（2）/).waitFor();
+  ok('streamed text, reasoning summary and citations');
+  await pickModel(a, 'gpt-5-nosummary');
+  await send(a, 'Retry without summary');
+  await a.getByText('Hello from gpt-5-nosummary').waitFor({ timeout: 15000 });
+  await waitIdle(a);
+  ok('falls back when reasoning summaries are not allowed');
+  await a.locator('aside').getByText('E2E Main').click();
+
   step('Second device: sign in on a phone-sized browser and see the same history');
   await a.waitForTimeout(1500); // let the outbox flush
   const ctxB = await browser.newContext({ locale: 'en-US', viewport: { width: 390, height: 844 }, colorScheme: 'dark', isMobile: true, hasTouch: true });

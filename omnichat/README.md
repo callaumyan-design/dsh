@@ -16,6 +16,9 @@
 - 一键「获取模型」列表、「测试连接」，可自由启用/隐藏模型、收藏常用模型。
 - 推理模型支持：统一的「思考强度」设置，自动映射为各家参数（OpenAI `reasoning_effort`、Claude 自适应思考 / `budget_tokens`、Gemini `thinkingConfig`、通义 `enable_thinking`、GLM/豆包 `thinking`、OpenRouter `reasoning`）；思考过程可折叠显示，兼容 `reasoning_content` 字段与 `<think>` 标签。
 - 每个服务商可设置自定义请求头和「额外请求体」JSON，覆盖任何厂商特有参数（值为 `null` 可删除字段）。
+- **多模型同时回答**：一个问题同时发给最多 6 个模型（可跨服务商）并行生成，用标签页切换对比，选中的回答作为后续上下文。
+- **联网搜索**：一键开启服务商自带的搜索能力（Claude `web_search`、Gemini Google 搜索、通义 `enable_search`、智谱 `web_search`、OpenRouter web 插件、文心 / 混元搜索、OpenAI Responses `web_search`），回答下方列出参考来源。
+- OpenAI 可切换到 **Responses API**，获得推理摘要、内置联网搜索以及仅在该接口提供的模型。
 
 **多设备同步与数据保存**
 - 账户体系：首个注册用户为管理员，可开放/关闭注册、管理用户；每个账户数据隔离。
@@ -120,6 +123,11 @@ docker exec omnichat node dist/server/index.mjs reset-password admin 新密码
 - **浏览器直连**：浏览器直接请求服务商接口，需要服务商允许跨域（CORS）。适合：
   - 运行在**你自己电脑上**的 Ollama / LM Studio（服务器访问不到你电脑的 `localhost`）。Ollama 需设置环境变量 `OLLAMA_ORIGINS=*` 后重启；
   - 服务器所在地区无法访问、而你本机可以访问的接口。
+
+### 多模型对比与联网搜索
+
+- 输入框下方的「多模型」按钮可勾选额外的模型，之后每条消息都会由当前模型和这些模型同时回答；点击回答上方的模型标签切换查看。
+- 「联网」按钮只在当前服务商支持原生搜索时出现，开启后由服务商自行搜索并在回答下方给出来源链接。
 
 ### 思考强度
 

@@ -251,6 +251,8 @@ export const zh = {
   'provider.testAuto': '自动选择测试模型',
   'provider.testOk': '连接成功 · 首字 {ms}ms',
   'provider.advanced': '高级设置',
+  'provider.responsesApi': '使用 Responses API',
+  'provider.responsesApiHint': 'OpenAI 新接口（/responses）：支持推理摘要、内置联网搜索，以及仅在该接口提供的模型。仅 OpenAI / Azure 及兼容该接口的服务可用。',
   'provider.authStyle': '鉴权方式',
   'provider.authStyleHint': '密钥放在哪个请求头中，一般无需修改。',
   'provider.authDefault': '自动（按接口类型）',

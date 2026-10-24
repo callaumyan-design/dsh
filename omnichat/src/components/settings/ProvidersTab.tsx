@@ -95,6 +95,7 @@ function ProviderEditor({ provider, onDeleted, onBack }: { provider: Provider; o
   const [models, setModels] = useState<ModelInfo[]>(provider.models ?? []);
   const [headers, setHeaders] = useState(jsonText(provider.headers));
   const [extraBody, setExtraBody] = useState(jsonText(provider.extraBody));
+  const [useResponses, setUseResponses] = useState(!!provider.useResponsesApi);
   const [apiKey, setApiKey] = useState('');
   const [showKey, setShowKey] = useState(false);
   const [newModel, setNewModel] = useState('');
@@ -114,6 +115,7 @@ function ProviderEditor({ provider, onDeleted, onBack }: { provider: Provider; o
     JSON.stringify(models) !== JSON.stringify(provider.models ?? []) ||
     headers !== jsonText(provider.headers) ||
     extraBody !== jsonText(provider.extraBody) ||
+    useResponses !== !!provider.useResponsesApi ||
     apiKey !== '';
 
   const build = (): Provider | null => {
@@ -135,7 +137,9 @@ function ProviderEditor({ provider, onDeleted, onBack }: { provider: Provider; o
       models,
       headers: (parsedHeaders as Record<string, string>) ?? undefined,
       extraBody: parsedExtra ?? undefined,
+      useResponsesApi: useResponses || undefined,
     };
+    if (!p.useResponsesApi) delete p.useResponsesApi;
     if (!p.authStyle) delete p.authStyle;
     if (!p.headers) delete p.headers;
     if (!p.extraBody) delete p.extraBody;
@@ -206,7 +210,13 @@ function ProviderEditor({ provider, onDeleted, onBack }: { provider: Provider; o
   const shown = q ? models.filter((m) => m.id.toLowerCase().includes(q) || m.name?.toLowerCase().includes(q)) : models;
   const visibleCount = models.filter((m) => !m.hidden).length;
   const endpoint =
-    provider.type === 'anthropic' ? '/messages' : provider.type === 'gemini' ? '/models/{model}:streamGenerateContent' : '/chat/completions';
+    provider.type === 'anthropic'
+      ? '/messages'
+      : provider.type === 'gemini'
+        ? '/models/{model}:streamGenerateContent'
+        : useResponses
+          ? '/responses'
+          : '/chat/completions';
 
   return (
     <div className="flex h-full flex-col">
@@ -418,6 +428,15 @@ function ProviderEditor({ provider, onDeleted, onBack }: { provider: Provider; o
           </button>
           {advanced && (
             <div className="space-y-4 border-t border-line px-3 py-3">
+              {provider.type === 'openai' && (
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <div className="text-sm font-medium">{t('provider.responsesApi')}</div>
+                    <div className="mt-0.5 text-xs leading-relaxed text-fg-subtle">{t('provider.responsesApiHint')}</div>
+                  </div>
+                  <Switch checked={useResponses} onChange={setUseResponses} label={t('provider.responsesApi')} />
+                </div>
+              )}
               <Field label={t('provider.authStyle')} hint={t('provider.authStyleHint')}>
                 <Select value={authStyle} onChange={(e) => setAuthStyle(e.target.value as AuthStyle | '')}>
                   <option value="">{t('provider.authDefault')}</option>

@@ -136,6 +136,40 @@ const server = http.createServer(async (req, res) => {
   if (p.startsWith('/v1/')) {
     if (req.headers.authorization !== 'Bearer sk-mock') return json(res, 401, { error: { message: 'Incorrect API key provided', type: 'invalid_request_error' } });
     if (p === '/v1/models') return json(res, 200, { object: 'list', data: ['mock-gpt', 'mock-reasoner', 'mock-think-tag', 'mock-error'].map((id) => ({ id, object: 'model' })) });
+    if (p === '/v1/responses') {
+      const body = await readBody(req);
+      log.push({ api: 'responses', search: (body.tools ?? []).some((t) => t.type === 'web_search'), reasoning: body.reasoning, model: body.model });
+      if (body.reasoning?.summary && /nosummary/.test(body.model)) {
+        return json(res, 400, { error: { message: 'Your organization must be verified to generate reasoning summaries.' } });
+      }
+      const input = body.input ?? [];
+      const last = [...input].reverse().find((m) => m.role === 'user');
+      const user = typeof last?.content === 'string' ? last.content : (last?.content ?? []).map((c) => c.text).filter(Boolean).join(' ');
+      const text = answerFor(user, body.model, 'Responses Title');
+      sse(res);
+      const ev = (type, data = {}) => res.write(`event: ${type}\ndata: ${JSON.stringify({ type, ...data })}\n\n`);
+      ev('response.created', { response: { id: 'resp_1', status: 'in_progress' } });
+      if (body.reasoning?.summary) {
+        ev('response.reasoning_summary_part.added', {});
+        for (const c of chunks('**Planning** I will answer the greeting concisely.', 8)) {
+          ev('response.reasoning_summary_text.delta', { delta: c });
+          await sleep(10);
+        }
+      }
+      if ((body.tools ?? []).some((t) => t.type === 'web_search')) {
+        ev('response.output_item.added', { item: { type: 'web_search_call', action: { query: user } } });
+      }
+      for (const c of chunks(text)) {
+        if (res.destroyed) return;
+        ev('response.output_text.delta', { delta: c });
+        await sleep(10);
+      }
+      if ((body.tools ?? []).some((t) => t.type === 'web_search')) {
+        for (const r of SEARCH_RESULTS) ev('response.output_text.annotation.added', { annotation: { type: 'url_citation', ...r } });
+      }
+      ev('response.completed', { response: { status: 'completed', usage: { input_tokens: 21, output_tokens: 77, output_tokens_details: { reasoning_tokens: 12 } } } });
+      return res.end();
+    }
     if (p === '/v1/chat/completions') {
       const body = await readBody(req);
       const lastMsg = body.messages?.[body.messages.length - 1];

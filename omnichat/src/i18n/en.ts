@@ -253,6 +253,8 @@ export const en: Record<keyof typeof zh, string> = {
   'provider.testAuto': 'Pick a model automatically',
   'provider.testOk': 'Connected · first token in {ms}ms',
   'provider.advanced': 'Advanced',
+  'provider.responsesApi': 'Use the Responses API',
+  'provider.responsesApiHint': 'OpenAI’s newer endpoint (/responses): reasoning summaries, built-in web search, and models only offered there. OpenAI, Azure and compatible services only.',
   'provider.authStyle': 'Auth header',
   'provider.authStyleHint': 'Which header carries the key. Rarely needs changing.',
   'provider.authDefault': 'Automatic (by API type)',
