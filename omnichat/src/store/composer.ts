@@ -4,10 +4,13 @@ import { compressImage, formatBytes, isTextFile, readFileAsDataURL, readFileAsTe
 import type { Attachment } from '@/lib/types';
 import { getSyncLimits } from '@/lib/sync';
 import { toast, useUI } from './ui';
+import type { ModelRef } from './chat';
 
 interface Draft {
   text: string;
   attachments: Attachment[];
+  /** Extra models that answer each message alongside the conversation's model. */
+  compare?: ModelRef[];
 }
 
 interface ComposerState {

@@ -24,9 +24,10 @@ export function ChatView() {
   const chatSettingsOpen = useUI((s) => s.chatSettingsOpen);
   const [dragging, setDragging] = useState(false);
 
+  // Wait for the sync engine to be initialized (hydrated) before loading.
   useEffect(() => {
-    if (activeId) void loadMessages(activeId);
-  }, [activeId]);
+    if (activeId && hydrated) void loadMessages(activeId);
+  }, [activeId, hydrated]);
 
   // A conversation link that no longer exists (deleted elsewhere) falls back to a new chat.
   useEffect(() => {

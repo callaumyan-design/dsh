@@ -178,6 +178,28 @@ async function send(page, text) {
   await a.getByText('Imported from ChatGPT').click();
   await a.getByText('About 8,849 metres.').waitFor({ timeout: 15000 });
   ok('ChatGPT export imported and readable');
+
+  step('Multi-model: one question answered by three models in parallel');
+  await a.getByRole('button', { name: '新对话' }).first().click();
+  await pickModel(a, 'mock-gpt');
+  await a.getByRole('button', { name: '多模型同时回答' }).click();
+  await a.locator('label').filter({ hasText: 'Claude Mock' }).locator('input').check();
+  await a.locator('label').filter({ hasText: 'Gemini Mock' }).locator('input').check();
+  await a.keyboard.press('Escape');
+  await a.getByText('同时询问').waitFor();
+  await send(a, 'Compare yourselves');
+  await waitIdle(a);
+  const tabs = a.locator('[data-model-tabs] button');
+  if ((await tabs.count()) !== 3) throw new Error(`expected 3 model tabs, got ${await tabs.count()}`);
+  await a.getByText('Hello from mock-gpt! You said: "Compare yourselves"').waitFor();
+  await tabs.filter({ hasText: 'claude-mock-5-5' }).click();
+  await a.getByText('Hello from claude-mock-5-5! You said: "Compare yourselves"').waitFor();
+  await a.screenshot({ path: path.join(OUT, '09-multi-model.png') });
+  ok('three answers streamed; tabs switch between them');
+  await a.reload();
+  await a.locator('[data-model-tabs] button').first().waitFor({ timeout: 15000 });
+  await a.getByText('Hello from claude-mock-5-5! You said: "Compare yourselves"').waitFor({ timeout: 15000 });
+  ok('selected answer and tabs persist after reload');
   await a.getByText('Mock Chat Title').click();
 
   step('Second device: sign in on a phone-sized browser and see the same history');

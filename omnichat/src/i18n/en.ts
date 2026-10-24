@@ -93,6 +93,10 @@ export const en: Record<keyof typeof zh, string> = {
   'effort.xhigh': 'Extra high',
   'effort.max': 'Max',
 
+  'compare.title': 'Ask several models',
+  'compare.desc': 'Ticked models answer every message in parallel with the current one. Switch between answers with the tabs; the selected answer is used as context.',
+  'compare.clear': 'Stop comparing',
+  'compare.alsoAsk': 'Also ask',
   'code.preview': 'Preview',
   'code.wrap': 'Wrap lines',
   'code.source': 'Source',

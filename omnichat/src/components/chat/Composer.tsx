@@ -6,6 +6,7 @@ import { addFiles, clearDraft, draftKey, getDraft, setDraft, useComposer } from 
 import { sendMessage, stopGeneration, useChat } from '@/store/chat';
 import { useData } from '@/store/data';
 import { useUI } from '@/store/ui';
+import { CompareButton, CompareChips } from './CompareButton';
 import { useT } from '@/i18n';
 
 export function Composer({ compact }: { compact?: boolean }) {
@@ -18,6 +19,7 @@ export function Composer({ compact }: { compact?: boolean }) {
   const streaming = useChat((s) => (activeId ? !!s.streaming[activeId] : false));
   const text = draft?.text ?? '';
   const attachments = draft?.attachments ?? [];
+  const compare = draft?.compare ?? [];
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const composing = useRef(false);
@@ -46,8 +48,10 @@ export function Composer({ compact }: { compact?: boolean }) {
     if (!canSend || streaming) return;
     const d = getDraft(key);
     clearDraft(key);
-    const ok = await sendMessage(d.text.trim(), d.attachments);
+    const ok = await sendMessage(d.text.trim(), d.attachments, d.compare);
     if (!ok) setDraft(key, d);
+    // Keep comparing in the (possibly new) conversation until the user clears it.
+    else if (d.compare?.length) setDraft(draftKey(useUI.getState().activeId), { compare: d.compare });
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -77,6 +81,7 @@ export function Composer({ compact }: { compact?: boolean }) {
   return (
     <div className={cn('mx-auto w-full max-w-3xl px-3 sm:px-6', compact ? 'pb-0' : 'safe-bottom pb-3')}>
       <div className="rounded-3xl border border-line bg-elevated shadow-pop transition-colors focus-within:border-line-strong">
+        <CompareChips value={compare} onChange={(v) => setDraft(key, { compare: v })} />
         {attachments.length > 0 && (
           <div className="flex flex-wrap gap-2 px-3 pt-3">
             {attachments.map((a) => (
@@ -149,6 +154,7 @@ export function Composer({ compact }: { compact?: boolean }) {
           >
             <ImageIcon />
           </IconButton>
+          <CompareButton value={compare} onChange={(v) => setDraft(key, { compare: v })} />
           <div className="ml-auto flex items-center gap-2">
             <span className="hidden text-[11px] text-fg-subtle sm:inline">
               {sendKey === 'enter' ? t('composer.hintEnter') : t('composer.hintModEnter')}

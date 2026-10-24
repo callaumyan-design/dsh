@@ -44,9 +44,10 @@ export function getSyncLimits() {
 }
 const keyOf = (op: { kind: string; id: string }) => `${op.kind}:${op.id}`;
 
-const persistOutbox = debounce(() => {
+function persistOutboxNow() {
   void idb.put('meta', [...outbox.values()].map((v) => v.op), 'outbox');
-}, 250);
+}
+const persistOutbox = debounce(persistOutboxNow, 250);
 const persistCursors = debounce(() => {
   void idb.put('meta', cursor, 'cursor');
   void idb.put('meta', msgCursors, 'msgCursors');
@@ -223,8 +224,13 @@ const onVisible = () => {
   if (document.visibilityState === 'visible') {
     void pull();
     void flush();
+  } else {
+    // The page may be closed or frozen next: save pending changes and try to send them now.
+    persistOutboxNow();
+    void flush();
   }
 };
+const onPageHide = () => persistOutboxNow();
 const onOnline = () => {
   retryDelay = 1000;
   void flush();
@@ -239,6 +245,7 @@ export function startAutoSync() {
   document.addEventListener('visibilitychange', onVisible);
   window.addEventListener('focus', onVisible);
   window.addEventListener('online', onOnline);
+  window.addEventListener('pagehide', onPageHide);
   void flush();
 }
 
@@ -248,6 +255,7 @@ export function stopAutoSync() {
   document.removeEventListener('visibilitychange', onVisible);
   window.removeEventListener('focus', onVisible);
   window.removeEventListener('online', onOnline);
+  window.removeEventListener('pagehide', onPageHide);
 }
 
 /** Signs out locally: stops syncing and wipes the cache. */

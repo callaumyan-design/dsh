@@ -16,12 +16,13 @@ import {
   Trash2,
   Volume2,
   File as FileIcon,
+  Loader2,
 } from 'lucide-react';
 import { Button, Dropdown, IconButton, MenuDivider, MenuItem, Modal, Textarea } from '@/components/ui/primitives';
 import { ProviderAvatar } from '@/components/ui/ProviderAvatar';
 import { cn, copyText, formatBytes, formatDuration, formatNumber } from '@/lib/utils';
 import type { Attachment, Message } from '@/lib/types';
-import { deleteMessage, editMessage, forkConversation, regenerate, retryLast, switchVersion } from '@/store/chat';
+import { deleteMessage, editMessage, forkConversation, regenerate, retryLast, selectVersionLocal, switchVersion } from '@/store/chat';
 import { useData } from '@/store/data';
 import { confirmDialog, toast } from '@/store/ui';
 import { useT } from '@/i18n';
@@ -229,8 +230,11 @@ function AssistantMessage({ m, streaming, isLast }: { m: Message; streaming: boo
   const t = useT();
   const provider = useData((s) => (m.providerId ? s.providers[m.providerId] : undefined));
   const showUsage = useData((s) => s.settings.showUsage);
+  const providers = useData((s) => s.providers);
   const versions = m.versions?.length ?? 0;
   const vi = m.versionIndex ?? versions - 1;
+  // Versions from different models (multi-model answers) are shown as tabs.
+  const modelTabs = versions > 1 && new Set(m.versions!.map((v) => `${v.providerId}:${v.model}`)).size > 1;
   const notice = !streaming ? finishNotice(m.finishReason, t) : null;
   const reasoningActive = streaming && !m.content;
   const u = m.usage;
@@ -251,6 +255,26 @@ function AssistantMessage({ m, streaming, isLast }: { m: Message; streaming: boo
             · {formatTime(m.createdAt)}
           </span>
         </div>
+        {modelTabs && (
+          <div className="mb-3 flex flex-wrap gap-1.5" data-model-tabs="">
+            {m.versions!.map((v, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => (streaming ? selectVersionLocal(m, i) : switchVersion(m, i))}
+                className={cn(
+                  'inline-flex max-w-[14rem] items-center gap-1.5 rounded-lg border px-2 py-1 text-xs transition-colors',
+                  i === vi ? 'border-accent bg-accent-soft text-accent' : 'border-line text-fg-muted hover:bg-muted hover:text-fg',
+                )}
+              >
+                <ProviderAvatar provider={v.providerId ? providers[v.providerId] : undefined} name={v.providerName ?? v.model ?? 'AI'} size="xs" />
+                <span className="truncate">{v.model}</span>
+                {v.status === 'streaming' && <Loader2 className="size-3 shrink-0 animate-spin" />}
+                {v.status === 'error' && <AlertTriangle className="size-3 shrink-0 text-danger" />}
+              </button>
+            ))}
+          </div>
+        )}
         {m.reasoning && <Reasoning text={m.reasoning} ms={m.reasoningMs} active={reasoningActive} />}
         {m.content ? (
           <div className={cn(streaming && 'streaming-tail')}>
@@ -286,7 +310,7 @@ function AssistantMessage({ m, streaming, isLast }: { m: Message; streaming: boo
               isLast ? 'opacity-100' : 'opacity-100 md:opacity-0 md:group-hover:opacity-100',
             )}
           >
-            {versions > 1 && (
+            {versions > 1 && !modelTabs && (
               <div className="mr-1 flex items-center text-xs text-fg-muted">
                 <IconButton size="sm" disabled={vi <= 0} onClick={() => switchVersion(m, vi - 1)} aria-label="previous">
                   <ChevronLeft />
