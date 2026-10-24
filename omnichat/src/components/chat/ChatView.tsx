@@ -10,6 +10,7 @@ import { ChatSettingsPanel } from './ChatSettingsPanel';
 import { Composer } from './Composer';
 import { MessageList } from './MessageList';
 import { Welcome } from './Welcome';
+import { preloadMarkdown } from './LazyMarkdown';
 
 const EMPTY: never[] = [];
 
@@ -23,6 +24,12 @@ export function ChatView() {
   const streamingId = useChat((s) => (activeId ? s.streaming[activeId]?.messageId : undefined));
   const chatSettingsOpen = useUI((s) => s.chatSettingsOpen);
   const [dragging, setDragging] = useState(false);
+
+  useEffect(() => {
+    // Warm the Markdown renderer while the user is looking at the welcome screen.
+    const id = setTimeout(preloadMarkdown, 300);
+    return () => clearTimeout(id);
+  }, []);
 
   // Wait for the sync engine to be initialized (hydrated) before loading.
   useEffect(() => {

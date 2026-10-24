@@ -27,7 +27,7 @@ import { deleteMessage, editMessage, forkConversation, regenerate, retryLast, se
 import { useData } from '@/store/data';
 import { confirmDialog, toast } from '@/store/ui';
 import { useT } from '@/i18n';
-import { Markdown } from './Markdown';
+import { Markdown } from './LazyMarkdown';
 
 function Reasoning({ text, ms, active }: { text: string; ms?: number; active: boolean }) {
   const t = useT();
