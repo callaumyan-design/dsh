@@ -66,6 +66,12 @@ export interface PushOp {
   id: string;
   data?: unknown;
   deleted?: boolean;
+  /**
+   * Field-level update: `data` is shallow-merged into the stored record (a null value removes the field),
+   * so concurrent edits of different fields on different devices don't overwrite each other.
+   * A patch never re-creates a record that was deleted elsewhere.
+   */
+  patch?: boolean;
 }
 
 export interface PublicUser {

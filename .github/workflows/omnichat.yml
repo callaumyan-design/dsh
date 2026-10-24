@@ -27,11 +27,16 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run build
+      - name: API tests
+        run: |
+          node scripts/mock-ai.mjs 3199 &
+          DATA_DIR="$RUNNER_TEMP/api-data" PORT=3101 npm start &
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:3101/api/health && break; sleep 1; done
+          node scripts/api-test.mjs http://127.0.0.1:3101 http://127.0.0.1:3199
       - name: End-to-end test against mock providers
         run: |
           npm install --no-save playwright
           npx playwright install --with-deps chromium
-          node scripts/mock-ai.mjs 3199 &
           DATA_DIR="$RUNNER_TEMP/omnichat-data" PORT=3100 npm start &
           for i in $(seq 1 30); do curl -sf http://127.0.0.1:3100/api/health && break; sleep 1; done
           node scripts/e2e.cjs http://127.0.0.1:3100 http://127.0.0.1:3199 "$RUNNER_TEMP/screenshots"

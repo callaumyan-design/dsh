@@ -367,7 +367,8 @@ export function createApp(opts: AppOptions) {
     const { password } = validateCredentials(target.username, body.password);
     await db.batch([
       { sql: 'UPDATE users SET password_hash = ? WHERE id = ?', params: [await hashPassword(password, opts.passwordIterations(c)), id] },
-      { sql: 'DELETE FROM sessions WHERE user_id = ?', params: [id] },
+      // Sign the user out everywhere (except this very session, when admins reset their own password).
+      { sql: 'DELETE FROM sessions WHERE user_id = ? AND id != ?', params: [id, c.get('sessionId')] },
     ]);
     return c.json({ ok: true });
   });
@@ -464,18 +465,29 @@ export function createApp(opts: AppOptions) {
     }
 
     const deletedMessageIds = ops.filter((o) => o.kind === 'message' && o.deleted).map((o) => o.id);
-    const keepKeyProviderIds = ops
-      .filter((o) => o.kind === 'provider' && !o.deleted && !('apiKey' in ((o.data ?? {}) as object)))
-      .map((o) => o.id);
     const prevMessages = new Map(
       (
         await selectIn<{ id: string; conversation_id: string }>(db, 'SELECT id, conversation_id FROM messages WHERE user_id = ? AND id IN', user.id, deletedMessageIds)
       ).map((r) => [r.id, r.conversation_id]),
     );
-    const prevProviders = new Map(
+    // Current rows of the touched entities (and of the conversations new messages belong to):
+    // needed to merge patches, keep provider keys, and avoid resurrecting records deleted elsewhere.
+    const lookupIds = new Set<string>();
+    for (const o of ops) {
+      if (o.kind !== 'message') lookupIds.add(o.id);
+      else if (!o.deleted && typeof (o.data as { conversationId?: unknown })?.conversationId === 'string') {
+        lookupIds.add((o.data as { conversationId: string }).conversationId);
+      }
+    }
+    const existing = new Map(
       (
-        await selectIn<{ id: string; data: string }>(db, "SELECT id, data FROM entities WHERE user_id = ? AND kind = 'provider' AND id IN", user.id, keepKeyProviderIds)
-      ).map((r) => [r.id, parseJson<ProviderData | null>(r.data, null)]),
+        await selectIn<{ kind: string; id: string; data: string; deleted: number }>(
+          db,
+          'SELECT kind, id, data, deleted FROM entities WHERE user_id = ? AND id IN',
+          user.id,
+          [...lookupIds],
+        )
+      ).map((r) => [`${r.kind}:${r.id}`, r]),
     );
 
     const secret = await getSecret(c, db);
@@ -496,6 +508,11 @@ export function createApp(opts: AppOptions) {
         } else {
           const data = (op.data ?? {}) as { conversationId?: string; createdAt?: number };
           if (typeof data.conversationId !== 'string') fail(400, 'Message requires conversationId');
+          // Don't attach messages to a conversation that another device deleted.
+          if (existing.get(`conversation:${data.conversationId}`)?.deleted) {
+            results.push({ kind: 'message', id: op.id, updatedAt: t });
+            continue;
+          }
           stmts.push({
             sql: `INSERT INTO messages (user_id, id, conversation_id, data, created_at, updated_at, deleted) VALUES (?, ?, ?, ?, ?, ?, 0)
                   ON CONFLICT(user_id, id) DO UPDATE SET conversation_id = excluded.conversation_id, data = excluded.data,
@@ -508,15 +525,33 @@ export function createApp(opts: AppOptions) {
         continue;
       }
 
+      const key = `${op.kind}:${op.id}`;
+      const prev = existing.get(key);
       let json = op.deleted ? '{}' : encoded.get(op)!;
+      if (!op.deleted && op.patch) {
+        if (prev?.deleted) {
+          // A partial update must not bring back a record deleted on another device.
+          results.push({ kind: op.kind, id: op.id, updatedAt: t });
+          continue;
+        }
+        const merged: Record<string, unknown> = prev ? parseJson<Record<string, unknown>>(prev.data, {}) : {};
+        for (const [k, v] of Object.entries((op.data ?? {}) as Record<string, unknown>)) {
+          if (v === null) delete merged[k];
+          else merged[k] = v;
+        }
+        json = JSON.stringify(merged);
+        if (json.length > limits.maxRecordBytes) fail(413, 'Item too large to sync');
+      }
       if (op.kind === 'provider') {
         if (op.deleted) {
           stmts.push({ sql: 'DELETE FROM secrets WHERE user_id = ? AND provider_id = ?', params: [user.id, op.id] });
         } else {
-          const prepared = await prepareProvider(user, op.id, op.data as ProviderData, prevProviders.get(op.id) ?? null, secret, stmts, t);
+          const prevData = prev && !prev.deleted ? parseJson<ProviderData | null>(prev.data, null) : null;
+          const prepared = await prepareProvider(user, op.id, JSON.parse(json) as ProviderData, prevData, secret, stmts, t);
           json = JSON.stringify(prepared);
         }
       }
+      existing.set(key, { kind: op.kind, id: op.id, data: json, deleted: op.deleted ? 1 : 0 });
       if (op.kind === 'conversation' && op.deleted) {
         stmts.push({ sql: 'DELETE FROM messages WHERE user_id = ? AND conversation_id = ?', params: [user.id, op.id] });
         deletedConversations.add(op.id);

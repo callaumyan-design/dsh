@@ -13,7 +13,9 @@ export function ChatHeader({ conversationId }: { conversationId: string | null }
   const chatSettingsOpen = useUI((s) => s.chatSettingsOpen);
   const draft = useUI((s) => s.draft);
   const conv = useData((s) => (conversationId ? s.conversations[conversationId] : undefined));
-  useData((s) => s.providers); // re-render when providers change so the fallback below stays current
+  // Re-render when providers or the default model change so the fallback below stays current.
+  useData((s) => s.providers);
+  useData((s) => s.settings.defaultModel);
   const fallback = !conv && !draft.model ? resolveTarget() : null;
   const value = conv
     ? { providerId: conv.providerId, model: conv.model }

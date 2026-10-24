@@ -269,10 +269,20 @@ export function saveConversation(c: Conversation) {
   saveEntity('conversation', c);
 }
 
+/** For patches: undefined becomes null so the server removes the field. */
+function patchData(patch: Record<string, unknown>) {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(patch)) if (k !== 'syncedAt' && k !== 'id') out[k] = v === undefined ? null : v;
+  return out;
+}
+
 export function updateConversation(id: string, patch: Partial<Conversation>) {
   const c = get().conversations[id];
   if (!c) return;
-  saveEntity('conversation', { ...c, ...patch });
+  const next = { ...c, ...patch };
+  set((s) => ({ conversations: { ...s.conversations, [id]: next } }));
+  void idb.put('entities', { key: `conversation:${id}`, kind: 'conversation', id, data: next });
+  enqueue({ kind: 'conversation', id, data: patchData(patch), patch: true });
 }
 
 export function removeConversation(id: string) {
@@ -295,7 +305,7 @@ export function updateSettings(patch: Partial<Settings>) {
   const settings = { ...get().settings, ...patch };
   set({ settings });
   void idb.put('entities', { key: `settings:${SETTINGS_ID}`, kind: 'settings', id: SETTINGS_ID, data: settings });
-  enqueue({ kind: 'settings', id: SETTINGS_ID, data: strip(settings) });
+  enqueue({ kind: 'settings', id: SETTINGS_ID, data: patchData(patch), patch: true });
 }
 
 // ---------- Messages ----------

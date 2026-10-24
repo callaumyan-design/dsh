@@ -75,7 +75,12 @@ export function hasPending(key: string) {
 }
 
 export function enqueue(op: PushOp) {
-  outbox.set(keyOf(op), { op, seq: ++seq });
+  const key = keyOf(op);
+  const prev = outbox.get(key)?.op;
+  let next = op;
+  // Fold a patch into a pending change of the same record (a full write stays a full write).
+  if (op.patch && prev && !prev.deleted) next = { ...prev, data: { ...(prev.data as object), ...(op.data as object) } };
+  outbox.set(key, { op: next, seq: ++seq });
   persistOutbox();
   if (flushTimer) clearTimeout(flushTimer);
   flushTimer = setTimeout(() => void flush(), 400);

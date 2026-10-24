@@ -85,12 +85,11 @@ const staticDir = env.STATIC_DIR
   : fileURLToPath(new URL('../client', import.meta.url));
 
 if (fs.existsSync(path.join(staticDir, 'index.html'))) {
-  const rel = path.relative(process.cwd(), staticDir) || '.';
   const indexHtml = fs.readFileSync(path.join(staticDir, 'index.html'), 'utf8');
   app.use(
     '/*',
     serveStatic({
-      root: rel,
+      root: staticDir,
       onFound: (p, c) => {
         if (/[\\/]assets[\\/]/.test(p)) c.header('Cache-Control', 'public, max-age=31536000, immutable');
         else c.header('Cache-Control', 'no-cache');
