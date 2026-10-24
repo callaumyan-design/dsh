@@ -150,6 +150,26 @@ export function stopGeneration(conversationId: string) {
   useChat.getState().streaming[conversationId]?.controller.abort();
 }
 
+/** Fills {{date}}, {{time}}, {{datetime}}, {{weekday}}, {{model}}, {{provider}}, {{language}}, {{timezone}}. */
+export function renderPromptVars(text: string, target?: Target): string {
+  if (!text.includes('{{')) return text;
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const date = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  const time = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  const vars: Record<string, string> = {
+    date,
+    time,
+    datetime: `${date} ${time}`,
+    weekday: now.toLocaleDateString(navigator.language, { weekday: 'long' }),
+    model: target?.model ?? '',
+    provider: target?.provider.name ?? '',
+    language: navigator.language,
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  };
+  return text.replace(/\{\{\s*(\w+)\s*\}\}/g, (m, k: string) => vars[k.toLowerCase()] ?? m);
+}
+
 function buildContext(conv: Conversation, history: Message[]): ChatTurn[] {
   let context = history.filter((m) => m.status !== 'error' && m.status !== 'streaming' && (m.content.trim() || m.attachments?.length));
   const count = conv.params?.contextCount;
@@ -186,7 +206,7 @@ async function streamOne(
     const result = await streamChat({
       provider: target.provider,
       model: target.model,
-      system: conv.systemPrompt?.trim() || undefined,
+      system: renderPromptVars(conv.systemPrompt?.trim() ?? '', target) || undefined,
       messages: turns,
       params: { ...conv.params },
       signal,

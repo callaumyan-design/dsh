@@ -281,6 +281,8 @@ function AssistantMessage({ m, streaming, isLast }: { m: Message; streaming: boo
   const modelTabs = versions > 1 && new Set(m.versions!.map((v) => `${v.providerId}:${v.model}`)).size > 1;
   const notice = !streaming ? finishNotice(m.finishReason, t) : null;
   const reasoningActive = streaming && !m.content;
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
   const u = m.usage;
 
   return (
@@ -326,7 +328,33 @@ function AssistantMessage({ m, streaming, isLast }: { m: Message; streaming: boo
             {t('search.searching', { query: m.searching })}
           </div>
         )}
-        {m.content ? (
+        {editing ? (
+          <div className="rounded-2xl border border-line bg-bg p-2 shadow-sm">
+            <Textarea
+              autoFocus
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              rows={Math.min(18, Math.max(4, draft.split('\n').length))}
+              className="border-0 font-mono text-[13px] focus:ring-0"
+            />
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <span className="mr-auto pl-2 text-xs text-fg-subtle">{t('msg.editReplyHint')}</span>
+              <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>
+                {t('common.cancel')}
+              </Button>
+              <Button
+                size="sm"
+                variant="primary"
+                onClick={() => {
+                  void editMessage(m, draft, false);
+                  setEditing(false);
+                }}
+              >
+                {t('common.save')}
+              </Button>
+            </div>
+          </div>
+        ) : m.content ? (
           <div className={cn(streaming && 'streaming-tail')}>
             <Markdown content={m.content} streaming={streaming} />
           </div>
@@ -389,6 +417,16 @@ function AssistantMessage({ m, streaming, isLast }: { m: Message; streaming: boo
             >
               {(close) => (
                 <>
+                  <MenuItem
+                    icon={<Pencil />}
+                    onClick={() => {
+                      close();
+                      setDraft(m.content);
+                      setEditing(true);
+                    }}
+                  >
+                    {t('common.edit')}
+                  </MenuItem>
                   <MenuItem
                     icon={<GitBranch />}
                     onClick={() => {

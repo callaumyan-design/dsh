@@ -97,6 +97,29 @@ check('oversized record rejected with 413', r.status === 413, r.status);
 r = await push([{ kind: 'nope', id: 'x', data: {} }]);
 check('unknown kind rejected', r.status === 400, r.status);
 
+console.log('▶ usage statistics');
+await push([
+  { kind: 'conversation', id: 'c-stats', data: { title: 'stats', createdAt: Date.now() } },
+  {
+    kind: 'message',
+    id: 'a-multi',
+    data: {
+      conversationId: 'c-stats', role: 'assistant', content: 'x', createdAt: Date.now(), model: 'm1', providerName: 'P', usage: { input: 10, output: 20 },
+      versions: [
+        { content: 'x', model: 'm1', providerName: 'P', usage: { input: 10, output: 20 }, status: 'done' },
+        { content: 'y', model: 'm2', providerName: 'Q', usage: { input: 1, output: 2 }, status: 'done' },
+      ],
+      versionIndex: 0,
+    },
+  },
+  { kind: 'message', id: 'a-single', data: { conversationId: 'c-stats', role: 'assistant', content: 'z', createdAt: Date.now(), model: 'm1', providerName: 'P', usage: { input: 5, output: 5 } } },
+]);
+r = await call(`/api/stats?days=7&tzOffset=${new Date().getTimezoneOffset()}`);
+const m1 = r.json?.rows?.filter((x) => x.model === 'm1').reduce((acc, x) => ({ requests: acc.requests + x.requests, input: acc.input + x.input, output: acc.output + x.output }), { requests: 0, input: 0, output: 0 });
+const m2 = r.json?.rows?.find((x) => x.model === 'm2');
+check('stats count every version once (m1: 2 requests, 15 in / 25 out)', m1?.requests === 2 && m1.input === 15 && m1.output === 25, m1);
+check('stats include the other model of a multi-model answer', m2?.requests === 1 && m2.input === 1 && m2.output === 2, m2);
+
 console.log('▶ search and export');
 r = await call('/api/search?q=y');
 check('search endpoint responds', Array.isArray(r.json?.results), r.json);

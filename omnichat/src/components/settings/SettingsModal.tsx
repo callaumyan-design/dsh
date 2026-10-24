@@ -1,4 +1,4 @@
-import { BookOpen, Boxes, Cpu, Database, Info, Palette, Shield, UserRound, X } from 'lucide-react';
+import { BarChart3, BookOpen, Boxes, Cpu, Database, Info, Palette, Shield, UserRound, X } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { IconButton, useEscape } from '@/components/ui/primitives';
 import { cn } from '@/lib/utils';
@@ -9,6 +9,7 @@ import { ProvidersTab } from './ProvidersTab';
 import { GeneralTab, ModelsTab } from './GeneralTabs';
 import { PromptsTab } from './PromptsTab';
 import { DataTab } from './DataTab';
+import { UsageTab } from './UsageTab';
 import { AboutTab, AccountTab, AdminTab } from './AccountTabs';
 
 export function SettingsModal() {
@@ -27,6 +28,7 @@ export function SettingsModal() {
     { id: 'models', label: t('settings.models'), icon: <Cpu /> },
     { id: 'general', label: t('settings.general'), icon: <Palette /> },
     { id: 'prompts', label: t('settings.prompts'), icon: <BookOpen /> },
+    { id: 'usage', label: t('settings.usage'), icon: <BarChart3 /> },
     { id: 'data', label: t('settings.data'), icon: <Database /> },
     { id: 'account', label: t('settings.account'), icon: <UserRound /> },
     ...(isAdmin ? [{ id: 'admin' as const, label: t('settings.admin'), icon: <Shield /> }] : []),
@@ -78,6 +80,7 @@ export function SettingsModal() {
             {active.id === 'models' && <ModelsTab />}
             {active.id === 'general' && <GeneralTab />}
             {active.id === 'prompts' && <PromptsTab />}
+            {active.id === 'usage' && <UsageTab />}
             {active.id === 'data' && <DataTab />}
             {active.id === 'account' && <AccountTab />}
             {active.id === 'admin' && isAdmin && <AdminTab />}

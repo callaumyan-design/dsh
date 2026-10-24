@@ -5,10 +5,11 @@ import { Sidebar } from '@/components/layout/Sidebar';
 import { Logo } from '@/components/layout/Logo';
 import { SettingsModal } from '@/components/settings/SettingsModal';
 import { Dialogs, Toasts } from '@/components/ui/overlays';
+import { hasOpenOverlay } from '@/components/ui/primitives';
 import { applyTheme, cachedTheme } from '@/lib/theme';
 import { initAuth, useAuth } from '@/store/auth';
 import { useData } from '@/store/data';
-import { useChat } from '@/store/chat';
+import { stopGeneration, useChat } from '@/store/chat';
 import { openConversation, openSettings, toast, useUI } from '@/store/ui';
 import { useLang, useT } from '@/i18n';
 
@@ -33,6 +34,15 @@ function useThemeSync() {
 function useShortcuts() {
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
+      // Escape stops generation when no overlay is open.
+      if (e.key === 'Escape' && !e.defaultPrevented && !hasOpenOverlay()) {
+        const id = useUI.getState().activeId;
+        if (id && useChat.getState().streaming[id]) {
+          e.preventDefault();
+          stopGeneration(id);
+        }
+        return;
+      }
       const mod = e.ctrlKey || e.metaKey;
       if (!mod) return;
       const k = e.key.toLowerCase();

@@ -193,6 +193,11 @@ export function Badge({ children, className }: { children: ReactNode; className?
 const escapeStack: (() => void)[] = [];
 let escapeInstalled = false;
 
+/** Whether a modal, popover or dialog is open (Escape belongs to it). */
+export function hasOpenOverlay() {
+  return escapeStack.length > 0;
+}
+
 export function useEscape(active: boolean, onEscape: () => void) {
   const cb = useRef(onEscape);
   cb.current = onEscape;
@@ -346,6 +351,7 @@ export function Popover({
   return createPortal(
     <div
       ref={ref}
+      data-popover=""
       style={{
         position: 'fixed',
         top: pos?.top ?? -9999,

@@ -280,6 +280,33 @@ async function send(page, text) {
   ok('falls back when reasoning summaries are not allowed');
   await a.locator('aside').getByText('E2E Main').click();
 
+  step('Esc stops generation; replies can be edited');
+  await pickModel(a, 'mock-reasoner');
+  await send(a, 'Stop me early');
+  await a.waitForSelector('[aria-label="停止生成"]');
+  await a.keyboard.press('Escape');
+  await a.getByText('已停止生成').last().waitFor({ timeout: 10000 });
+  ok('Escape stopped the stream');
+  await waitIdle(a);
+  const lastReply = a.locator('main .group').last();
+  await lastReply.hover();
+  await lastReply.getByRole('button', { name: '更多' }).click();
+  await a.locator('[data-popover]').getByRole('button', { name: '编辑', exact: true }).click();
+  await a.locator('main textarea').first().fill('Edited reply text');
+  await a.locator('main').getByRole('button', { name: '保存', exact: true }).click();
+  await a.getByText('Edited reply text').waitFor();
+  ok('assistant reply edited');
+
+  step('Usage statistics');
+  await a.keyboard.press('Control+,');
+  await a.getByRole('dialog').getByRole('button', { name: '用量统计' }).click();
+  await a.getByText('每日 Token 用量').waitFor();
+  await a.getByRole('dialog').locator('td').filter({ hasText: 'gpt-5-mock' }).first().waitFor({ timeout: 10000 });
+  const bars = await a.locator('.usage-viz path').count();
+  if (!bars) throw new Error('usage chart has no bars');
+  ok(`usage tab shows per-model totals and ${bars} bar segment(s)`);
+  await a.keyboard.press('Escape');
+
   step('Second device: sign in on a phone-sized browser and see the same history');
   await a.waitForTimeout(1500); // let the outbox flush
   const ctxB = await browser.newContext({ locale: 'en-US', viewport: { width: 390, height: 844 }, colorScheme: 'dark', isMobile: true, hasTouch: true });

@@ -1,6 +1,7 @@
 import { Hono, type Context } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { HTTPException } from 'hono/http-exception';
+import { secureHeaders } from 'hono/secure-headers';
 import type { DB, Statement } from './db';
 import { ensureSchema } from './db';
 import {
@@ -135,6 +136,9 @@ export function createApp(opts: AppOptions) {
     c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ||
     c.req.header('x-real-ip') ||
     'unknown';
+
+  // HSTS is left to the TLS-terminating proxy: on a shared domain it could break other subdomains.
+  app.use('*', secureHeaders({ strictTransportSecurity: false }));
 
   app.onError((err, c) => {
     if (err instanceof HTTPException) return c.json({ error: err.message }, err.status);
@@ -691,6 +695,30 @@ export function createApp(opts: AppOptions) {
     out.set('cache-control', 'no-cache, no-transform');
     out.set('x-accel-buffering', 'no');
     return new Response(upstream.body, { status: upstream.status, statusText: upstream.statusText, headers: out });
+  });
+
+  // ---------- Usage statistics ----------
+
+  // Tokens per model per local day. Every generated version counts (multi-model and regenerated answers cost too).
+  app.get('/api/stats', async (c) => {
+    const days = Math.min(366, Math.max(1, Math.round(Number(c.req.query('days')) || 30)));
+    const tzOffsetMs = Math.round(Number(c.req.query('tzOffset')) || 0) * 60_000;
+    const since = Date.now() - days * 86_400_000;
+    const rows = await c.get('db').all<{ model: string | null; provider: string | null; day: number; requests: number; input: number; output: number }>(
+      `SELECT json_extract(v.value, '$.model') AS model,
+              json_extract(v.value, '$.providerName') AS provider,
+              CAST((m.created_at - ?) / 86400000 AS INTEGER) AS day,
+              COUNT(*) AS requests,
+              SUM(COALESCE(json_extract(v.value, '$.usage.input'), 0)) AS input,
+              SUM(COALESCE(json_extract(v.value, '$.usage.output'), 0)) AS output
+       FROM messages m,
+            json_each(CASE WHEN json_type(m.data, '$.versions') = 'array' THEN json_extract(m.data, '$.versions') ELSE json_array(json(m.data)) END) v
+       WHERE m.user_id = ? AND m.deleted = 0 AND m.created_at >= ? AND json_extract(m.data, '$.role') = 'assistant'
+         AND COALESCE(json_extract(v.value, '$.status'), 'done') != 'streaming'
+       GROUP BY model, provider, day`,
+      [tzOffsetMs, c.get('user').id, since],
+    );
+    return c.json({ days, rows });
   });
 
   // ---------- Search ----------

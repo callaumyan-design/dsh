@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type SettingsTab = 'providers' | 'models' | 'general' | 'prompts' | 'data' | 'account' | 'admin' | 'about';
+export type SettingsTab = 'providers' | 'models' | 'general' | 'prompts' | 'usage' | 'data' | 'account' | 'admin' | 'about';
 
 export interface Toast {
   id: number;
