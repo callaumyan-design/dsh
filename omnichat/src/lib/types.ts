@@ -130,6 +130,8 @@ export interface Settings {
   showUsage: boolean;
   renderMarkdownForUser: boolean;
   favoriteModels: string[];
+  /** Shown instead of the login name (often an email address). Synced across devices. */
+  nickname?: string;
   syncedAt?: number;
 }
 

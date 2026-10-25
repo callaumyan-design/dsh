@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 import { useData } from '@/store/data';
 import { draftKey, setDraft } from '@/store/composer';
 import { openSettings, useUI } from '@/store/ui';
-import { useAuth } from '@/store/auth';
+import { useAuth, useDisplayName } from '@/store/auth';
 import { useLang, useT } from '@/i18n';
 import { Composer } from './Composer';
 import { Logo } from '@/components/layout/Logo';
@@ -23,6 +23,7 @@ export function Welcome() {
   const t = useT();
   const lang = useLang();
   const user = useAuth((s) => s.user);
+  const name = useDisplayName();
   const providers = useData((s) => s.providers);
   const promptsMap = useData((s) => s.prompts);
   const draft = useUI((s) => s.draft);
@@ -55,7 +56,7 @@ export function Welcome() {
         <div className="mb-8 flex flex-col items-center text-center">
           <Logo className="mb-4 size-12" />
           <h1 className="text-2xl font-semibold tracking-tight text-fg sm:text-3xl">
-            {user ? t('welcome.withName', { greeting: greeting(t), name: user.username }) : greeting(t)}
+            {user ? t('welcome.withName', { greeting: greeting(t), name: name }) : greeting(t)}
           </h1>
           <p className="mt-2 text-sm text-fg-muted">{t('welcome.subtitle')}</p>
         </div>

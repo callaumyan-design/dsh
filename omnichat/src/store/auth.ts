@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { api, ApiError, getToken, onUnauthorized, setToken } from '@/lib/api';
 import { resetSync, setSyncLimits } from '@/lib/sync';
 import { forgetProviderKey } from '@/lib/ai';
-import { hydrate, resetData } from './data';
+import { hydrate, resetData, useData } from './data';
 import type { AuthStatus, PublicUser } from '../../shared/types';
 
 type Phase = 'loading' | 'anonymous' | 'authed';
@@ -15,6 +15,19 @@ interface AuthState {
 }
 
 export const useAuth = create<AuthState>(() => ({ phase: 'loading' }));
+
+/** The name shown in the UI: the nickname, else the login name without an email domain. */
+export function displayName(username: string | undefined, nickname?: string): string {
+  if (nickname?.trim()) return nickname.trim();
+  if (!username) return '';
+  return username.includes('@') ? username.slice(0, username.indexOf('@')) : username;
+}
+
+export function useDisplayName(): string {
+  const username = useAuth((s) => s.user?.username);
+  const nickname = useData((s) => s.settings.nickname);
+  return displayName(username, nickname);
+}
 
 const USER_KEY = 'omnichat.user';
 

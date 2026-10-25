@@ -333,6 +333,9 @@ export const zh = {
   'data.irreversible': '此操作无法撤销。',
 
   'account.admin': '管理员',
+  'account.nickname': '昵称',
+  'account.nicknameHint': '界面上显示昵称而不是登录名（邮箱），会同步到所有设备。留空则显示邮箱 @ 前面的部分。',
+  'account.loginName': '登录名',
   'account.since': '注册于 {date}',
   'account.logout': '退出登录',
   'account.logoutConfirm': '退出登录？本设备的缓存会被清除。',

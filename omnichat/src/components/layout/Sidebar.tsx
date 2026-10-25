@@ -23,7 +23,7 @@ import { Dropdown, IconButton, MenuDivider, MenuItem } from '@/components/ui/pri
 import { api } from '@/lib/api';
 import { cn, isMac, startOfDay } from '@/lib/utils';
 import type { Conversation, ThemeMode } from '@/lib/types';
-import { logout, useAuth } from '@/store/auth';
+import { logout, useDisplayName } from '@/store/auth';
 import { useChat } from '@/store/chat';
 import { removeConversation, updateConversation, updateSettings, useData } from '@/store/data';
 import { confirmDialog, openConversation, openSettings, promptDialog, useUI } from '@/store/ui';
@@ -173,7 +173,7 @@ export function Sidebar() {
   const conversationsMap = useData((s) => s.conversations);
   const theme = useData((s) => s.settings.theme);
   const streaming = useChat((s) => s.streaming);
-  const user = useAuth((s) => s.user);
+  const name = useDisplayName();
   const [q, setQ] = useState('');
   const [hits, setHits] = useState<{ conversationId: string; snippet: string }[]>([]);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -307,10 +307,10 @@ export function Sidebar() {
               trigger={({ ref, onClick }) => (
                 <button ref={ref} type="button" onClick={onClick} className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-2 py-1.5 text-left hover:bg-muted">
                   <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-accent text-sm font-semibold text-accent-fg">
-                    {(user?.username ?? '?').slice(0, 1).toUpperCase()}
+                    {(name || '?').slice(0, 1).toUpperCase()}
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium text-fg">{user?.username}</span>
+                    <span className="block truncate text-sm font-medium text-fg">{name}</span>
                     <SyncIndicator />
                   </span>
                 </button>

@@ -335,6 +335,9 @@ export const en: Record<keyof typeof zh, string> = {
   'data.irreversible': 'This cannot be undone.',
 
   'account.admin': 'Admin',
+  'account.nickname': 'Nickname',
+  'account.nicknameHint': 'Shown instead of your login name (email) and synced to all devices. Leave empty to show the part before the @.',
+  'account.loginName': 'Login',
   'account.since': 'Joined {date}',
   'account.logout': 'Sign out',
   'account.logoutConfirm': 'Sign out? This device’s cache will be cleared.',

@@ -4,8 +4,8 @@ import { Badge, Button, Field, IconButton, Input, Row, Switch } from '@/componen
 import { api } from '@/lib/api';
 import { pendingCount } from '@/lib/sync';
 import { isMac } from '@/lib/utils';
-import { logout, useAuth } from '@/store/auth';
-import { useData } from '@/store/data';
+import { displayName, logout, useAuth, useDisplayName } from '@/store/auth';
+import { updateSettings, useData } from '@/store/data';
 import { confirmDialog, promptDialog, toast } from '@/store/ui';
 import { useLang, useT } from '@/i18n';
 import { APP_VERSION } from '../../../shared/types';
@@ -40,6 +40,14 @@ export function AccountTab() {
   const t = useT();
   const lang = useLang();
   const user = useAuth((s) => s.user);
+  const name = useDisplayName();
+  const nickname = useData((s) => s.settings.nickname) ?? '';
+  const [nickDraft, setNickDraft] = useState(nickname);
+  useEffect(() => setNickDraft(nickname), [nickname]);
+  const saveNickname = () => {
+    const v = nickDraft.trim().slice(0, 40);
+    if (v !== nickname) updateSettings({ nickname: v || undefined });
+  };
   const [oldPw, setOldPw] = useState('');
   const [newPw, setNewPw] = useState('');
   const [saving, setSaving] = useState(false);
@@ -62,14 +70,16 @@ export function AccountTab() {
     <div className="space-y-6 p-5">
       <div className="flex items-center gap-3">
         <span className="flex size-12 items-center justify-center rounded-full bg-accent text-lg font-semibold text-accent-fg">
-          {(user?.username ?? '?').slice(0, 1).toUpperCase()}
+          {(name || '?').slice(0, 1).toUpperCase()}
         </span>
-        <div>
+        <div className="min-w-0">
           <div className="flex items-center gap-2 font-semibold">
-            {user?.username}
+            <span className="truncate">{name}</span>
             {user?.isAdmin && <Badge className="bg-accent-soft text-accent">{t('account.admin')}</Badge>}
           </div>
-          <div className="text-xs text-fg-subtle">{user && t('account.since', { date: fmt(user.createdAt) })}</div>
+          <div className="truncate text-xs text-fg-subtle">
+            {user && `${t('account.loginName')} ${user.username} · ${t('account.since', { date: fmt(user.createdAt) })}`}
+          </div>
         </div>
         <Button
           size="sm"
@@ -84,6 +94,17 @@ export function AccountTab() {
           {t('account.logout')}
         </Button>
       </div>
+
+      <Field label={t('account.nickname')} hint={t('account.nicknameHint')}>
+        <Input
+          value={nickDraft}
+          maxLength={40}
+          placeholder={displayName(user?.username)}
+          onChange={(e) => setNickDraft(e.target.value)}
+          onBlur={saveNickname}
+          onKeyDown={(e) => e.key === 'Enter' && (e.currentTarget as HTMLInputElement).blur()}
+        />
+      </Field>
 
       <form
         className="space-y-3 rounded-xl border border-line p-4"
