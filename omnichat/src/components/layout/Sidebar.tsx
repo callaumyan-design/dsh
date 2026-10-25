@@ -230,7 +230,7 @@ export function Sidebar() {
         <div className="safe-top flex h-14 shrink-0 items-center gap-2 px-3">
           <button type="button" className="flex items-center gap-2 rounded-lg px-1 py-1" onClick={() => openConversation(null)}>
             <Logo className="size-7" />
-            <span className="text-[15px] font-semibold tracking-tight">OmniChat</span>
+            <span className="text-[15px] font-semibold tracking-tight">CatGPT</span>
           </button>
           <div className="ml-auto flex items-center">
             <IconButton aria-label={t('sidebar.collapse')} title={t('sidebar.collapse')} onClick={close}>

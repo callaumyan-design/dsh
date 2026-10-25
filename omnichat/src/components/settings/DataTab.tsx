@@ -42,7 +42,7 @@ export function DataTab() {
       if (!res.ok) throw new Error(`${res.status}`);
       const blob = await res.blob();
       const date = new Date().toISOString().slice(0, 10);
-      downloadFile(`omnichat-backup-${date}.json`, blob);
+      downloadFile(`catgpt-backup-${date}.json`, blob);
     } catch (err) {
       toast(`${t('data.exportFailed')}: ${(err as Error).message}`, 'error');
     } finally {

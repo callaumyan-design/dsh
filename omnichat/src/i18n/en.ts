@@ -314,7 +314,7 @@ export const en: Record<keyof typeof zh, string> = {
   'data.exportFailed': 'Export failed',
   'data.includeKeys': 'Include API keys (keep the file safe)',
   'data.import': 'Import',
-  'data.importDesc': 'Accepts OmniChat backups, single-chat JSON, and ChatGPT’s conversations.json export. Imported data is merged with existing data.',
+  'data.importDesc': 'Accepts CatGPT (formerly OmniChat) backups, single-chat JSON, and ChatGPT’s conversations.json export. Imported data is merged with existing data.',
   'data.chooseFile': 'Choose file',
   'data.importing': 'Importing {progress}',
   'data.importConfirm': 'Import this file?',
@@ -357,7 +357,7 @@ export const en: Record<keyof typeof zh, string> = {
   'admin.deleteUser': 'Delete user {name} and all their data?',
 
   'about.desc':
-    'OmniChat is a self-hostable, multi-model AI chat app. It calls the major AI providers through their APIs, keeps your chats and settings on your own server, and syncs them across all your devices.',
+    'CatGPT is a self-hostable, multi-model AI chat app. It calls the major AI providers through their APIs, keeps your chats and settings on your own server, and syncs them across all your devices.',
   'about.syncStatus': 'Sync',
   'about.shortcuts': 'Keyboard shortcuts',
   'about.scNew': 'New chat',

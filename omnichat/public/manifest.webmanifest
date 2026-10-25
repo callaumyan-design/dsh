@@ -1,6 +1,6 @@
 {
-  "name": "OmniChat",
-  "short_name": "OmniChat",
+  "name": "CatGPT",
+  "short_name": "CatGPT",
   "description": "Multi-device, multi-provider AI chat",
   "start_url": "/",
   "scope": "/",

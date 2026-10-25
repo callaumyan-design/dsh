@@ -266,7 +266,7 @@ export function AboutTab() {
       <div className="flex items-center gap-3">
         <Logo className="size-12" />
         <div>
-          <div className="text-lg font-semibold">OmniChat</div>
+          <div className="text-lg font-semibold">CatGPT</div>
           <div className="text-xs text-fg-subtle">
             v{APP_VERSION} · {t('about.syncStatus')}: {t(`sync.${status}` as 'sync.idle')}
           </div>

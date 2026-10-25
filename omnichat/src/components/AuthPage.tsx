@@ -49,8 +49,8 @@ export function AuthPage() {
           <div className="absolute -top-24 -right-24 size-72 rounded-full bg-white/10" />
           <div className="absolute -bottom-32 -left-20 size-80 rounded-full bg-white/5" />
           <div className="relative flex items-center gap-2.5">
-            <Logo className="size-9 [&_rect]:fill-white/20" />
-            <span className="text-lg font-semibold">OmniChat</span>
+            <Logo className="size-9" />
+            <span className="text-lg font-semibold">CatGPT</span>
           </div>
           <div className="relative">
             <h2 className="text-2xl leading-snug font-semibold">{t('auth.tagline')}</h2>
@@ -69,7 +69,7 @@ export function AuthPage() {
         <form onSubmit={submit} className="flex flex-col justify-center p-8 sm:p-10">
           <div className="mb-6 flex items-center gap-2.5 md:hidden">
             <Logo className="size-9" />
-            <span className="text-lg font-semibold">OmniChat</span>
+            <span className="text-lg font-semibold">CatGPT</span>
           </div>
           <h1 className="text-xl font-semibold">{firstRun ? t('auth.setupTitle') : isRegister ? t('auth.registerTitle') : t('auth.loginTitle')}</h1>
           <p className="mt-1.5 text-sm text-fg-muted">{firstRun ? t('auth.setupDesc') : isRegister ? t('auth.registerDesc') : t('auth.loginDesc')}</p>

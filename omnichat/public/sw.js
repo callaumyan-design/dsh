@@ -1,5 +1,5 @@
 // Offline shell: network-first for pages, cache-first for hashed assets. API calls are never cached.
-const CACHE = 'omnichat-v1';
+const CACHE = 'omnichat-v2';
 const SHELL = ['/', '/icon.svg', '/manifest.webmanifest'];
 
 self.addEventListener('install', (event) => {

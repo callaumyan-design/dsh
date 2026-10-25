@@ -190,7 +190,7 @@ export const PRESETS: ProviderPreset[] = [
     keyUrl: 'https://openrouter.ai/keys',
     color: '#6467f2',
     region: 'global',
-    headers: { 'X-Title': 'OmniChat' },
+    headers: { 'X-Title': 'CatGPT' },
     quirks: { reasoning: 'openrouter' },
   },
   {

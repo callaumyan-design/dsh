@@ -312,7 +312,7 @@ export const zh = {
   'data.exportFailed': '导出失败',
   'data.includeKeys': '包含 API 密钥（请妥善保管文件）',
   'data.import': '导入数据',
-  'data.importDesc': '支持 OmniChat 备份文件、单个对话 JSON，以及 ChatGPT 导出的 conversations.json。导入的数据会与现有数据合并。',
+  'data.importDesc': '支持 CatGPT（原 OmniChat）备份文件、单个对话 JSON，以及 ChatGPT 导出的 conversations.json。导入的数据会与现有数据合并。',
   'data.chooseFile': '选择文件',
   'data.importing': '导入中 {progress}',
   'data.importConfirm': '确认导入？',
@@ -355,7 +355,7 @@ export const zh = {
   'admin.deleteUser': '删除用户 {name} 及其全部数据？',
 
   'about.desc':
-    'OmniChat 是一个可自托管的多模型 AI 聊天应用：通过 API 调用各家主流大模型，对话与设置保存在你自己的服务器上，并在电脑、手机等多设备间同步。',
+    'CatGPT 是一个可自托管的多模型 AI 聊天应用：通过 API 调用各家主流大模型，对话与设置保存在你自己的服务器上，并在电脑、手机等多设备间同步。',
   'about.syncStatus': '同步状态',
   'about.shortcuts': '快捷键',
   'about.scNew': '新建对话',
