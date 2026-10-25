@@ -1,0 +1,28 @@
+# Adds Caddy in front of OmniChat on ports 80/443:
+#   DOMAIN=chat.example.com docker compose -f docker-compose.yml -f docker-compose.https.yml up -d
+# With DOMAIN set (its DNS A record pointing at this server), Caddy obtains and renews an HTTPS
+# certificate automatically. Without it, the app is served over plain HTTP on port 80.
+services:
+  omnichat:
+    environment:
+      TRUST_PROXY: "true"
+
+  caddy:
+    image: caddy:2
+    container_name: omnichat-caddy
+    restart: unless-stopped
+    depends_on:
+      - omnichat
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:-:80}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:

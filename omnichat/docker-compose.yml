@@ -8,7 +8,8 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      - ./data:/data
+      # Where the database lives on the host (set OMNICHAT_DATA to keep it outside this folder).
+      - ${OMNICHAT_DATA:-./data}:/data
     environment:
       # Optional: a long random string used to encrypt stored API keys.
       # If unset, one is generated and kept in ./data/secret.key (back it up with the database).

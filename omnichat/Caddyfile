@@ -1,0 +1,12 @@
+# Reverse proxy in front of OmniChat (used by docker-compose.https.yml).
+# DOMAIN is a hostname (e.g. chat.example.com) for automatic HTTPS, or ":80" for plain HTTP.
+{$DOMAIN} {
+	# Compress pages and assets; API responses (including streamed replies) pass through untouched.
+	@static not path /api/*
+	encode @static zstd gzip
+
+	reverse_proxy omnichat:3000 {
+		# Forward streamed AI replies immediately.
+		flush_interval -1
+	}
+}

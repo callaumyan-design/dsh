@@ -282,4 +282,5 @@ const server = http.createServer(async (req, res) => {
   json(res, 404, { error: { message: `mock: no route for ${p}` } });
 });
 
-server.listen(port, '127.0.0.1', () => console.log(`[mock-ai] listening on http://127.0.0.1:${port}`));
+const host = process.env.MOCK_HOST || '127.0.0.1';
+server.listen(port, host, () => console.log(`[mock-ai] listening on http://${host}:${port}`));

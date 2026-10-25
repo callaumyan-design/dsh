@@ -55,7 +55,17 @@ docker compose up -d --build
 
 访问 `http://服务器IP:3000`。数据保存在 `./data` 目录（`omnichat.db` 数据库 + `secret.key` 密钥加密文件，请一起备份）。
 
-> 手机等其他设备通过公网访问时，建议在前面加一层 HTTPS（Caddy、Nginx、Cloudflare Tunnel 等），并设置 `TRUST_PROXY=true`。HTTPS 下才能使用「添加到主屏幕」离线缓存等功能。
+**需要 HTTPS 时**（公网访问、手机「添加到主屏幕」都需要），使用自带的 Caddy 配置，自动申请和续期证书：
+
+```bash
+DOMAIN=chat.example.com docker compose -f docker-compose.yml -f docker-compose.https.yml up -d --build
+```
+
+域名的 A 记录需先指向服务器，并放行 80 / 443 端口；不设置 `DOMAIN` 时在 80 端口提供 HTTP。数据目录可用 `OMNICHAT_DATA=/path` 指定。
+
+### 谷歌云（学生额度 / 免费层虚拟机）
+
+一条命令创建虚拟机并自动部署，带免费 HTTPS 域名，详见 **[deploy/gcp/README.md](deploy/gcp/README.md)**。
 
 ### 方式二：Cloudflare Workers（免费、无需服务器）
 
