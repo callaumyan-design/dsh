@@ -1,7 +1,10 @@
 // Best-effort capability hints derived from model names (used for badges and warnings only).
+import { OPENCODE_GO_MODELS } from '../../../shared/opencode-go';
 
 export function guessVision(model: string): boolean {
   const m = model.toLowerCase();
+  const go = OPENCODE_GO_MODELS[m];
+  if (go) return !!go.vision;
   return /gpt-4o|gpt-4\.1|gpt-4-turbo|vision|gpt-5|(^|\/)o[34]\b|o3-|o4-|claude|gemini|gemma-3|-vl\b|-vl-|vl-|qwen-vl|qwen3-vl|qwen2\.5-vl|glm-4v|glm-4\.\dv|grok-4|grok-2-vision|pixtral|llava|minicpm-v|llama-4|kimi-latest|vision-preview|doubao-seed|step-1v|internvl|mistral-medium|mistral-small/.test(
     m,
   );
@@ -9,6 +12,7 @@ export function guessVision(model: string): boolean {
 
 export function guessReasoning(model: string): boolean {
   const m = model.toLowerCase();
+  if (OPENCODE_GO_MODELS[m]) return true;
   return /(^|\/)o[1345](\b|-)|gpt-5|reasoner|-r1|r1-|thinking|qwq|qwen3|claude-(opus|sonnet|haiku)-[4-9]|claude-(fable|mythos)|claude-3-7|gemini-2\.5|gemini-[3-9]|grok-3-mini|grok-4|glm-4\.[56]|ernie-x1|hunyuan-t1|deepseek-v3\.[12]|gpt-oss|magistral|sonar-reasoning|minimax-m\d|doubao-seed/.test(
     m,
   );

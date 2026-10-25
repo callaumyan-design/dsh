@@ -19,6 +19,7 @@ import { ProviderAvatar } from '@/components/ui/ProviderAvatar';
 import { forgetProviderKey, listModels, testProvider } from '@/lib/ai';
 import { guessReasoning, guessVision } from '@/lib/ai/capabilities';
 import { PRESETS, getPreset, presetName, type ProviderPreset } from '@/lib/ai/presets';
+import { isOpencodeGo } from '../../../shared/opencode-go';
 import { joinUrl } from '../../../shared/provider-auth';
 import type { AuthStyle, RequestMode } from '../../../shared/types';
 import { cn, uid } from '@/lib/utils';
@@ -209,6 +210,7 @@ function ProviderEditor({ provider, onDeleted, onBack }: { provider: Provider; o
   const q = filter.trim().toLowerCase();
   const shown = q ? models.filter((m) => m.id.toLowerCase().includes(q) || m.name?.toLowerCase().includes(q)) : models;
   const visibleCount = models.filter((m) => !m.hidden).length;
+  const go = isOpencodeGo({ presetId: provider.presetId, baseUrl });
   const endpoint =
     provider.type === 'anthropic'
       ? '/messages'
@@ -294,7 +296,7 @@ function ProviderEditor({ provider, onDeleted, onBack }: { provider: Provider; o
           </Field>
         ) : null}
 
-        <Field label={t('provider.baseUrl')} hint={baseUrl ? `${t('provider.endpoint')}: ${joinUrl(baseUrl, endpoint)}` : t('provider.baseUrlHint')}>
+        <Field label={t('provider.baseUrl')} hint={go ? t('provider.goHint') : baseUrl ? `${t('provider.endpoint')}: ${joinUrl(baseUrl, endpoint)}` : t('provider.baseUrlHint')}>
           <Input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="https://api.example.com/v1" spellCheck={false} className="font-mono" />
         </Field>
 
@@ -428,7 +430,7 @@ function ProviderEditor({ provider, onDeleted, onBack }: { provider: Provider; o
           </button>
           {advanced && (
             <div className="space-y-4 border-t border-line px-3 py-3">
-              {provider.type === 'openai' && (
+              {provider.type === 'openai' && !go && (
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <div className="text-sm font-medium">{t('provider.responsesApi')}</div>
@@ -437,16 +439,18 @@ function ProviderEditor({ provider, onDeleted, onBack }: { provider: Provider; o
                   <Switch checked={useResponses} onChange={setUseResponses} label={t('provider.responsesApi')} />
                 </div>
               )}
-              <Field label={t('provider.authStyle')} hint={t('provider.authStyleHint')}>
-                <Select value={authStyle} onChange={(e) => setAuthStyle(e.target.value as AuthStyle | '')}>
-                  <option value="">{t('provider.authDefault')}</option>
-                  <option value="bearer">Authorization: Bearer</option>
-                  <option value="x-api-key">x-api-key</option>
-                  <option value="api-key">api-key (Azure)</option>
-                  <option value="x-goog-api-key">x-goog-api-key</option>
-                  <option value="none">{t('provider.authNone')}</option>
-                </Select>
-              </Field>
+              {!go && (
+                <Field label={t('provider.authStyle')} hint={t('provider.authStyleHint')}>
+                  <Select value={authStyle} onChange={(e) => setAuthStyle(e.target.value as AuthStyle | '')}>
+                    <option value="">{t('provider.authDefault')}</option>
+                    <option value="bearer">Authorization: Bearer</option>
+                    <option value="x-api-key">x-api-key</option>
+                    <option value="api-key">api-key (Azure)</option>
+                    <option value="x-goog-api-key">x-goog-api-key</option>
+                    <option value="none">{t('provider.authNone')}</option>
+                  </Select>
+                </Field>
+              )}
               <Field label={t('provider.headers')} hint={parsedHeaders === null ? t('params.invalidJson') : t('provider.headersHint')}>
                 <Textarea rows={3} spellCheck={false} className="font-mono text-xs" value={headers} onChange={(e) => setHeaders(e.target.value)} placeholder={'{\n  "X-Custom": "value"\n}'} />
               </Field>

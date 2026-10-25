@@ -210,6 +210,7 @@ async function streamOne(
       messages: turns,
       params: { ...conv.params },
       signal,
+      sessionId: conv.id,
       onDelta: (d) => {
         const now = performance.now();
         if (d.sources) mergeSources(sources, d.sources);
@@ -442,6 +443,7 @@ export async function autoTitle(conversationId: string, force = false) {
       messages: [{ role: 'user', content: prompt }],
       params: { reasoningEffort: 'default' },
       signal: AbortSignal.timeout(90_000),
+      sessionId: conv.id,
       onDelta: (d) => {
         out += d.content ?? '';
       },

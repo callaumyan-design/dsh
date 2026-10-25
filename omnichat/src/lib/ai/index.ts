@@ -1,6 +1,8 @@
 import { anthropicChat, anthropicModels } from './anthropic';
 import { geminiChat, geminiModels } from './gemini';
 import { openaiChat, openaiModels } from './openai';
+import { opencodeGoChat, opencodeGoModels } from './opencode-go';
+import { isOpencodeGo } from '../../../shared/opencode-go';
 import { responsesChat } from './responses';
 import type { ChatRequest, ChatResult } from './transport';
 import type { ModelInfo, Provider } from '../types';
@@ -9,6 +11,7 @@ export type { ChatRequest, ChatResult, ChatTurn, Delta } from './transport';
 export { ProviderError, forgetProviderKey } from './transport';
 
 export function streamChat(req: ChatRequest): Promise<ChatResult> {
+  if (isOpencodeGo(req.provider)) return opencodeGoChat(req);
   switch (req.provider.type) {
     case 'anthropic':
       return anthropicChat(req);
@@ -20,7 +23,9 @@ export function streamChat(req: ChatRequest): Promise<ChatResult> {
 }
 
 export async function listModels(p: Provider): Promise<ModelInfo[]> {
-  const list = p.type === 'anthropic' ? await anthropicModels(p) : p.type === 'gemini' ? await geminiModels(p) : await openaiModels(p);
+  const list = isOpencodeGo(p)
+    ? await opencodeGoModels(p)
+    : p.type === 'anthropic' ? await anthropicModels(p) : p.type === 'gemini' ? await geminiModels(p) : await openaiModels(p);
   const seen = new Set<string>();
   return list
     .filter((m) => (seen.has(m.id) ? false : (seen.add(m.id), true)))

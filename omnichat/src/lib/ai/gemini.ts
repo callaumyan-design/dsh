@@ -1,5 +1,6 @@
 // Google Gemini (Generative Language API, v1beta).
 import { geminiThinkingStyle } from './capabilities';
+import { searchMode } from './search';
 import { readSSE } from './sse';
 import {
   embeddedError,
@@ -88,7 +89,7 @@ export async function geminiChat(req: ChatRequest): Promise<ChatResult> {
   if (tc) generationConfig.thinkingConfig = tc;
 
   const body: Record<string, unknown> = { contents: buildContents(req) };
-  if (params.webSearch) body.tools = [{ google_search: {} }];
+  if (params.webSearch && searchMode(p, req.model) === 'gemini') body.tools = [{ google_search: {} }];
   if (req.system) body.systemInstruction = { parts: [{ text: req.system }] };
   if (Object.keys(generationConfig).length) body.generationConfig = generationConfig;
   mergeExtra(body, p.extraBody, params.extraBody);

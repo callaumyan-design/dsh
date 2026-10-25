@@ -14,6 +14,8 @@ export type SearchMode =
   | 'builtin'; // the model always searches (Perplexity); no toggle needed
 
 export function searchMode(p: Provider, model: string): SearchMode | null {
+  // OpenCode Go does not run provider-side search tools.
+  if (p.presetId === 'opencode-go') return null;
   if (p.type === 'anthropic') return p.presetId === 'anthropic' ? 'anthropic' : null;
   if (p.type === 'gemini') return 'gemini';
   if (p.useResponsesApi) return 'openai-responses';

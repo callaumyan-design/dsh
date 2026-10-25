@@ -26,7 +26,12 @@ export interface ChatRequest {
   params: ChatParams;
   signal: AbortSignal;
   onDelta(d: Delta): void;
+  /** Stable per-conversation id, for gateways that route and cache by session (OpenCode Go). */
+  sessionId?: string;
 }
+
+/** A provider as one request sees it: adapters for multi-protocol gateways add a path prefix and per-request headers. */
+export type WireProvider = Provider & { pathPrefix?: string; requestHeaders?: Record<string, string> };
 
 export interface ChatResult {
   usage?: Usage;
@@ -58,9 +63,15 @@ async function getKey(p: Provider): Promise<string> {
 }
 
 /** Sends a request to a provider, either through the server proxy or straight from the browser. */
-export async function providerFetch(p: Provider, path: string, init: RequestInit): Promise<Response> {
+export async function providerFetch(p: WireProvider, path: string, init: RequestInit): Promise<Response> {
   // The server must know the latest provider config (and key) before proxying.
   if (hasPending(`provider:${p.id}`)) await flushNow();
+  if (p.pathPrefix) path = p.pathPrefix + (path.startsWith('/') ? path : `/${path}`);
+  if (p.requestHeaders) {
+    const h = new Headers(init.headers);
+    for (const [k, v] of Object.entries(p.requestHeaders)) h.set(k, v);
+    init = { ...init, headers: h };
+  }
   if (p.mode === 'direct') {
     if (!p.baseUrl) throw new ProviderError('Base URL is empty');
     const headers = new Headers(init.headers);

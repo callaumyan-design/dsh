@@ -264,6 +264,7 @@ export const zh = {
   'provider.testAuto': '自动选择测试模型',
   'provider.testOk': '连接成功 · 首字 {ms}ms',
   'provider.advanced': '高级设置',
+  'provider.goHint': 'OpenCode Go 专用适配：按模型自动选择接口（Chat Completions / Responses / Anthropic / Gemini），并自动附带会话 ID。',
   'provider.responsesApi': '使用 Responses API',
   'provider.responsesApiHint': 'OpenAI 新接口（/responses）：支持推理摘要、内置联网搜索，以及仅在该接口提供的模型。仅 OpenAI / Azure 及兼容该接口的服务可用。',
   'provider.authStyle': '鉴权方式',

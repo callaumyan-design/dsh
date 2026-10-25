@@ -15,6 +15,7 @@ import {
   verifyPassword,
 } from './crypto';
 import { ANTHROPIC_DEFAULT_VERSION, applyAuth, joinUrl } from '../shared/provider-auth';
+import { GO_PREFIX, isOpencodeGo, OPENCODE_GO_USER_AGENT, opencodeGoAuthStyle, opencodeGoRoot } from '../shared/opencode-go';
 import {
   APP_VERSION,
   ENTITY_KINDS,
@@ -124,6 +125,7 @@ const FORWARDED_HEADERS = [
   'openai-project',
   'http-referer',
   'x-title',
+  'x-opencode-session',
 ];
 
 export function createApp(opts: AppOptions) {
@@ -656,7 +658,9 @@ export function createApp(opts: AppOptions) {
     const prefix = `/api/proxy/${encodeURIComponent(pid)}`;
     const idx = url.pathname.indexOf(prefix);
     const rest = idx >= 0 ? url.pathname.slice(idx + prefix.length) : '/';
-    const target = new URL(joinUrl(provider.baseUrl, rest || '/') + url.search);
+    // OpenCode Go serves several protocols under one root; the client sends the protocol prefix in the path.
+    const go = isOpencodeGo(provider);
+    const target = new URL(joinUrl(go ? opencodeGoRoot(provider.baseUrl) : provider.baseUrl, rest || '/') + url.search);
     if (target.protocol !== 'http:' && target.protocol !== 'https:') fail(400, 'Unsupported protocol');
     if (!c.get('user').is_admin && !opts.allowPrivateNetwork(c) && isPrivateHost(target.hostname)) {
       fail(403, 'Private network addresses are not allowed. Use direct (browser) mode for local models.');
@@ -667,11 +671,17 @@ export function createApp(opts: AppOptions) {
       const v = c.req.header(name);
       if (v) headers.set(name, v);
     }
-    if (provider.type === 'anthropic' && !headers.has('anthropic-version')) headers.set('anthropic-version', ANTHROPIC_DEFAULT_VERSION);
+    const anthropicWire = go ? rest.startsWith(GO_PREFIX.anthropic) : provider.type === 'anthropic';
+    if (anthropicWire && !headers.has('anthropic-version')) headers.set('anthropic-version', ANTHROPIC_DEFAULT_VERSION);
+    if (go) {
+      // Go rejects requests without a session id and asks clients to name themselves instead of a generic HTTP library.
+      headers.set('user-agent', OPENCODE_GO_USER_AGENT);
+      if (!headers.has('x-opencode-session')) headers.set('x-opencode-session', `catgpt-${c.get('user').id}`);
+    }
     for (const [k, v] of Object.entries(provider.headers ?? {})) {
       if (k && typeof v === 'string') headers.set(k, v);
     }
-    applyAuth(headers, provider, key);
+    applyAuth(headers, go ? { type: provider.type, authStyle: opencodeGoAuthStyle(rest) } : provider, key);
 
     const method = c.req.method.toUpperCase();
     const body = method === 'GET' || method === 'HEAD' ? undefined : await c.req.arrayBuffer();

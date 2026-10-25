@@ -1,4 +1,5 @@
 import type { AuthStyle, ProviderType, RequestMode } from '../../../shared/types';
+import { OPENCODE_GO_DEFAULT_MODELS, OPENCODE_GO_ROOT } from '../../../shared/opencode-go';
 
 export type ReasoningStyle = 'openai' | 'openrouter' | 'enable_thinking' | 'thinking_type' | 'none';
 
@@ -192,6 +193,19 @@ export const PRESETS: ProviderPreset[] = [
     region: 'global',
     headers: { 'X-Title': 'CatGPT' },
     quirks: { reasoning: 'openrouter' },
+  },
+  {
+    // Routed per model to Chat Completions / Responses / Messages / Gemini by ./opencode-go.ts.
+    id: 'opencode-go',
+    name: 'OpenCode Go',
+    nameZh: 'OpenCode Go（订阅）',
+    type: 'openai',
+    baseUrl: OPENCODE_GO_ROOT,
+    models: OPENCODE_GO_DEFAULT_MODELS,
+    keyUrl: 'https://opencode.ai/auth',
+    color: '#211e1e',
+    region: 'global',
+    quirks: { reasoning: 'none' },
   },
   {
     id: 'xai',
