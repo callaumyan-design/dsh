@@ -67,6 +67,10 @@ DOMAIN=chat.example.com docker compose -f docker-compose.yml -f docker-compose.h
 
 一条命令创建虚拟机并自动部署，带免费 HTTPS 域名，详见 **[deploy/gcp/README.md](deploy/gcp/README.md)**。
 
+### Azure（Azure for Students 额度）
+
+在 Azure Cloud Shell 中几条命令创建 B1s 虚拟机并自动部署，带免费 `cloudapp.azure.com` HTTPS 域名，还可用额度调用 Azure OpenAI，详见 **[deploy/azure/README.md](deploy/azure/README.md)**。
+
 ### 方式二：Cloudflare Workers（免费、无需服务器）
 
 需要一个 Cloudflare 账号和本机 Node.js 22+。
