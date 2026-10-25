@@ -84,6 +84,8 @@ export const en: Record<keyof typeof zh, string> = {
   'params.extraBodyHint': 'Merged into the request for vendor-specific options; a null value removes that field.',
   'params.invalidJson': 'Invalid JSON',
 
+  'effort.off': 'Thinking off',
+  'effort.on': 'Thinking on',
   'effort.default': 'Default',
   'effort.none': 'Off',
   'effort.minimal': 'Minimal',

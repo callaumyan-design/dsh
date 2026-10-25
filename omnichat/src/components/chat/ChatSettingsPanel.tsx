@@ -4,12 +4,15 @@ import { updateConversation, updateSettings, useData } from '@/store/data';
 import { toast, useUI } from '@/store/ui';
 import { useT } from '@/i18n';
 import { ParamsEditor } from './ParamsEditor';
+import { reasoningOptions } from '@/lib/ai/reasoning';
+import { resolveTarget } from '@/store/chat';
 
 export function ChatSettingsPanel({ conversationId }: { conversationId: string }) {
   const t = useT();
   const conv = useData((s) => s.conversations[conversationId]);
   const prompts = useData((s) => s.prompts);
   if (!conv) return null;
+  const target = resolveTarget(conv.providerId, conv.model);
   const close = () => useUI.setState({ chatSettingsOpen: false });
   const list = Object.values(prompts).sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.createdAt - b.createdAt);
 
@@ -55,7 +58,11 @@ export function ChatSettingsPanel({ conversationId }: { conversationId: string }
               onChange={(e) => updateConversation(conv.id, { systemPrompt: e.target.value })}
             />
           </Field>
-          <ParamsEditor value={conv.params ?? {}} onChange={(params) => updateConversation(conv.id, { params })} />
+          <ParamsEditor
+            value={conv.params ?? {}}
+            onChange={(params) => updateConversation(conv.id, { params })}
+            reasoning={target ? reasoningOptions(target.provider, target.model) : null}
+          />
           <Button
             size="sm"
             variant="outline"

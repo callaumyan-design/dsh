@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Field, Input, Select, Switch, Textarea } from '@/components/ui/primitives';
 import type { ChatParams, ReasoningEffort } from '@/lib/types';
+import { effortLabel, type ReasoningOptions } from '@/lib/ai/reasoning';
 import { useT } from '@/i18n';
 
 const EFFORTS: ReasoningEffort[] = ['default', 'none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
@@ -52,7 +53,16 @@ function SliderRow({
   );
 }
 
-export function ParamsEditor({ value, onChange }: { value: ChatParams; onChange(v: ChatParams): void }) {
+/** `reasoning`: the levels the chat's model takes (null: none); left out, every level is offered (e.g. defaults for all chats). */
+export function ParamsEditor({
+  value,
+  onChange,
+  reasoning,
+}: {
+  value: ChatParams;
+  onChange(v: ChatParams): void;
+  reasoning?: ReasoningOptions | null;
+}) {
   const t = useT();
   const [extra, setExtra] = useState(value.extraBody ? JSON.stringify(value.extraBody, null, 2) : '');
   const [extraError, setExtraError] = useState<string | null>(null);
@@ -74,17 +84,23 @@ export function ParamsEditor({ value, onChange }: { value: ChatParams; onChange(
     onChange(next);
   };
 
+  const current = value.reasoningEffort ?? 'default';
+  const efforts: ReasoningEffort[] = reasoning === undefined ? EFFORTS : ['default', ...(reasoning?.efforts ?? [])];
+  if (!efforts.includes(current)) efforts.push(current);
+
   return (
     <div className="space-y-5">
-      <Field label={t('params.reasoning')} hint={t('params.reasoningHint')}>
-        <Select value={value.reasoningEffort ?? 'default'} onChange={(e) => patch({ reasoningEffort: e.target.value === 'default' ? undefined : (e.target.value as ReasoningEffort) })}>
-          {EFFORTS.map((e) => (
-            <option key={e} value={e}>
-              {t(`effort.${e}` as 'effort.default')}
-            </option>
-          ))}
-        </Select>
-      </Field>
+      {(reasoning !== null || current !== 'default') && (
+        <Field label={t('params.reasoning')} hint={t('params.reasoningHint')}>
+          <Select value={current} onChange={(e) => patch({ reasoningEffort: e.target.value === 'default' ? undefined : (e.target.value as ReasoningEffort) })}>
+            {efforts.map((e) => (
+              <option key={e} value={e}>
+                {t(effortLabel(e, reasoning?.onOff) as 'effort.default')}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      )}
       <SliderRow
         label={t('params.temperature')}
         hint={t('params.temperatureHint')}

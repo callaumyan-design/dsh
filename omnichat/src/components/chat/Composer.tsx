@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ArrowUp, Brain, Check, FileText, Globe, Image as ImageIcon, Loader2, Paperclip, Square, X, File as FileIcon } from 'lucide-react';
 import { IconButton, Popover } from '@/components/ui/primitives';
-import { guessReasoning } from '@/lib/ai/capabilities';
+import { effortLabel, reasoningOptions } from '@/lib/ai/reasoning';
 import type { ReasoningEffort } from '@/lib/types';
 import { cn, formatBytes } from '@/lib/utils';
 import { addFiles, clearDraft, draftKey, getDraft, setDraft, useComposer } from '@/store/composer';
@@ -12,8 +12,6 @@ import { useUI } from '@/store/ui';
 import { CompareButton, CompareChips } from './CompareButton';
 import { ModelPicker, useActiveModel } from './ModelPicker';
 import { useT } from '@/i18n';
-
-const EFFORTS: ReasoningEffort[] = ['default', 'none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
 
 /** Thinking effort of the open chat (or the new-chat draft); shown for reasoning models or once an effort is set. */
 function ReasoningPicker() {
@@ -26,7 +24,12 @@ function ReasoningPicker() {
   useData((s) => s.providers);
   const target = conv ? resolveTarget(conv.providerId, conv.model) : resolveTarget(draft.providerId, draft.model);
   const effort = (conv ? conv.params?.reasoningEffort : draft.reasoningEffort) ?? 'default';
-  if (!target || (effort === 'default' && !guessReasoning(target.model))) return null;
+  const opts = target ? reasoningOptions(target.provider, target.model) : null;
+  if (!opts && effort === 'default') return null;
+  // A level the model doesn't take (e.g. after switching models) stays listed so it can be seen and changed.
+  const efforts: ReasoningEffort[] = ['default', ...(opts?.efforts ?? [])];
+  if (!efforts.includes(effort)) efforts.push(effort);
+  const label = (e: ReasoningEffort) => t(effortLabel(e, opts?.onOff) as 'effort.default');
   const pick = (e: ReasoningEffort) => {
     const v = e === 'default' ? undefined : e;
     if (conv) updateConversation(conv.id, { params: { ...conv.params, reasoningEffort: v } });
@@ -47,19 +50,19 @@ function ReasoningPicker() {
       >
         <Brain className="size-[18px]" />
         <span className="hidden text-xs font-medium sm:inline">
-          {effort === 'default' ? t('params.reasoning') : t(`effort.${effort}` as 'effort.default')}
+          {effort === 'default' ? t('params.reasoning') : label(effort)}
         </span>
       </button>
       <Popover open={open} onClose={() => setOpen(false)} anchor={anchor} width={200} className="p-1">
         <div className="px-2.5 pt-1.5 pb-1 text-xs font-medium text-fg-subtle">{t('params.reasoning')}</div>
-        {EFFORTS.map((e) => (
+        {efforts.map((e) => (
           <button
             key={e}
             type="button"
             onClick={() => pick(e)}
             className="flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-left text-sm hover:bg-muted"
           >
-            {t(`effort.${e}` as 'effort.default')}
+            {label(e)}
             {e === effort && <Check className="size-4 text-accent" />}
           </button>
         ))}

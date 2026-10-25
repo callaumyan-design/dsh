@@ -82,6 +82,8 @@ export const zh = {
   'params.extraBodyHint': '合并进请求体，用于厂商特有参数；值为 null 时删除该字段。',
   'params.invalidJson': 'JSON 格式不正确',
 
+  'effort.off': '关闭思考',
+  'effort.on': '开启思考',
   'effort.default': '默认',
   'effort.none': '关闭思考',
   'effort.minimal': '极简',
