@@ -17,7 +17,7 @@
 - 推理模型支持：统一的「思考强度」设置，自动映射为各家参数（OpenAI `reasoning_effort`、Claude 自适应思考 / `budget_tokens`、Gemini `thinkingConfig`、通义 `enable_thinking`、GLM/豆包 `thinking`、OpenRouter `reasoning`）；思考过程可折叠显示，兼容 `reasoning_content` 字段与 `<think>` 标签。
 - 每个服务商可设置自定义请求头和「额外请求体」JSON，覆盖任何厂商特有参数（值为 `null` 可删除字段）。
 - **多模型同时回答**：一个问题同时发给最多 6 个模型（可跨服务商）并行生成，用标签页切换对比，选中的回答作为后续上下文。
-- **联网搜索**：一键开启服务商自带的搜索能力（Claude `web_search`、Gemini Google 搜索、通义 `enable_search`、智谱 `web_search`、OpenRouter web 插件、文心 / 混元搜索、OpenAI Responses `web_search`），回答下方列出参考来源。
+- **联网搜索**：一键开启服务商自带的搜索能力（Claude `web_search`、Gemini Google 搜索、通义 `enable_search`、智谱 `web_search`、OpenRouter web 插件、文心 / 混元搜索、OpenAI Responses `web_search`），回答下方列出参考来源。没有自带搜索的模型（DeepSeek、Kimi、OpenCode Go 等）通过**工具调用**联网：在「设置 → 联网与语音」配置 Tavily / 博查 / Brave / Exa / SearXNG 任一搜索服务即可，密钥只保存在服务器上。
 - OpenAI 可切换到 **Responses API**，获得推理摘要、内置联网搜索以及仅在该接口提供的模型。
 
 **多设备同步与数据保存**
@@ -27,11 +27,12 @@
 - API 密钥使用 AES-GCM 加密存储，默认由服务器代理调用，浏览器拿不到明文密钥。
 - 全文搜索历史消息、导出备份（JSON / Markdown）、导入备份及 **ChatGPT 导出的 conversations.json**。
 - 设备管理：查看所有已登录设备并可远程下线。
+- **自动备份**：服务器每天备份一次数据库（保留 7 份），管理员可在「设置 → 管理」立即备份或下载；可选同步上传到 Azure Blob 存储（见 Azure 部署说明）。
 
 **好用的界面**
 - 参考 ChatGPT / Claude 的简洁设计，亮色/暗色/跟随系统，8 种强调色，3 档字号，中英文界面。
 - Markdown、代码高亮（一键复制、换行切换）、表格、LaTeX 公式、Mermaid 图表、HTML 代码块实时预览。
-- 流式输出、随时停止、重新生成（保留多个版本可切换）、编辑后重新发送、从任意消息创建分支对话、朗读。
+- 流式输出、随时停止、重新生成（保留多个版本可切换）、编辑后重新发送、从任意消息创建分支对话、朗读、**语音输入**（浏览器自带识别，或 Whisper / SenseVoice 等语音转文字模型）。
 - 图片（粘贴/拖拽/上传，自动压缩）、PDF、各类文本/代码文件作为附件。
 - 每个对话可单独设置系统提示词、温度、Top P、最大 Token、上下文条数、思考强度等；可保存为新对话默认值。
 - 提示词库（内置 10 个常用角色模板）、自动生成对话标题、置顶、分组（今天/昨天/7 天内…）。

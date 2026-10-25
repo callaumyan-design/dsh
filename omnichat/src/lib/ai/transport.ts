@@ -28,6 +28,32 @@ export interface ChatRequest {
   onDelta(d: Delta): void;
   /** Stable per-conversation id, for gateways that route and cache by session (OpenCode Go). */
   sessionId?: string;
+  /** Functions the model may call (see ./tools.ts). */
+  tools?: ToolDef[];
+  /** 'none' keeps the tools declared (earlier rounds used them) but asks for a final answer. */
+  toolChoice?: 'auto' | 'none';
+  /** Earlier rounds of this reply's tool loop, replayed after the last user turn. */
+  toolRounds?: ToolRound[];
+}
+
+export interface ToolDef {
+  name: string;
+  description: string;
+  /** JSON Schema of the arguments object. */
+  parameters: Record<string, unknown>;
+}
+
+export interface ToolCall {
+  id: string;
+  name: string;
+  args: Record<string, unknown>;
+}
+
+export interface ToolRound {
+  /** The assistant turn that made the calls, in the adapter's own wire format (thinking signatures included). */
+  assistant: unknown;
+  calls: ToolCall[];
+  results: { id: string; name: string; content: string }[];
 }
 
 /** A provider as one request sees it: adapters for multi-protocol gateways add a path prefix and per-request headers. */
@@ -36,6 +62,20 @@ export type WireProvider = Provider & { pathPrefix?: string; requestHeaders?: Re
 export interface ChatResult {
   usage?: Usage;
   finishReason?: string;
+  /** Set when the model stopped to call tools; `assistant` is that turn in wire format, for the next round. */
+  toolCalls?: ToolCall[];
+  assistant?: unknown;
+}
+
+/** Parses streamed tool arguments; models occasionally emit an empty string for "no arguments". */
+export function parseArgs(s: string | undefined): Record<string, unknown> {
+  if (!s?.trim()) return {};
+  try {
+    const v = JSON.parse(s);
+    return v && typeof v === 'object' ? v : {};
+  } catch {
+    return {};
+  }
 }
 
 export class ProviderError extends Error {

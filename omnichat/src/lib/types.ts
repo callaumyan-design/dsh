@@ -132,6 +132,8 @@ export interface Settings {
   favoriteModels: string[];
   /** Shown instead of the login name (often an email address). Synced across devices. */
   nickname?: string;
+  /** Transcription model for voice input; unset uses the browser's speech recognition. */
+  voiceInput?: { providerId: string; model: string };
   syncedAt?: number;
 }
 

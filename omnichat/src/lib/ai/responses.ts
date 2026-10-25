@@ -1,21 +1,28 @@
 // OpenAI Responses API (/responses): reasoning summaries, built-in web search, models only offered there.
 import { guessReasoning } from './capabilities';
+import { searchMode } from './search';
 import { readSSE } from './sse';
 import {
   embeddedError,
   JSON_HEADERS,
   mergeExtra,
+  parseArgs,
   providerFetch,
   ProviderError,
   readError,
   userText,
   type ChatRequest,
   type ChatResult,
+  type ToolCall,
 } from './transport';
 import type { Source, Usage } from '../types';
 
 function buildInput(req: ChatRequest) {
-  return req.messages
+  const rounds = (req.toolRounds ?? []).flatMap((r) => [
+    ...(r.assistant as unknown[]),
+    ...r.results.map((x) => ({ type: 'function_call_output', call_id: x.id, output: x.content })),
+  ]);
+  const turns = req.messages
     .map((m) => {
       if (m.role === 'assistant') return m.content ? { role: 'assistant', content: m.content } : null;
       const atts = m.attachments ?? [];
@@ -31,6 +38,7 @@ function buildInput(req: ChatRequest) {
       return { role: 'user', content: parts };
     })
     .filter(Boolean);
+  return [...turns, ...rounds];
 }
 
 function mapUsage(u: any): Usage | undefined {
@@ -62,7 +70,14 @@ export async function responsesChat(req: ChatRequest): Promise<ChatResult> {
     if (effort !== 'default') reasoning.effort = effort === 'max' ? 'xhigh' : effort;
     if (withSummary && effort !== 'none') reasoning.summary = 'auto';
     if (Object.keys(reasoning).length) body.reasoning = reasoning;
-    if (params.webSearch) body.tools = [{ type: 'web_search' }];
+    if (params.webSearch && searchMode(p, req.model) === 'openai-responses') body.tools = [{ type: 'web_search' }];
+    if (req.tools?.length) {
+      body.tools = [
+        ...((body.tools as unknown[]) ?? []),
+        ...req.tools.map((t) => ({ type: 'function', name: t.name, description: t.description, parameters: t.parameters })),
+      ];
+      if (req.toolChoice === 'none') body.tool_choice = 'none';
+    }
     mergeExtra(body, p.extraBody, params.extraBody);
     return body;
   };
@@ -82,6 +97,23 @@ export async function responsesChat(req: ChatRequest): Promise<ChatResult> {
 
   let usage: Usage | undefined;
   let finishReason: string | undefined;
+  let roundText = '';
+  const calls: { call_id: string; name: string; arguments: string }[] = [];
+  const addCall = (item: any) => {
+    if (item?.type === 'function_call' && item.name && !calls.some((c) => c.call_id === item.call_id)) {
+      calls.push({ call_id: String(item.call_id), name: String(item.name), arguments: String(item.arguments ?? '') });
+    }
+  };
+  // Replayed without item ids: with store=false the server cannot look them (or their reasoning items) up.
+  const toolResult = (): Pick<ChatResult, 'toolCalls' | 'assistant'> => {
+    if (!calls.length) return {};
+    const toolCalls: ToolCall[] = calls.map((c) => ({ id: c.call_id, name: c.name, args: parseArgs(c.arguments) }));
+    const assistant = [
+      ...(roundText ? [{ role: 'assistant', content: roundText }] : []),
+      ...calls.map((c) => ({ type: 'function_call', call_id: c.call_id, name: c.name, arguments: c.arguments || '{}' })),
+    ];
+    return { toolCalls, assistant };
+  };
   const finish = (r: any) => {
     usage = mapUsage(r?.usage) ?? usage;
     if (r?.status === 'incomplete') finishReason = r.incomplete_details?.reason === 'max_output_tokens' ? 'length' : r.incomplete_details?.reason;
@@ -97,8 +129,11 @@ export async function responsesChat(req: ChatRequest): Promise<ChatResult> {
       if (item.type === 'reasoning') {
         const text = (item.summary ?? []).map((s: any) => s.text ?? '').join('\n\n');
         if (text) req.onDelta({ reasoning: text });
+      } else if (item.type === 'function_call') {
+        addCall(item);
       } else if (item.type === 'message') {
         for (const c of item.content ?? []) {
+          if (c.type === 'output_text' && c.text) roundText += c.text;
           if (c.type === 'output_text' && c.text) req.onDelta({ content: c.text });
           const sources = (c.annotations ?? []).map(citation).filter(Boolean) as Source[];
           if (sources.length) req.onDelta({ sources });
@@ -106,7 +141,7 @@ export async function responsesChat(req: ChatRequest): Promise<ChatResult> {
       }
     }
     finish(j);
-    return { usage, finishReason };
+    return { usage, finishReason, ...toolResult() };
   }
 
   let summaryParts = 0;
@@ -119,7 +154,10 @@ export async function responsesChat(req: ChatRequest): Promise<ChatResult> {
     }
     switch (j.type ?? ev.event) {
       case 'response.output_text.delta':
-        if (j.delta) req.onDelta({ content: j.delta });
+        if (j.delta) {
+          roundText += j.delta;
+          req.onDelta({ content: j.delta });
+        }
         break;
       case 'response.reasoning_summary_text.delta':
         if (j.delta) req.onDelta({ reasoning: j.delta });
@@ -137,6 +175,7 @@ export async function responsesChat(req: ChatRequest): Promise<ChatResult> {
         break;
       case 'response.output_item.done':
         if (j.item?.type === 'web_search_call' && j.item.action?.query) req.onDelta({ searching: String(j.item.action.query) });
+        addCall(j.item);
         break;
       case 'response.completed':
       case 'response.incomplete':
@@ -150,5 +189,5 @@ export async function responsesChat(req: ChatRequest): Promise<ChatResult> {
         break;
     }
   }
-  return { usage, finishReason };
+  return { usage, finishReason, ...toolResult() };
 }

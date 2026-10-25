@@ -5,6 +5,7 @@ import { localLocks } from '@/lib/sync';
 import { throttle, truncate, uid } from '@/lib/utils';
 import type { Attachment, Conversation, Message, MessageVersion, Provider, Source } from '@/lib/types';
 import { mergeSources } from '@/lib/ai/search';
+import { effectiveSearchMode, streamChatWithSearch } from '@/lib/ai/tools';
 import type { ChatTurn } from '@/lib/ai';
 import { t } from '@/i18n';
 import {
@@ -209,8 +210,10 @@ async function streamOne(
     sources: sources.length ? [...sources] : undefined,
     searching: v.status === 'streaming' ? searching : undefined,
   });
+  // Without provider-native search, web search runs as a tool through the account's search service.
+  const run = conv.params?.webSearch && effectiveSearchMode(target.provider, target.model) === 'tool' ? streamChatWithSearch : streamChat;
   try {
-    const result = await streamChat({
+    const result = await run({
       provider: target.provider,
       model: target.model,
       system: renderPromptVars(conv.systemPrompt?.trim() ?? '', target) || undefined,

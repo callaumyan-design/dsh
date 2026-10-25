@@ -12,6 +12,7 @@ import {
   userText,
   type ChatRequest,
   type ChatResult,
+  type ToolCall,
 } from './transport';
 import { splitDataUrl } from '../utils';
 import type { ModelInfo, Provider, ReasoningEffort, Usage } from '../types';
@@ -88,8 +89,23 @@ export async function geminiChat(req: ChatRequest): Promise<ChatResult> {
   const tc = thinkingConfig(req.model, params.reasoningEffort ?? 'default');
   if (tc) generationConfig.thinkingConfig = tc;
 
-  const body: Record<string, unknown> = { contents: buildContents(req) };
+  const contents: Record<string, unknown>[] = buildContents(req);
+  for (const r of req.toolRounds ?? []) {
+    contents.push({ role: 'model', parts: r.assistant });
+    contents.push({
+      role: 'user',
+      parts: r.results.map((x) => ({
+        // Ids starting with "gemini-" were made up here for calls that came without one.
+        functionResponse: { ...(x.id.startsWith('gemini-') ? {} : { id: x.id }), name: x.name, response: { content: x.content } },
+      })),
+    });
+  }
+  const body: Record<string, unknown> = { contents };
   if (params.webSearch && searchMode(p, req.model) === 'gemini') body.tools = [{ google_search: {} }];
+  if (req.tools?.length) {
+    body.tools = [...((body.tools as unknown[]) ?? []), { functionDeclarations: req.tools.map((t) => ({ name: t.name, description: t.description, parameters: t.parameters })) }];
+    if (req.toolChoice === 'none') body.toolConfig = { functionCallingConfig: { mode: 'NONE' } };
+  }
   if (req.system) body.systemInstruction = { parts: [{ text: req.system }] };
   if (Object.keys(generationConfig).length) body.generationConfig = generationConfig;
   mergeExtra(body, p.extraBody, params.extraBody);
@@ -100,12 +116,15 @@ export async function geminiChat(req: ChatRequest): Promise<ChatResult> {
 
   let usage: Usage | undefined;
   let finishReason: string | undefined;
+  // This turn's parts as received (Gemini 3 needs their thought signatures back with function calls).
+  const parts: any[] = [];
   const handle = (j: any) => {
     const err = embeddedError(j);
     if (err) throw err;
     if (j.promptFeedback?.blockReason) throw new ProviderError(`Blocked by Gemini: ${j.promptFeedback.blockReason}`);
     const cand = j.candidates?.[0];
     for (const part of cand?.content?.parts ?? []) {
+      parts.push(part);
       if (typeof part.text !== 'string' || !part.text) continue;
       if (part.thought) req.onDelta({ reasoning: part.text });
       else req.onDelta({ content: part.text });
@@ -140,7 +159,14 @@ export async function geminiChat(req: ChatRequest): Promise<ChatResult> {
     }
   }
   const mapped: Record<string, string> = { STOP: 'stop', MAX_TOKENS: 'length', FINISH_REASON_UNSPECIFIED: 'stop' };
-  return { usage, finishReason: finishReason ? (mapped[finishReason] ?? finishReason.toLowerCase()) : undefined };
+  const toolCalls: ToolCall[] = parts
+    .filter((x) => x.functionCall?.name)
+    .map((x, i) => ({ id: x.functionCall.id ?? `gemini-${i}`, name: String(x.functionCall.name), args: x.functionCall.args ?? {} }));
+  return {
+    usage,
+    finishReason: finishReason ? (mapped[finishReason] ?? finishReason.toLowerCase()) : undefined,
+    ...(toolCalls.length ? { toolCalls, assistant: parts } : {}),
+  };
 }
 
 export async function geminiModels(p: Provider): Promise<ModelInfo[]> {

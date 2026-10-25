@@ -5,12 +5,14 @@ import {
   embeddedError,
   JSON_HEADERS,
   mergeExtra,
+  parseArgs,
   providerFetch,
   readError,
   userText,
   type ChatRequest,
   type ChatResult,
   type ChatTurn,
+  type ToolCall,
 } from './transport';
 import { splitDataUrl } from '../utils';
 import type { ModelInfo, Provider, Source, Usage } from '../types';
@@ -52,7 +54,13 @@ export async function anthropicChat(req: ChatRequest): Promise<ChatResult> {
   const body: Record<string, unknown> = {
     model: req.model,
     max_tokens: params.maxTokens || (info.adaptive ? 32000 : info.legacyMaxTokens),
-    messages: buildMessages(req.messages),
+    messages: [
+      ...buildMessages(req.messages),
+      ...(req.toolRounds ?? []).flatMap((r) => [
+        { role: 'assistant', content: r.assistant },
+        { role: 'user', content: r.results.map((x) => ({ type: 'tool_result', tool_use_id: x.id, content: x.content })) },
+      ]),
+    ],
     stream,
   };
   if (req.system) body.system = req.system;
@@ -75,6 +83,10 @@ export async function anthropicChat(req: ChatRequest): Promise<ChatResult> {
   }
   if (params.webSearch && searchMode(p, req.model) === 'anthropic') {
     body.tools = [{ type: 'web_search_20250305', name: 'web_search', max_uses: 5 }];
+  }
+  if (req.tools?.length) {
+    body.tools = [...((body.tools as unknown[]) ?? []), ...req.tools.map((t) => ({ name: t.name, description: t.description, input_schema: t.parameters }))];
+    if (req.toolChoice === 'none') body.tool_choice = { type: 'none' };
   }
   if (!thinking && info.sampling) {
     if (params.temperature !== undefined) body.temperature = Math.min(1, params.temperature);
@@ -104,11 +116,15 @@ export async function anthropicChat(req: ChatRequest): Promise<ChatResult> {
     return {
       usage: { input: j.usage?.input_tokens, output: j.usage?.output_tokens, cached: j.usage?.cache_read_input_tokens },
       finishReason: j.stop_reason,
+      ...toolTurn(j.content ?? []),
     };
   }
 
   let finishReason: string | undefined;
   const toolInput = new Map<number, string>();
+  // Every content block of this turn, rebuilt from the stream: a tool round must send them back unchanged
+  // (thinking blocks with their signatures included).
+  const blocks: any[] = [];
   for await (const ev of readSSE(res)) {
     let j: any;
     try {
@@ -126,6 +142,8 @@ export async function anthropicChat(req: ChatRequest): Promise<ChatResult> {
       }
       case 'content_block_start': {
         const b = j.content_block ?? {};
+        blocks[j.index] = b.type === 'tool_use' ? { ...b, input: {} } : { ...b };
+        if (b.type === 'tool_use') toolInput.set(j.index, '');
         if (b.type === 'thinking' && b.thinking) req.onDelta({ reasoning: b.thinking });
         else if (b.type === 'text' && b.text) req.onDelta({ content: b.text });
         else if (b.type === 'server_tool_use') toolInput.set(j.index, '');
@@ -134,6 +152,10 @@ export async function anthropicChat(req: ChatRequest): Promise<ChatResult> {
       }
       case 'content_block_delta': {
         const d = j.delta ?? {};
+        const blk = blocks[j.index];
+        if (blk && d.type === 'text_delta') blk.text = (blk.text ?? '') + (d.text ?? '');
+        else if (blk && d.type === 'thinking_delta') blk.thinking = (blk.thinking ?? '') + (d.thinking ?? '');
+        else if (blk && d.type === 'signature_delta') blk.signature = (blk.signature ?? '') + (d.signature ?? '');
         if (d.type === 'text_delta' && d.text) req.onDelta({ content: d.text });
         else if (d.type === 'thinking_delta' && d.thinking) req.onDelta({ reasoning: d.thinking });
         else if (d.type === 'input_json_delta' && toolInput.has(j.index)) toolInput.set(j.index, toolInput.get(j.index)! + (d.partial_json ?? ''));
@@ -144,12 +166,9 @@ export async function anthropicChat(req: ChatRequest): Promise<ChatResult> {
         const input = toolInput.get(j.index);
         if (input !== undefined) {
           toolInput.delete(j.index);
-          try {
-            const q = JSON.parse(input || '{}').query;
-            if (q) req.onDelta({ searching: String(q) });
-          } catch {
-            /* partial input */
-          }
+          const args = parseArgs(input);
+          if (blocks[j.index]) blocks[j.index].input = args;
+          if (blocks[j.index]?.type === 'server_tool_use' && args.query) req.onDelta({ searching: String(args.query) });
         }
         break;
       }
@@ -163,7 +182,17 @@ export async function anthropicChat(req: ChatRequest): Promise<ChatResult> {
         break;
     }
   }
-  return { usage, finishReason };
+  return { usage, finishReason, ...toolTurn(blocks.filter(Boolean)) };
+}
+
+/** The client tool calls of a finished turn, with the turn's content blocks for the next round. */
+function toolTurn(content: any[]): Pick<ChatResult, 'toolCalls' | 'assistant'> {
+  const toolCalls: ToolCall[] = content
+    .filter((b) => b?.type === 'tool_use')
+    .map((b) => ({ id: String(b.id), name: String(b.name), args: b.input && typeof b.input === 'object' ? b.input : {} }));
+  if (!toolCalls.length) return {};
+  // Empty text blocks are rejected when sent back.
+  return { toolCalls, assistant: content.filter((b) => !(b.type === 'text' && !b.text)) };
 }
 
 function resultSources(block: any): Source[] {

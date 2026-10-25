@@ -111,7 +111,22 @@ az group delete --name omnichat-rg
 ```
 
 - 数据保存在虚拟机的 `/var/lib/omnichat`（数据库 + 加密密钥文件）。
-- 备份：在 OmniChat「设置 → 数据管理」导出，或在门户里给系统盘创建快照。
+- 自动备份：应用每天把数据库备份到 `/var/lib/omnichat/backups`（保留 7 份），可在「设置 → 管理 → 自动备份」查看、立即备份和下载。
+
+### 开启异地备份（推荐）
+
+本地备份和数据在同一块磁盘上，磁盘损坏会一起丢失。下面这条命令（PowerShell 版 Cloud Shell，一行粘贴）会创建一个存储账户，
+给虚拟机开启托管身份并只授予这个容器的写入权限，再把容器地址写进虚拟机的 `backup` 标签。应用会自动读取标签，
+之后每天的备份（以及解密 API 密钥所需的 `secret.key`）都会上传到这里，保留最近 30 份。存储费用每月不到 0.1 美元。
+
+```powershell
+$sa="omnichatbk"+(Get-Random -Maximum 999999); az storage account create -g omnichat-rg -n $sa --sku Standard_LRS --kind StorageV2 --min-tls-version TLS1_2 --allow-blob-public-access false -o none; az storage container create --account-name $sa -n backups --auth-mode key -o none; $mi=az vm identity assign -g omnichat-rg -n omnichat --query systemAssignedIdentity -o tsv; $scope=(az storage account show -g omnichat-rg -n $sa --query id -o tsv)+"/blobServices/default/containers/backups"; az role assignment create --assignee-object-id $mi --assignee-principal-type ServicePrincipal --role "Storage Blob Data Contributor" --scope $scope -o none; az vm update -g omnichat-rg -n omnichat --set tags.backup="https://$sa.blob.core.windows.net/backups" -o none; "Off-site backups: https://$sa.blob.core.windows.net/backups"
+```
+
+权限生效需要几分钟，之后在「设置 → 管理 → 自动备份」点「立即备份」，看到「最近一次上传成功」即可。
+
+**恢复**：从容器下载最新的 `omnichat-*.db.gz` 和 `secret.key`，在虚拟机上停止应用（`docker stop omnichat`），
+把解压后的文件放到 `/var/lib/omnichat/omnichat.db`（并删除旁边的 `omnichat.db-wal`、`omnichat.db-shm`），`secret.key` 放回原处，再 `docker start omnichat`。
 
 ## 用学生额度调用 Azure OpenAI
 

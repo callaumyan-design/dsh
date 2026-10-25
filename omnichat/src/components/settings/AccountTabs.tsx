@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { KeyRound, LogOut, Monitor, ShieldCheck, Smartphone, Trash2 } from 'lucide-react';
+import { CloudUpload, DatabaseBackup, Download, KeyRound, LogOut, Monitor, ShieldCheck, Smartphone, Trash2 } from 'lucide-react';
 import { Badge, Button, Field, IconButton, Input, Row, Switch } from '@/components/ui/primitives';
-import { api } from '@/lib/api';
+import { api, getToken } from '@/lib/api';
 import { pendingCount } from '@/lib/sync';
-import { isMac } from '@/lib/utils';
+import { cn, downloadFile, formatBytes, isMac } from '@/lib/utils';
 import { displayName, logout, useAuth, useDisplayName } from '@/store/auth';
 import { updateSettings, useData } from '@/store/data';
 import { confirmDialog, promptDialog, toast } from '@/store/ui';
@@ -178,6 +178,101 @@ export function AccountTab() {
   );
 }
 
+interface BackupState {
+  supported: boolean;
+  backups?: { name: string; size: number; createdAt: number }[];
+  remote?: string | null;
+  lastRemote?: { at: number; ok: boolean; error?: string };
+  running?: boolean;
+}
+
+/** Daily server backups: status, "back up now", and downloads of the local copies. */
+function BackupsSection() {
+  const t = useT();
+  const lang = useLang();
+  const [state, setState] = useState<BackupState | null>(null);
+  const [busy, setBusy] = useState(false);
+  const fmt = (ts: number) => new Date(ts).toLocaleString(lang === 'zh' ? 'zh-CN' : 'en-US');
+
+  useEffect(() => {
+    api<BackupState>('/api/admin/backups').then(setState, () => setState({ supported: false }));
+  }, []);
+  if (!state?.supported) return null;
+
+  const runNow = async () => {
+    setBusy(true);
+    try {
+      setState(await api<BackupState>('/api/admin/backups', { method: 'POST' }));
+      toast(t('backup.done'), 'success');
+    } catch (err) {
+      toast((err as Error).message, 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+  const download = async (name: string) => {
+    try {
+      const res = await fetch(`/api/admin/backups/${encodeURIComponent(name)}`, { headers: { authorization: `Bearer ${getToken()}` } });
+      if (!res.ok) throw new Error(`${res.status}`);
+      downloadFile(name, await res.blob());
+    } catch (err) {
+      toast((err as Error).message, 'error');
+    }
+  };
+  const latest = state.backups?.[0];
+
+  return (
+    <div>
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-sm font-medium">
+          <DatabaseBackup className="size-4" />
+          {t('backup.title')}
+        </div>
+        <Button size="sm" variant="outline" loading={busy} onClick={runNow}>
+          {t('backup.now')}
+        </Button>
+      </div>
+      <div className="space-y-3 rounded-xl border border-line p-3 text-sm">
+        <div className="text-xs leading-relaxed text-fg-subtle">{t('backup.desc')}</div>
+        <div className="flex items-start gap-2">
+          <CloudUpload className={cn('mt-0.5 size-4 shrink-0', state.remote ? (state.lastRemote?.ok === false ? 'text-danger' : 'text-success') : 'text-fg-subtle')} />
+          <div className="min-w-0 text-xs leading-relaxed">
+            {state.remote ? (
+              <>
+                <div className="break-all text-fg">{t('backup.remoteOn', { url: state.remote })}</div>
+                {state.lastRemote && (
+                  <div className={state.lastRemote.ok ? 'text-fg-subtle' : 'break-all text-danger'}>
+                    {state.lastRemote.ok ? t('backup.remoteOk', { date: fmt(state.lastRemote.at) }) : t('backup.remoteFail', { error: state.lastRemote.error ?? '' })}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="text-fg-subtle">{t('backup.remoteOff')}</div>
+            )}
+          </div>
+        </div>
+        {latest ? (
+          <div className="divide-y divide-line rounded-lg border border-line">
+            {state.backups!.map((b) => (
+              <div key={b.name} className="flex items-center gap-3 px-3 py-2">
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm">{fmt(b.createdAt)}</div>
+                  <div className="text-xs text-fg-subtle">{formatBytes(b.size)}</div>
+                </div>
+                <IconButton size="sm" title={t('backup.download')} aria-label={t('backup.download')} onClick={() => void download(b.name)}>
+                  <Download />
+                </IconButton>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-xs text-fg-subtle">{t('backup.none')}</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 interface AdminUser {
   id: string;
   username: string;
@@ -267,6 +362,7 @@ export function AdminTab() {
           ))}
         </div>
       </div>
+      <BackupsSection />
     </div>
   );
 }

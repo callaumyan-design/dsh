@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { ArrowUp, Brain, Check, FileText, Globe, Image as ImageIcon, Loader2, Paperclip, Square, X, File as FileIcon } from 'lucide-react';
+import { ArrowUp, Brain, Check, FileText, Globe, Mic, Image as ImageIcon, Loader2, Paperclip, Square, X, File as FileIcon } from 'lucide-react';
 import { IconButton, Popover } from '@/components/ui/primitives';
 import { effortLabel, reasoningOptions } from '@/lib/ai/reasoning';
 import type { ReasoningEffort } from '@/lib/types';
@@ -7,11 +7,12 @@ import { cn, formatBytes } from '@/lib/utils';
 import { addFiles, clearDraft, draftKey, getDraft, setDraft, useComposer } from '@/store/composer';
 import { resolveTarget, sendMessage, stopGeneration, useChat } from '@/store/chat';
 import { updateConversation, useData } from '@/store/data';
-import { searchMode } from '@/lib/ai/search';
-import { useUI } from '@/store/ui';
+import { effectiveSearchMode, loadWebSearch, useWebSearch } from '@/lib/ai/tools';
+import { toast, useUI } from '@/store/ui';
+import { browserSpeechSupported, recordingSupported, startBrowserSpeech, startRecording, type VoiceSession } from '@/lib/voice';
 import { CompareButton, CompareChips } from './CompareButton';
 import { ModelPicker, useActiveModel } from './ModelPicker';
-import { useT } from '@/i18n';
+import { useLang, useT } from '@/i18n';
 
 /** Thinking effort of the open chat (or the new-chat draft); shown for reasoning models or once an effort is set. */
 function ReasoningPicker() {
@@ -49,7 +50,7 @@ function ReasoningPicker() {
         )}
       >
         <Brain className="size-[18px]" />
-        <span className="hidden text-xs font-medium sm:inline">
+        <span className="hidden text-xs font-medium whitespace-nowrap sm:inline">
           {effort === 'default' ? t('params.reasoning') : label(effort)}
         </span>
       </button>
@@ -71,6 +72,70 @@ function ReasoningPicker() {
   );
 }
 
+const joinText = (a: string, b: string) => (a && b && !/\s$/.test(a) ? `${a} ${b}` : a + b);
+
+/** Dictation: the browser's speech recognition, or a recording sent to the configured speech-to-text model. */
+function VoiceButton({ draftKey: key }: { draftKey: string }) {
+  const t = useT();
+  const lang = useLang();
+  const voice = useData((s) => s.settings.voiceInput);
+  const provider = useData((s) => (voice ? s.providers[voice.providerId] : undefined));
+  const [state, setState] = useState<'idle' | 'listening' | 'busy'>('idle');
+  const session = useRef<VoiceSession | null>(null);
+  const before = useRef('');
+  useEffect(() => () => session.current?.cancel(), []);
+  const usable = voice ? !!provider && !!voice.model && recordingSupported() : browserSpeechSupported();
+  if (!usable) return null;
+
+  const fail = (err: unknown) => toast(t('voice.failed', { error: (err as Error).message || String(err) }), 'error');
+  const start = async () => {
+    before.current = getDraft(key).text;
+    try {
+      session.current =
+        voice && provider
+          ? await startRecording(provider, voice.model)
+          : startBrowserSpeech(lang === 'zh' ? 'zh-CN' : navigator.language || 'en-US', (partial) =>
+              setDraft(key, { text: joinText(before.current, partial) }),
+            );
+      setState('listening');
+    } catch (err) {
+      fail(err);
+    }
+  };
+  const stop = async () => {
+    const s = session.current;
+    session.current = null;
+    if (!s) return;
+    setState('busy');
+    try {
+      const text = await s.stop();
+      if (!text) toast(t('voice.empty'));
+      else setDraft(key, { text: joinText(voice ? getDraft(key).text : before.current, text) });
+    } catch (err) {
+      fail(err);
+    } finally {
+      setState('idle');
+    }
+  };
+  const label = state === 'listening' ? t('voice.stop') : state === 'busy' ? t('voice.transcribing') : t('voice.start');
+  return (
+    <button
+      type="button"
+      title={label}
+      aria-label={label}
+      aria-pressed={state === 'listening'}
+      disabled={state === 'busy'}
+      onClick={() => void (state === 'listening' ? stop() : start())}
+      className={cn(
+        'focus-ring inline-flex size-9 items-center justify-center rounded-lg transition-colors',
+        state === 'listening' ? 'animate-pulse bg-danger/15 text-danger' : 'text-fg-muted hover:bg-muted hover:text-fg',
+      )}
+    >
+      {state === 'busy' ? <Loader2 className="size-[18px] animate-spin" /> : <Mic className="size-[18px]" />}
+    </button>
+  );
+}
+
 /** Turns on provider-native web search; shown only when the current model's provider has one. */
 function WebSearchToggle() {
   const t = useT();
@@ -78,8 +143,10 @@ function WebSearchToggle() {
   const draft = useUI((s) => s.draft);
   const conv = useData((s) => (activeId ? s.conversations[activeId] : undefined));
   useData((s) => s.providers);
+  useWebSearch((s) => s.kind + String(s.hasKey) + s.url);
+  useEffect(() => void loadWebSearch(), []);
   const target = conv ? resolveTarget(conv.providerId, conv.model) : resolveTarget(draft.providerId, draft.model);
-  const mode = target ? searchMode(target.provider, target.model) : null;
+  const mode = target ? effectiveSearchMode(target.provider, target.model) : null;
   if (!mode || mode === 'builtin') return null;
   const on = conv ? !!conv.params?.webSearch : !!draft.webSearch;
   const toggle = () => {
@@ -98,7 +165,7 @@ function WebSearchToggle() {
       )}
     >
       <Globe className="size-[18px]" />
-      <span className="hidden text-xs font-medium sm:inline">{t('search.label')}</span>
+      <span className="hidden text-xs font-medium whitespace-nowrap sm:inline">{t('search.label')}</span>
     </button>
   );
 }
@@ -236,9 +303,11 @@ export function Composer({ compact }: { compact?: boolean }) {
           <IconButton title={t('composer.attach')} aria-label={t('composer.attach')} onClick={() => fileRef.current?.click()}>
             <Paperclip />
           </IconButton>
+          {/* Phones open the photo library from the paperclip too, so the image button makes room for the model name. */}
           <IconButton
             title={t('composer.image')}
             aria-label={t('composer.image')}
+            className="max-sm:hidden"
             onClick={() => {
               const input = document.createElement('input');
               input.type = 'file';
@@ -250,13 +319,11 @@ export function Composer({ compact }: { compact?: boolean }) {
           >
             <ImageIcon />
           </IconButton>
+          <VoiceButton draftKey={key} />
           <ReasoningPicker />
           <CompareButton value={compare} onChange={(v) => setDraft(key, { compare: v })} />
           <WebSearchToggle />
           <div className="ml-auto flex items-center gap-2">
-            <span className="hidden text-[11px] text-fg-subtle sm:inline">
-              {sendKey === 'enter' ? t('composer.hintEnter') : t('composer.hintModEnter')}
-            </span>
             {streaming ? (
               <button
                 key="stop"
@@ -284,7 +351,11 @@ export function Composer({ compact }: { compact?: boolean }) {
           </div>
         </div>
       </div>
-      {!compact && <p className="mt-2 hidden text-center text-[11px] text-fg-subtle sm:block">{t('composer.disclaimer')}</p>}
+      {!compact && (
+        <p className="mt-2 hidden text-center text-[11px] text-fg-subtle sm:block">
+          {sendKey === 'enter' ? t('composer.hintEnter') : t('composer.hintModEnter')} · {t('composer.disclaimer')}
+        </p>
+      )}
     </div>
   );
 }

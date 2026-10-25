@@ -10,6 +10,7 @@ import { createApp } from './app';
 import { sqliteDatabase } from './db-sqlite';
 import { hashPassword, randomToken } from './crypto';
 import { ensureSchema } from './db';
+import { createBackupService } from './backup';
 import { APP_VERSION } from '../shared/types';
 
 const env = process.env;
@@ -78,6 +79,15 @@ const app = createApp({
   },
   fetch: upstreamFetch,
   limits: () => ({ maxOps: 500, maxRecordBytes: 48 * 1024 * 1024 }),
+  // Daily snapshots in <data>/backups; BACKUP_AZURE_URL (or the Azure VM tag "backup") adds an off-site copy.
+  backups: bool(env.BACKUP_DISABLED)
+    ? undefined
+    : createBackupService({
+        db,
+        dataDir,
+        azureUrl: env.BACKUP_AZURE_URL || undefined,
+        keepLocal: Number(env.BACKUP_KEEP) || undefined,
+      }),
 });
 
 const staticDir = env.STATIC_DIR

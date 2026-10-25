@@ -9,6 +9,8 @@
 #           (unset) -> plain HTTP on port 80
 #   branch  git branch to deploy (default: main)
 #   repo    git repository URL (default: this project's repository)
+#   backup  Azure Blob container URL for off-site backups; the app reads it itself through the
+#           instance metadata service and uploads with the VM's managed identity (see README)
 set -euo pipefail
 
 SELF=/usr/local/sbin/omnichat-update
@@ -71,6 +73,11 @@ if [ -d "$SRC_DIR/.git" ]; then
   git -C "$SRC_DIR" reset --hard FETCH_HEAD
 else
   git clone --depth 1 --branch "$BRANCH" "$REPO" "$SRC_DIR"
+fi
+
+# Keep this script current: later runs use the version from the checked-out code.
+if ! cmp -s "$SRC_DIR/omnichat/deploy/azure/setup.sh" "$SELF"; then
+  install -m 755 "$SRC_DIR/omnichat/deploy/azure/setup.sh" "$SELF"
 fi
 
 cd "$SRC_DIR/omnichat"

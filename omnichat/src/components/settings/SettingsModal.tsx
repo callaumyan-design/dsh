@@ -1,4 +1,4 @@
-import { BarChart3, BookOpen, Boxes, Cpu, Database, Info, Palette, Shield, UserRound, X } from 'lucide-react';
+import { BarChart3, BookOpen, Boxes, Cpu, Database, Globe, Info, Palette, Shield, UserRound, X } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { IconButton, useEscape } from '@/components/ui/primitives';
 import { cn } from '@/lib/utils';
@@ -8,6 +8,7 @@ import { useT } from '@/i18n';
 import { ProvidersTab } from './ProvidersTab';
 import { GeneralTab, ModelsTab } from './GeneralTabs';
 import { PromptsTab } from './PromptsTab';
+import { ToolsTab } from './ToolsTab';
 import { DataTab } from './DataTab';
 import { UsageTab } from './UsageTab';
 import { AboutTab, AccountTab, AdminTab } from './AccountTabs';
@@ -26,6 +27,7 @@ export function SettingsModal() {
   const tabs: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
     { id: 'providers', label: t('settings.providers'), icon: <Boxes /> },
     { id: 'models', label: t('settings.models'), icon: <Cpu /> },
+    { id: 'tools', label: t('settings.tools'), icon: <Globe /> },
     { id: 'general', label: t('settings.general'), icon: <Palette /> },
     { id: 'prompts', label: t('settings.prompts'), icon: <BookOpen /> },
     { id: 'usage', label: t('settings.usage'), icon: <BarChart3 /> },
@@ -78,6 +80,7 @@ export function SettingsModal() {
           <div className={cn('min-h-0 flex-1', active.id === 'providers' ? 'overflow-hidden' : 'overflow-y-auto')}>
             {active.id === 'providers' && <ProvidersTab />}
             {active.id === 'models' && <ModelsTab />}
+            {active.id === 'tools' && <ToolsTab />}
             {active.id === 'general' && <GeneralTab />}
             {active.id === 'prompts' && <PromptsTab />}
             {active.id === 'usage' && <UsageTab />}

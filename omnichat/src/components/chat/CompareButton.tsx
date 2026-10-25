@@ -37,7 +37,7 @@ export function CompareButton({ value, onChange }: { value: ModelRef[]; onChange
         {value.length > 0 ? (
           <span className="text-xs font-medium">+{value.length}</span>
         ) : (
-          <span className="hidden text-xs font-medium sm:inline">{t('compare.short')}</span>
+          <span className="hidden text-xs font-medium whitespace-nowrap sm:inline">{t('compare.short')}</span>
         )}
       </button>
       <Popover open={open} onClose={() => setOpen(false)} anchor={anchor} width={320} className="p-0">

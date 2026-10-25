@@ -6,11 +6,13 @@ import {
   embeddedError,
   JSON_HEADERS,
   mergeExtra,
+  parseArgs,
   providerFetch,
   readError,
   userText,
   type ChatRequest,
   type ChatResult,
+  type ToolCall,
 } from './transport';
 import type { ModelInfo, Provider, ReasoningEffort, Usage } from '../types';
 
@@ -73,6 +75,10 @@ function buildMessages(req: ChatRequest, pdfSupported: boolean) {
     for (const img of images) parts.push({ type: 'image_url', image_url: { url: img.dataUrl } });
     out.push({ role: 'user', content: parts });
   }
+  for (const round of req.toolRounds ?? []) {
+    out.push(round.assistant as Record<string, unknown>);
+    for (const r of round.results) out.push({ role: 'tool', tool_call_id: r.id, content: r.content });
+  }
   return out;
 }
 
@@ -99,6 +105,13 @@ export async function openaiChat(req: ChatRequest): Promise<ChatResult> {
     const mode = searchMode(p, req.model);
     if (mode) applyOpenAISearch(body, mode);
   }
+  if (req.tools?.length) {
+    body.tools = [
+      ...((body.tools as unknown[]) ?? []),
+      ...req.tools.map((t) => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters } })),
+    ];
+    if (req.toolChoice === 'none') body.tool_choice = 'none';
+  }
   mergeExtra(body, p.extraBody, params.extraBody);
 
   const res = await providerFetch(p, '/chat/completions', {
@@ -110,8 +123,35 @@ export async function openaiChat(req: ChatRequest): Promise<ChatResult> {
   if (!res.ok) throw await readError(res);
 
   const think = createThinkParser(req.onDelta);
+  // This turn's raw text, reasoning and tool calls, replayed to the model if it called tools.
+  let roundText = '';
+  let roundReasoning = '';
+  const calls: { id: string; name: string; args: string }[] = [];
+  const addCalls = (list: any[] | undefined) => {
+    for (const tc of list ?? []) {
+      const i = typeof tc.index === 'number' ? tc.index : calls.length;
+      const c = (calls[i] ??= { id: '', name: '', args: '' });
+      if (tc.id) c.id = tc.id;
+      if (tc.function?.name) c.name += tc.function.name;
+      if (tc.function?.arguments) c.args += tc.function.arguments;
+    }
+  };
+  const toolResult = (): Pick<ChatResult, 'toolCalls' | 'assistant'> => {
+    const list = calls.filter((c) => c?.name);
+    if (!list.length) return {};
+    const toolCalls: ToolCall[] = list.map((c, i) => ({ id: c.id || `call_${i}`, name: c.name, args: parseArgs(c.args) }));
+    const assistant: Record<string, unknown> = {
+      role: 'assistant',
+      content: roundText || null,
+      tool_calls: toolCalls.map((c, i) => ({ id: c.id, type: 'function', function: { name: c.name, arguments: list[i].args || '{}' } })),
+    };
+    // DeepSeek and Kimi thinking models require their reasoning to come back with the tool calls.
+    if (roundReasoning) assistant.reasoning_content = roundReasoning;
+    return { toolCalls, assistant };
+  };
   const handleContent = (content: unknown) => {
     if (typeof content === 'string') {
+      roundText += content;
       if (content) think.push(content);
     } else if (Array.isArray(content)) {
       // e.g. Mistral Magistral: [{type:'thinking', thinking:[{text}]}, {type:'text', text}]
@@ -134,10 +174,14 @@ export async function openaiChat(req: ChatRequest): Promise<ChatResult> {
     const sources = openAISources(j);
     if (sources.length) req.onDelta({ sources });
     const r = reasoningOf(msg);
-    if (r) req.onDelta({ reasoning: r });
+    if (r) {
+      roundReasoning += r;
+      req.onDelta({ reasoning: r });
+    }
     handleContent(msg.content);
+    addCalls(msg.tool_calls);
     think.end();
-    return { usage: mapUsage(j.usage), finishReason: j.choices?.[0]?.finish_reason };
+    return { usage: mapUsage(j.usage), finishReason: j.choices?.[0]?.finish_reason, ...toolResult() };
   }
 
   let usage: Usage | undefined;
@@ -160,14 +204,18 @@ export async function openaiChat(req: ChatRequest): Promise<ChatResult> {
     const delta = choice?.delta ?? choice?.message;
     if (delta) {
       const r = reasoningOf(delta);
-      if (r) req.onDelta({ reasoning: r });
+      if (r) {
+        roundReasoning += r;
+        req.onDelta({ reasoning: r });
+      }
       handleContent(delta.content);
+      addCalls(delta.tool_calls);
     }
     if (choice?.finish_reason) finishReason = choice.finish_reason;
     if (j.usage) usage = mapUsage(j.usage);
   }
   think.end();
-  return { usage, finishReason };
+  return { usage, finishReason, ...toolResult() };
 }
 
 export async function openaiModels(p: Provider): Promise<ModelInfo[]> {

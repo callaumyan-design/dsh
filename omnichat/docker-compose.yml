@@ -21,3 +21,6 @@ services:
       # Server in mainland China? Route outbound AI API calls through a proxy:
       # HTTPS_PROXY: "http://host.docker.internal:7890"
       # NO_PROXY: "localhost,127.0.0.1,.cn"
+      # Daily backups go to ./data/backups. Also copy them to an Azure Blob container (a SAS URL, or a plain
+      # container URL on an Azure VM with a managed identity). On Azure VMs the "backup" VM tag works too.
+      # BACKUP_AZURE_URL: "https://<account>.blob.core.windows.net/backups?<sas>"

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { ReasoningEffort } from '@/lib/types';
 
-export type SettingsTab = 'providers' | 'models' | 'general' | 'prompts' | 'usage' | 'data' | 'account' | 'admin' | 'about';
+export type SettingsTab = 'providers' | 'models' | 'tools' | 'general' | 'prompts' | 'usage' | 'data' | 'account' | 'admin' | 'about';
 
 export interface Toast {
   id: number;

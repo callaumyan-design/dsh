@@ -15,6 +15,8 @@ import {
   verifyPassword,
 } from './crypto';
 import { ANTHROPIC_DEFAULT_VERSION, applyAuth, joinUrl } from '../shared/provider-auth';
+import type { BackupService } from './backup';
+import { WEB_SEARCH_KINDS, webSearch, type WebSearchConfig } from './websearch';
 import { GO_PREFIX, isOpencodeGo, OPENCODE_GO_USER_AGENT, opencodeGoAuthStyle, opencodeGoRoot } from '../shared/opencode-go';
 import {
   APP_VERSION,
@@ -41,6 +43,8 @@ export interface AppOptions {
   sessionDays?: number;
   /** Per-push limits; Workers + D1 need much smaller values than SQLite. */
   limits(c: Context): SyncLimits;
+  /** Scheduled database backups (self-hosted only). */
+  backups?: BackupService;
 }
 
 export interface SyncLimits {
@@ -390,6 +394,33 @@ export function createApp(opts: AppOptions) {
     return c.json({ ok: true });
   });
 
+  app.get('/api/admin/backups', async (c) => {
+    if (!opts.backups) return c.json({ supported: false });
+    return c.json({ supported: true, ...(await opts.backups.status()) });
+  });
+
+  app.post('/api/admin/backups', async (c) => {
+    if (!opts.backups) fail(400, 'Backups are not available on this deployment');
+    try {
+      await opts.backups.run();
+    } catch (err) {
+      fail(502, `Backup failed: ${(err as Error).message}`);
+    }
+    return c.json({ supported: true, ...(await opts.backups.status()) });
+  });
+
+  app.get('/api/admin/backups/:name', async (c) => {
+    const data = await opts.backups?.read(c.req.param('name'));
+    if (!data) fail(404, 'Backup not found');
+    return new Response(data as unknown as BodyInit, {
+      headers: {
+        'content-type': 'application/gzip',
+        'content-disposition': `attachment; filename="${c.req.param('name')}"`,
+        'cache-control': 'no-store',
+      },
+    });
+  });
+
   // ---------- Sync ----------
 
   app.get('/api/sync', async (c) => {
@@ -731,6 +762,64 @@ export function createApp(opts: AppOptions) {
     return c.json({ days, rows });
   });
 
+  // ---------- Web search tool ----------
+
+  // Stored in the secrets table (encrypted) under a reserved id, never synced to the browser.
+  const WEB_SEARCH_ID = '__websearch__';
+  async function loadWebSearch(c: Context<AppEnv>): Promise<WebSearchConfig | null> {
+    const db = c.get('db');
+    const row = await db.first<{ value: string }>('SELECT value FROM secrets WHERE user_id = ? AND provider_id = ?', [c.get('user').id, WEB_SEARCH_ID]);
+    if (!row) return null;
+    return parseJson<WebSearchConfig | null>(await decryptSecret(row.value, await getSecret(c, db)), null);
+  }
+  const publicWebSearch = (cfg: WebSearchConfig | null) =>
+    cfg ? { kind: cfg.kind, url: cfg.url, hasKey: !!cfg.apiKey, keyHint: cfg.apiKey ? maskKey(cfg.apiKey) : undefined } : { kind: null };
+
+  app.get('/api/websearch/config', async (c) => c.json(publicWebSearch(await loadWebSearch(c))));
+
+  app.put('/api/websearch/config', async (c) => {
+    const body = await c.req.json().catch(() => ({}));
+    const db = c.get('db');
+    const userId = c.get('user').id;
+    if (!body.kind) {
+      await db.run('DELETE FROM secrets WHERE user_id = ? AND provider_id = ?', [userId, WEB_SEARCH_ID]);
+      return c.json(publicWebSearch(null));
+    }
+    if (!WEB_SEARCH_KINDS.includes(body.kind)) fail(400, 'Unknown search service');
+    const prev = await loadWebSearch(c);
+    const cfg: WebSearchConfig = { kind: body.kind };
+    if (typeof body.url === 'string' && body.url.trim()) {
+      if (!/^https?:\/\/[^\s]+$/i.test(body.url.trim())) fail(400, 'Invalid URL');
+      cfg.url = body.url.trim().replace(/\/+$/, '');
+    }
+    const key = typeof body.apiKey === 'string' ? body.apiKey.trim() : prev && prev.kind === body.kind ? prev.apiKey : undefined;
+    if (key) cfg.apiKey = key;
+    await db.run(
+      `INSERT INTO secrets (user_id, provider_id, value, updated_at) VALUES (?, ?, ?, ?)
+       ON CONFLICT(user_id, provider_id) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+      [userId, WEB_SEARCH_ID, await encryptSecret(JSON.stringify(cfg), await getSecret(c, db)), Date.now()],
+    );
+    return c.json(publicWebSearch(cfg));
+  });
+
+  app.post('/api/websearch', async (c) => {
+    const body = await c.req.json().catch(() => ({}));
+    const query = typeof body.query === 'string' ? body.query.trim().slice(0, 400) : '';
+    if (!query) fail(400, 'Empty query');
+    const cfg = await loadWebSearch(c);
+    if (!cfg) fail(400, 'No search service is configured');
+    if (cfg.kind !== 'searxng' && !cfg.apiKey) fail(400, 'The search service has no API key');
+    if (cfg.kind === 'searxng' && cfg.url && !c.get('user').is_admin && !opts.allowPrivateNetwork(c) && isPrivateHost(new URL(cfg.url).hostname)) {
+      fail(403, 'Private network addresses are not allowed');
+    }
+    const count = Math.min(10, Math.max(1, Number(body.count) || 6));
+    try {
+      return c.json({ results: await webSearch(cfg, query, count, upstreamFetch) });
+    } catch (err) {
+      fail(502, (err as Error).message);
+    }
+  });
+
   // ---------- Search ----------
 
   app.get('/api/search', async (c) => {
@@ -776,7 +865,7 @@ export function createApp(opts: AppOptions) {
     if (includeKeys) {
       keys = {};
       const secret = await getSecret(c, db);
-      for (const s of await db.all<{ provider_id: string; value: string }>('SELECT provider_id, value FROM secrets WHERE user_id = ?', [
+      for (const s of await db.all<{ provider_id: string; value: string }>("SELECT provider_id, value FROM secrets WHERE user_id = ? AND provider_id NOT LIKE '\\_\\_%' ESCAPE '\\'", [
         user.id,
       ])) {
         keys[s.provider_id] = await decryptSecret(s.value, secret);
