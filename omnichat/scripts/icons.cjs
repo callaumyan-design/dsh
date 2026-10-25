@@ -7,6 +7,8 @@ const path = require('node:path');
   const pub = path.resolve(process.argv[2] || 'public');
   const browser = await chromium.launch();
   const page = await browser.newPage();
+  // icon.svg switches tiles with the color scheme; home-screen PNGs use the dark tile.
+  await page.emulateMedia({ colorScheme: 'dark' });
   for (const [src, out, size] of [
     ['icon.svg', 'icon-192.png', 192],
     ['icon.svg', 'icon-512.png', 512],

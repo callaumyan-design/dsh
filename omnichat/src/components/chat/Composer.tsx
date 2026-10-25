@@ -8,6 +8,7 @@ import { updateConversation, useData } from '@/store/data';
 import { searchMode } from '@/lib/ai/search';
 import { useUI } from '@/store/ui';
 import { CompareButton, CompareChips } from './CompareButton';
+import { ModelPicker, useActiveModel } from './ModelPicker';
 import { useT } from '@/i18n';
 
 /** Turns on provider-native web search; shown only when the current model's provider has one. */
@@ -53,6 +54,7 @@ export function Composer({ compact }: { compact?: boolean }) {
   const text = draft?.text ?? '';
   const attachments = draft?.attachments ?? [];
   const compare = draft?.compare ?? [];
+  const [model, setModel] = useActiveModel();
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const composing = useRef(false);
@@ -170,6 +172,7 @@ export function Composer({ compact }: { compact?: boolean }) {
               e.target.value = '';
             }}
           />
+          <ModelPicker value={model} onChange={setModel} variant="composer" />
           <IconButton title={t('composer.attach')} aria-label={t('composer.attach')} onClick={() => fileRef.current?.click()}>
             <Paperclip />
           </IconButton>

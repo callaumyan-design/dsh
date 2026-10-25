@@ -1,6 +1,6 @@
 import { cn } from '@/lib/utils';
 
-// CatGPT glitch cat: RGB-split head over a dark tile.
+// CatGPT glitch cat: RGB-split head on a white tile in light mode, a dark tile in dark mode.
 export function Logo({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 128 128" className={cn('size-8', className)} aria-hidden>
@@ -10,7 +10,7 @@ export function Logo({ className }: { className?: string }) {
           <stop offset="1" stopColor="#14081c" />
         </linearGradient>
       </defs>
-      <rect width="128" height="128" rx="28" fill="url(#catgpt-g)" />
+      <rect x="1" y="1" width="126" height="126" rx="27" strokeWidth="2" className="fill-white stroke-black/10 dark:fill-[url(#catgpt-g)] dark:stroke-white/10" />
       <path d="M26 102 Q18 80 26 60 L22 20 L50 40 Q64 36 78 40 L106 20 L102 60 Q110 80 102 102 Q64 120 26 102 Z" fill="#22e6ff" transform="translate(-4 0)" opacity=".9" />
       <path d="M26 102 Q18 80 26 60 L22 20 L50 40 Q64 36 78 40 L106 20 L102 60 Q110 80 102 102 Q64 120 26 102 Z" fill="#ff2bd6" transform="translate(4 1)" opacity=".9" />
       <path d="M26 102 Q18 80 26 60 L22 20 L50 40 Q64 36 78 40 L106 20 L102 60 Q110 80 102 102 Q64 120 26 102 Z" fill="#0b0b14" />

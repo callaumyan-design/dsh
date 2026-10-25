@@ -5,14 +5,35 @@ import { ProviderAvatar } from '@/components/ui/ProviderAvatar';
 import { guessReasoning, guessVision } from '@/lib/ai/capabilities';
 import { cn } from '@/lib/utils';
 import { modelKey, type Provider } from '@/lib/types';
-import { updateSettings, useData } from '@/store/data';
-import { sortedProviders } from '@/store/chat';
-import { openSettings } from '@/store/ui';
+import { updateConversation, updateSettings, useData } from '@/store/data';
+import { resolveTarget, sortedProviders } from '@/store/chat';
+import { openSettings, useUI } from '@/store/ui';
 import { useT } from '@/i18n';
 
 export interface ModelValue {
   providerId?: string;
   model?: string;
+}
+
+/** The model the open chat (or the new-chat draft) will use, and a setter that stores the choice there. */
+export function useActiveModel(): [ModelValue, (v: ModelValue) => void] {
+  const activeId = useUI((s) => s.activeId);
+  const draft = useUI((s) => s.draft);
+  const conv = useData((s) => (activeId ? s.conversations[activeId] : undefined));
+  // Re-render when providers or the default model change so the fallback below stays current.
+  useData((s) => s.providers);
+  useData((s) => s.settings.defaultModel);
+  const fallback = !conv && !draft.model ? resolveTarget() : null;
+  const value = conv
+    ? { providerId: conv.providerId, model: conv.model }
+    : fallback
+      ? { providerId: fallback.provider.id, model: fallback.model }
+      : { providerId: draft.providerId, model: draft.model };
+  const set = (v: ModelValue) => {
+    if (conv) updateConversation(conv.id, { providerId: v.providerId, model: v.model });
+    else useUI.setState({ draft: { ...useUI.getState().draft, providerId: v.providerId, model: v.model } });
+  };
+  return [value, set];
 }
 
 function ModelBadges({ id }: { id: string }) {
@@ -33,7 +54,7 @@ export function ModelPicker({
 }: {
   value: ModelValue;
   onChange(v: ModelValue): void;
-  variant?: 'header' | 'field';
+  variant?: 'header' | 'field' | 'composer';
   allowEmpty?: boolean;
   emptyLabel?: string;
 }) {
@@ -116,13 +137,24 @@ export function ModelPicker({
           'focus-ring flex min-w-0 items-center gap-2 text-left transition-colors',
           variant === 'header'
             ? 'h-9 max-w-[min(60vw,22rem)] rounded-xl px-2.5 hover:bg-muted'
-            : 'h-10 w-full rounded-xl border border-line bg-bg px-3 hover:border-line-strong',
-          open && variant === 'header' && 'bg-muted',
+            : variant === 'composer'
+              ? 'h-9 max-w-[min(42vw,15rem)] gap-1.5 rounded-lg px-2 text-fg-muted hover:bg-muted hover:text-fg'
+              : 'h-10 w-full rounded-xl border border-line bg-bg px-3 hover:border-line-strong',
+          open && variant !== 'field' && 'bg-muted text-fg',
         )}
       >
-        {current ? <ProviderAvatar provider={current} size="sm" /> : null}
-        <span className={cn('min-w-0 truncate text-sm', variant === 'header' ? 'font-semibold' : '', !value.model && 'text-fg-subtle')}>{label}</span>
-        <ChevronDown className="ml-auto size-4 shrink-0 text-fg-subtle" />
+        {current ? <ProviderAvatar provider={current} size={variant === 'composer' ? 'xs' : 'sm'} /> : null}
+        <span
+          className={cn(
+            'min-w-0 truncate',
+            variant === 'composer' ? 'text-xs font-medium' : 'text-sm',
+            variant === 'header' && 'font-semibold',
+            !value.model && 'text-fg-subtle',
+          )}
+        >
+          {label}
+        </span>
+        <ChevronDown className={cn('ml-auto shrink-0 text-fg-subtle', variant === 'composer' ? 'size-3.5' : 'size-4')} />
       </button>
       <Popover open={open} onClose={() => setOpen(false)} anchor={anchor} width={340} className="p-0">
         <div className="sticky top-0 z-10 border-b border-line bg-elevated p-2">
