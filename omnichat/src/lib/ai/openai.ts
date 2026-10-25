@@ -31,6 +31,9 @@ function applyReasoning(body: Record<string, unknown>, effort: ReasoningEffort |
     case 'openai':
       body.reasoning_effort = capped;
       break;
+    case 'lmh':
+      if (effort !== 'none') body.reasoning_effort = capped === 'minimal' ? 'low' : capped;
+      break;
     case 'openrouter':
       body.reasoning = effort === 'none' ? { enabled: false } : { effort: capped === 'minimal' ? 'low' : capped };
       break;

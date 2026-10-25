@@ -1,7 +1,7 @@
 import type { AuthStyle, ProviderType, RequestMode } from '../../../shared/types';
 import { OPENCODE_GO_DEFAULT_MODELS, OPENCODE_GO_ROOT } from '../../../shared/opencode-go';
 
-export type ReasoningStyle = 'openai' | 'openrouter' | 'enable_thinking' | 'thinking_type' | 'none';
+export type ReasoningStyle = 'openai' | 'lmh' | 'openrouter' | 'enable_thinking' | 'thinking_type' | 'none';
 
 export interface Quirks {
   /** Send stream_options.include_usage to receive token usage while streaming. */
@@ -205,7 +205,8 @@ export const PRESETS: ProviderPreset[] = [
     keyUrl: 'https://opencode.ai/auth',
     color: '#211e1e',
     region: 'global',
-    quirks: { reasoning: 'none' },
+    // Go's open models take reasoning_effort, but only low / medium / high.
+    quirks: { reasoning: 'lmh' },
   },
   {
     id: 'xai',

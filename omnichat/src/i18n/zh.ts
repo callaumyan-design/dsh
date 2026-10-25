@@ -91,6 +91,7 @@ export const zh = {
   'effort.xhigh': '超高',
   'effort.max': '最大',
 
+  'compare.short': '多模型',
   'compare.title': '多模型同时回答',
   'compare.desc': '勾选的模型会与当前模型并行回答每条消息，可在回答上方切换对比；选中的回答作为后续上下文。',
   'compare.clear': '取消多模型',

@@ -86,7 +86,14 @@ export function newConversation(opts: Partial<Conversation> = {}): Conversation 
     model: target?.model,
     systemPrompt: draft.systemPrompt ?? settings.defaultSystemPrompt,
     promptId: draft.promptId,
-    params: settings.defaultParams || draft.webSearch ? { ...settings.defaultParams, ...(draft.webSearch ? { webSearch: true } : {}) } : undefined,
+    params:
+      settings.defaultParams || draft.webSearch || draft.reasoningEffort
+        ? {
+            ...settings.defaultParams,
+            ...(draft.webSearch ? { webSearch: true } : {}),
+            ...(draft.reasoningEffort ? { reasoningEffort: draft.reasoningEffort } : {}),
+          }
+        : undefined,
     createdAt: Date.now(),
     lastMessageAt: Date.now(),
     ...opts,

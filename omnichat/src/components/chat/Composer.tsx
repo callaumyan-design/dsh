@@ -1,6 +1,8 @@
-import { useEffect, useLayoutEffect, useRef } from 'react';
-import { ArrowUp, FileText, Globe, Image as ImageIcon, Loader2, Paperclip, Square, X, File as FileIcon } from 'lucide-react';
-import { IconButton } from '@/components/ui/primitives';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { ArrowUp, Brain, Check, FileText, Globe, Image as ImageIcon, Loader2, Paperclip, Square, X, File as FileIcon } from 'lucide-react';
+import { IconButton, Popover } from '@/components/ui/primitives';
+import { guessReasoning } from '@/lib/ai/capabilities';
+import type { ReasoningEffort } from '@/lib/types';
 import { cn, formatBytes } from '@/lib/utils';
 import { addFiles, clearDraft, draftKey, getDraft, setDraft, useComposer } from '@/store/composer';
 import { resolveTarget, sendMessage, stopGeneration, useChat } from '@/store/chat';
@@ -10,6 +12,61 @@ import { useUI } from '@/store/ui';
 import { CompareButton, CompareChips } from './CompareButton';
 import { ModelPicker, useActiveModel } from './ModelPicker';
 import { useT } from '@/i18n';
+
+const EFFORTS: ReasoningEffort[] = ['default', 'none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
+
+/** Thinking effort of the open chat (or the new-chat draft); shown for reasoning models or once an effort is set. */
+function ReasoningPicker() {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  const anchor = useRef<HTMLButtonElement>(null);
+  const activeId = useUI((s) => s.activeId);
+  const draft = useUI((s) => s.draft);
+  const conv = useData((s) => (activeId ? s.conversations[activeId] : undefined));
+  useData((s) => s.providers);
+  const target = conv ? resolveTarget(conv.providerId, conv.model) : resolveTarget(draft.providerId, draft.model);
+  const effort = (conv ? conv.params?.reasoningEffort : draft.reasoningEffort) ?? 'default';
+  if (!target || (effort === 'default' && !guessReasoning(target.model))) return null;
+  const pick = (e: ReasoningEffort) => {
+    const v = e === 'default' ? undefined : e;
+    if (conv) updateConversation(conv.id, { params: { ...conv.params, reasoningEffort: v } });
+    else useUI.setState({ draft: { ...draft, reasoningEffort: v } });
+    setOpen(false);
+  };
+  return (
+    <>
+      <button
+        ref={anchor}
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        title={t('params.reasoning')}
+        className={cn(
+          'focus-ring inline-flex h-9 items-center gap-1.5 rounded-lg px-2 text-sm transition-colors',
+          effort !== 'default' ? 'bg-accent-soft text-accent' : 'text-fg-muted hover:bg-muted hover:text-fg',
+        )}
+      >
+        <Brain className="size-[18px]" />
+        <span className="hidden text-xs font-medium sm:inline">
+          {effort === 'default' ? t('params.reasoning') : t(`effort.${effort}` as 'effort.default')}
+        </span>
+      </button>
+      <Popover open={open} onClose={() => setOpen(false)} anchor={anchor} width={200} className="p-1">
+        <div className="px-2.5 pt-1.5 pb-1 text-xs font-medium text-fg-subtle">{t('params.reasoning')}</div>
+        {EFFORTS.map((e) => (
+          <button
+            key={e}
+            type="button"
+            onClick={() => pick(e)}
+            className="flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-left text-sm hover:bg-muted"
+          >
+            {t(`effort.${e}` as 'effort.default')}
+            {e === effort && <Check className="size-4 text-accent" />}
+          </button>
+        ))}
+      </Popover>
+    </>
+  );
+}
 
 /** Turns on provider-native web search; shown only when the current model's provider has one. */
 function WebSearchToggle() {
@@ -190,6 +247,7 @@ export function Composer({ compact }: { compact?: boolean }) {
           >
             <ImageIcon />
           </IconButton>
+          <ReasoningPicker />
           <CompareButton value={compare} onChange={(v) => setDraft(key, { compare: v })} />
           <WebSearchToggle />
           <div className="ml-auto flex items-center gap-2">

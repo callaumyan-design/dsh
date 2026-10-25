@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { ReasoningEffort } from '@/lib/types';
 
 export type SettingsTab = 'providers' | 'models' | 'general' | 'prompts' | 'usage' | 'data' | 'account' | 'admin' | 'about';
 
@@ -31,7 +32,7 @@ interface UIState {
   chatSettingsOpen: boolean;
   searchOpen: boolean;
   /** Model chosen on the welcome screen before a conversation exists. */
-  draft: { providerId?: string; model?: string; promptId?: string; systemPrompt?: string; webSearch?: boolean };
+  draft: { providerId?: string; model?: string; promptId?: string; systemPrompt?: string; webSearch?: boolean; reasoningEffort?: ReasoningEffort };
   toasts: Toast[];
   confirm: ConfirmRequest | null;
   prompt: PromptRequest | null;

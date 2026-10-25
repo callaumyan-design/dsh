@@ -34,7 +34,11 @@ export function CompareButton({ value, onChange }: { value: ModelRef[]; onChange
         )}
       >
         <Columns3 className="size-[18px]" />
-        {value.length > 0 && <span className="text-xs font-medium">+{value.length}</span>}
+        {value.length > 0 ? (
+          <span className="text-xs font-medium">+{value.length}</span>
+        ) : (
+          <span className="hidden text-xs font-medium sm:inline">{t('compare.short')}</span>
+        )}
       </button>
       <Popover open={open} onClose={() => setOpen(false)} anchor={anchor} width={320} className="p-0">
         <div className="border-b border-line p-3">
