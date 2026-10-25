@@ -11,6 +11,10 @@ export interface WebSearchStatus {
   url?: string;
   hasKey?: boolean;
   keyHint?: string;
+  /** DeepSeek search without its own key: the name of the DeepSeek provider whose key it uses. */
+  keyFrom?: string;
+  /** Whether searches can run as configured. */
+  ready?: boolean;
 }
 
 /** The account's search service (configured in Settings; the key stays on the server). */
@@ -30,7 +34,7 @@ export function loadWebSearch(force = false): Promise<void> {
 }
 
 export function webSearchReady(s: WebSearchStatus = useWebSearch.getState()): boolean {
-  return !!s.kind && (s.kind === 'searxng' ? !!s.url : !!s.hasKey);
+  return !!s.kind && !!s.ready;
 }
 
 /** How web search runs for a model: the provider's own search, the search tool, or not at all. */

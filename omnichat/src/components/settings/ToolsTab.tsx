@@ -8,15 +8,24 @@ import { browserSpeechSupported, recordingSupported, TRANSCRIBE_MODELS } from '@
 import { sortedProviders } from '@/store/chat';
 import { updateSettings, useData } from '@/store/data';
 import { toast } from '@/store/ui';
-import { useT } from '@/i18n';
+import { useT, type I18nKey } from '@/i18n';
 
-const SERVICES: { id: string; name: string; keyUrl?: string }[] = [
+const SERVICES: { id: string; name: string; keyUrl?: string; keyless?: boolean }[] = [
+  { id: 'exa-free', name: 'Exa', keyless: true },
+  { id: 'deepseek', name: 'DeepSeek', keyUrl: 'https://platform.deepseek.com/api_keys' },
   { id: 'tavily', name: 'Tavily', keyUrl: 'https://app.tavily.com/home' },
   { id: 'bocha', name: '博查 Bocha', keyUrl: 'https://open.bochaai.com/' },
   { id: 'brave', name: 'Brave Search', keyUrl: 'https://api-dashboard.search.brave.com/app/keys' },
   { id: 'exa', name: 'Exa', keyUrl: 'https://dashboard.exa.ai/api-keys' },
-  { id: 'searxng', name: 'SearXNG' },
+  { id: 'searxng', name: 'SearXNG', keyless: true },
 ];
+
+const HINTS: Record<string, I18nKey> = {
+  'exa-free': 'tools.exaFreeHint',
+  deepseek: 'tools.deepseekHint',
+  tavily: 'tools.tavilyHint',
+  bocha: 'tools.bochaHint',
+};
 
 function WebSearchSection() {
   const t = useT();
@@ -70,12 +79,12 @@ function WebSearchSection() {
         </div>
         <p className="mt-1 text-xs leading-relaxed text-fg-subtle">{t('tools.searchDesc')}</p>
       </div>
-      <Field label={t('tools.service')}>
+      <Field label={t('tools.service')} hint={kind === 'exa-free' ? t(HINTS[kind]) : undefined}>
         <Select value={kind} onChange={(e) => setKind(e.target.value)}>
           <option value="">{t('tools.serviceNone')}</option>
           {SERVICES.map((s) => (
             <option key={s.id} value={s.id}>
-              {s.name}
+              {s.id === 'exa-free' ? t('tools.exaFree') : s.name}
             </option>
           ))}
         </Select>
@@ -85,7 +94,7 @@ function WebSearchSection() {
           <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://searx.example.com" className="font-mono" spellCheck={false} />
         </Field>
       )}
-      {kind && kind !== 'searxng' && (
+      {service && !service.keyless && (
         <Field
           label={t('provider.apiKey')}
           action={
@@ -96,14 +105,22 @@ function WebSearchSection() {
               </a>
             )
           }
-          hint={kind === 'tavily' ? t('tools.tavilyHint') : kind === 'bocha' ? t('tools.bochaHint') : undefined}
+          hint={HINTS[kind] && t(HINTS[kind])}
         >
           <Input
             type="password"
             autoComplete="off"
             value={key}
             onChange={(e) => setKey(e.target.value)}
-            placeholder={cfg.kind === kind && cfg.hasKey ? `${cfg.keyHint}（${t('provider.keyKeep')}）` : 'API key'}
+            placeholder={
+              cfg.kind === kind && cfg.hasKey
+                ? `${cfg.keyHint}（${t('provider.keyKeep')}）`
+                : cfg.kind === kind && cfg.keyFrom
+                  ? t('tools.keyFrom', { name: cfg.keyFrom })
+                  : kind === 'deepseek'
+                    ? t('tools.deepseekKeyOptional')
+                    : 'API key'
+            }
             className="font-mono"
           />
         </Field>

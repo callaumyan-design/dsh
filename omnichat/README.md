@@ -17,7 +17,7 @@
 - 推理模型支持：统一的「思考强度」设置，自动映射为各家参数（OpenAI `reasoning_effort`、Claude 自适应思考 / `budget_tokens`、Gemini `thinkingConfig`、通义 `enable_thinking`、GLM/豆包 `thinking`、OpenRouter `reasoning`）；思考过程可折叠显示，兼容 `reasoning_content` 字段与 `<think>` 标签。
 - 每个服务商可设置自定义请求头和「额外请求体」JSON，覆盖任何厂商特有参数（值为 `null` 可删除字段）。
 - **多模型同时回答**：一个问题同时发给最多 6 个模型（可跨服务商）并行生成，用标签页切换对比，选中的回答作为后续上下文。
-- **联网搜索**：一键开启服务商自带的搜索能力（Claude `web_search`、Gemini Google 搜索、通义 `enable_search`、智谱 `web_search`、OpenRouter web 插件、文心 / 混元搜索、OpenAI Responses `web_search`），回答下方列出参考来源。没有自带搜索的模型（DeepSeek、Kimi、OpenCode Go 等）通过**工具调用**联网：在「设置 → 联网与语音」配置 Tavily / 博查 / Brave / Exa / SearXNG 任一搜索服务即可，密钥只保存在服务器上。
+- **联网搜索**：一键开启服务商自带的搜索能力（Claude `web_search`、Gemini Google 搜索、通义 `enable_search`、智谱 `web_search`、OpenRouter web 插件、文心 / 混元搜索、OpenAI Responses `web_search`），回答下方列出参考来源。没有自带搜索的模型（DeepSeek、Kimi、OpenCode Go 等）通过**工具调用**联网：默认使用免费的 Exa 托管搜索（和 OpenCode 自带搜索同一个服务，无需 Key），也可以在「设置 → 联网与语音」换成 DeepSeek 搜索（可直接复用已添加的 DeepSeek Key）/ Tavily / 博查 / Brave / Exa / SearXNG，密钥只保存在服务器上。
 - OpenAI 可切换到 **Responses API**，获得推理摘要、内置联网搜索以及仅在该接口提供的模型。
 
 **多设备同步与数据保存**

@@ -143,7 +143,7 @@ function WebSearchToggle() {
   const draft = useUI((s) => s.draft);
   const conv = useData((s) => (activeId ? s.conversations[activeId] : undefined));
   useData((s) => s.providers);
-  useWebSearch((s) => s.kind + String(s.hasKey) + s.url);
+  useWebSearch((s) => s.kind + String(s.ready));
   useEffect(() => void loadWebSearch(), []);
   const target = conv ? resolveTarget(conv.providerId, conv.model) : resolveTarget(draft.providerId, draft.model);
   const mode = target ? effectiveSearchMode(target.provider, target.model) : null;

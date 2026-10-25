@@ -16,7 +16,7 @@ import {
 } from './crypto';
 import { ANTHROPIC_DEFAULT_VERSION, applyAuth, joinUrl } from '../shared/provider-auth';
 import type { BackupService } from './backup';
-import { WEB_SEARCH_KINDS, webSearch, type WebSearchConfig } from './websearch';
+import { DEFAULT_WEB_SEARCH, KEYLESS_KINDS, WEB_SEARCH_KINDS, webSearch, type WebSearchConfig } from './websearch';
 import { GO_PREFIX, isOpencodeGo, OPENCODE_GO_USER_AGENT, opencodeGoAuthStyle, opencodeGoRoot } from '../shared/opencode-go';
 import {
   APP_VERSION,
@@ -764,26 +764,55 @@ export function createApp(opts: AppOptions) {
 
   // ---------- Web search tool ----------
 
-  // Stored in the secrets table (encrypted) under a reserved id, never synced to the browser.
+  // Stored in the secrets table (encrypted) under a reserved id, never synced to the browser. Until the account picks a
+  // service the keyless default applies; picking none stores { kind: null }.
   const WEB_SEARCH_ID = '__websearch__';
   async function loadWebSearch(c: Context<AppEnv>): Promise<WebSearchConfig | null> {
     const db = c.get('db');
     const row = await db.first<{ value: string }>('SELECT value FROM secrets WHERE user_id = ? AND provider_id = ?', [c.get('user').id, WEB_SEARCH_ID]);
-    if (!row) return null;
-    return parseJson<WebSearchConfig | null>(await decryptSecret(row.value, await getSecret(c, db)), null);
+    if (!row) return DEFAULT_WEB_SEARCH;
+    const cfg = parseJson<WebSearchConfig | null>(await decryptSecret(row.value, await getSecret(c, db)), null);
+    return cfg?.kind ? cfg : null;
   }
-  const publicWebSearch = (cfg: WebSearchConfig | null) =>
-    cfg ? { kind: cfg.kind, url: cfg.url, hasKey: !!cfg.apiKey, keyHint: cfg.apiKey ? maskKey(cfg.apiKey) : undefined } : { kind: null };
+  /** DeepSeek search takes the same key as DeepSeek's models, so an added DeepSeek provider's key is used when none is set. */
+  async function deepseekProviderKey(c: Context<AppEnv>): Promise<{ name: string; key: string } | null> {
+    const db = c.get('db');
+    const userId = c.get('user').id;
+    const rows = await db.all<{ id: string; data: string }>(
+      "SELECT id, data FROM entities WHERE user_id = ? AND kind = 'provider' AND deleted = 0",
+      [userId],
+    );
+    for (const row of rows) {
+      const p = parseJson<ProviderData>(row.data, {} as ProviderData);
+      if (!/^https:\/\/api\.deepseek\.com(\/|$)/.test(p.baseUrl ?? '')) continue;
+      const s = await db.first<{ value: string }>('SELECT value FROM secrets WHERE user_id = ? AND provider_id = ?', [userId, row.id]);
+      const key = s ? await decryptSecret(s.value, await getSecret(c, db)) : null;
+      if (key) return { name: p.name || 'DeepSeek', key };
+    }
+    return null;
+  }
+  async function publicWebSearch(c: Context<AppEnv>, cfg: WebSearchConfig | null) {
+    if (!cfg) return { kind: null, ready: false };
+    const keyFrom = cfg.kind === 'deepseek' && !cfg.apiKey ? (await deepseekProviderKey(c))?.name : undefined;
+    const ready = cfg.kind === 'searxng' ? !!cfg.url : KEYLESS_KINDS.includes(cfg.kind) || !!cfg.apiKey || !!keyFrom;
+    return { kind: cfg.kind, url: cfg.url, hasKey: !!cfg.apiKey, keyHint: cfg.apiKey ? maskKey(cfg.apiKey) : undefined, keyFrom, ready };
+  }
 
-  app.get('/api/websearch/config', async (c) => c.json(publicWebSearch(await loadWebSearch(c))));
+  app.get('/api/websearch/config', async (c) => c.json(await publicWebSearch(c, await loadWebSearch(c))));
 
   app.put('/api/websearch/config', async (c) => {
     const body = await c.req.json().catch(() => ({}));
     const db = c.get('db');
     const userId = c.get('user').id;
+    const store = async (cfg: WebSearchConfig | { kind: null }) =>
+      db.run(
+        `INSERT INTO secrets (user_id, provider_id, value, updated_at) VALUES (?, ?, ?, ?)
+         ON CONFLICT(user_id, provider_id) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+        [userId, WEB_SEARCH_ID, await encryptSecret(JSON.stringify(cfg), await getSecret(c, db)), Date.now()],
+      );
     if (!body.kind) {
-      await db.run('DELETE FROM secrets WHERE user_id = ? AND provider_id = ?', [userId, WEB_SEARCH_ID]);
-      return c.json(publicWebSearch(null));
+      await store({ kind: null });
+      return c.json(await publicWebSearch(c, null));
     }
     if (!WEB_SEARCH_KINDS.includes(body.kind)) fail(400, 'Unknown search service');
     const prev = await loadWebSearch(c);
@@ -794,21 +823,21 @@ export function createApp(opts: AppOptions) {
     }
     const key = typeof body.apiKey === 'string' ? body.apiKey.trim() : prev && prev.kind === body.kind ? prev.apiKey : undefined;
     if (key) cfg.apiKey = key;
-    await db.run(
-      `INSERT INTO secrets (user_id, provider_id, value, updated_at) VALUES (?, ?, ?, ?)
-       ON CONFLICT(user_id, provider_id) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
-      [userId, WEB_SEARCH_ID, await encryptSecret(JSON.stringify(cfg), await getSecret(c, db)), Date.now()],
-    );
-    return c.json(publicWebSearch(cfg));
+    await store(cfg);
+    return c.json(await publicWebSearch(c, cfg));
   });
 
   app.post('/api/websearch', async (c) => {
     const body = await c.req.json().catch(() => ({}));
     const query = typeof body.query === 'string' ? body.query.trim().slice(0, 400) : '';
     if (!query) fail(400, 'Empty query');
-    const cfg = await loadWebSearch(c);
+    let cfg = await loadWebSearch(c);
     if (!cfg) fail(400, 'No search service is configured');
-    if (cfg.kind !== 'searxng' && !cfg.apiKey) fail(400, 'The search service has no API key');
+    if (!KEYLESS_KINDS.includes(cfg.kind) && !cfg.apiKey) {
+      const fallback = cfg.kind === 'deepseek' ? await deepseekProviderKey(c) : null;
+      if (!fallback) fail(400, 'The search service has no API key');
+      cfg = { ...cfg, apiKey: fallback.key };
+    }
     if (cfg.kind === 'searxng' && cfg.url && !c.get('user').is_admin && !opts.allowPrivateNetwork(c) && isPrivateHost(new URL(cfg.url).hostname)) {
       fail(403, 'Private network addresses are not allowed');
     }
