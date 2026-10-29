@@ -5,7 +5,7 @@ import { secureHeaders } from 'hono/secure-headers';
 import type { DB, Statement } from './db';
 import { ensureSchema } from './db';
 import {
-  decryptSecret,
+  decryptSecretAny,
   encryptSecret,
   hashPassword,
   maskKey,
@@ -34,6 +34,8 @@ export interface AppOptions {
   getDb(c: Context): DB;
   /** Secret used to encrypt stored API keys. Falls back to a random secret kept in the database. */
   getSecret?(c: Context): string | undefined;
+  /** Optional salt that domain-separates the API-key encryption key (APP_KDF_SALT). */
+  getKdfSalt?(c: Context): string | undefined;
   passwordIterations(c: Context): number;
   /** Whether new accounts may register after the first (admin) account exists, until an admin changes it. */
   defaultAllowRegister(c: Context): boolean;
@@ -108,17 +110,44 @@ function isPrivateHost(hostname: string): boolean {
   return false;
 }
 
-const loginFailures = new Map<string, { count: number; until: number }>();
-function checkThrottle(ip: string) {
-  const r = loginFailures.get(ip);
-  if (r && r.count >= 8 && r.until > Date.now()) fail(429, 'Too many failed attempts. Try again later.');
+// Failed logins are counted in the database: Workers spread requests over many isolates, so an in-memory map
+// would let an attacker reset the count just by landing on a fresh one. Scopes are `ip:<addr>` and `user:<name>`.
+const MAX_FAILURES = 8;
+const FAILURE_WINDOW_MS = 10 * 60_000;
+async function checkThrottle(db: DB, scope: string) {
+  const row = await db.first<{ count: number; until: number }>('SELECT count, until FROM login_failures WHERE ip = ?', [scope]);
+  if (row && row.count >= MAX_FAILURES && row.until > Date.now()) fail(429, 'Too many failed attempts. Try again later.');
 }
-function recordFailure(ip: string) {
-  const r = loginFailures.get(ip);
-  const until = Date.now() + 10 * 60_000;
-  if (!r || r.until < Date.now()) loginFailures.set(ip, { count: 1, until });
-  else loginFailures.set(ip, { count: r.count + 1, until });
-  if (loginFailures.size > 10_000) loginFailures.clear();
+async function recordFailure(db: DB, scope: string) {
+  const t = Date.now();
+  const row = await db.first<{ count: number; until: number }>('SELECT count, until FROM login_failures WHERE ip = ?', [scope]);
+  const until = t + FAILURE_WINDOW_MS;
+  if (!row || row.until < t) {
+    await db.run(
+      'INSERT INTO login_failures (ip, count, until) VALUES (?, 1, ?) ON CONFLICT(ip) DO UPDATE SET count = 1, until = excluded.until',
+      [scope, until],
+    );
+  } else {
+    await db.run('UPDATE login_failures SET count = count + 1, until = ? WHERE ip = ?', [until, scope]);
+  }
+}
+async function clearFailures(db: DB, scope: string) {
+  await db.run('DELETE FROM login_failures WHERE ip = ?', [scope]);
+}
+
+const WEAK_PASSWORDS = new Set([
+  '123456', '1234567', '12345678', '123456789', '1234567890', '123123', '111111', '000000', '654321',
+  'password', 'password1', 'password123', 'passw0rd', 'p@ssw0rd', 'qwerty', 'qwerty123', 'abc123',
+  'admin', 'admin123', 'root', 'letmein', 'welcome', 'iloveyou', 'monkey', 'dragon', 'master',
+  'changeme', 'secret', 'test123', 'user123', 'aa123456', 'a123456', 'abcdef', 'asdfgh', 'zxcvbnm',
+]);
+/** Applied when a password is set; existing passwords keep working at login. */
+function assertStrongPassword(password: string) {
+  const p = password.trim();
+  if (p.length < 8) fail(400, 'Password must be at least 8 characters');
+  if (WEAK_PASSWORDS.has(p.toLowerCase())) fail(400, 'This password is too common. Choose another one.');
+  if (/^(.)\1+$/.test(p) || /^(?:0123456789|9876543210|abcdefgh|87654321|876543210)/.test(p))
+    fail(400, 'This password is too simple. Choose another one.');
 }
 
 /** Request headers the browser may forward to the AI provider through the proxy. */
@@ -193,6 +222,33 @@ export function createApp(opts: AppOptions) {
     }
     return dbSecret;
   }
+  const kdfSalt = (c: Context<AppEnv>) => opts.getKdfSalt?.(c) || undefined;
+  async function sealSecret(c: Context<AppEnv>, db: DB, plain: string) {
+    return encryptSecret(plain, await getSecret(c, db), kdfSalt(c));
+  }
+  /** Decrypts a stored secret, moving values written with an older key derivation to the current one. */
+  async function openSecret(c: Context<AppEnv>, db: DB, userId: string, providerId: string, stored: string): Promise<string> {
+    const opened = await decryptSecretAny(stored, await getSecret(c, db), kdfSalt(c));
+    if (!opened)
+      fail(409, 'The stored API key can no longer be decrypted (the server secret changed). Please re-enter the API key for this provider.');
+    if (opened.stale) {
+      // Best effort: if the rewrite fails the fallback simply runs again next time.
+      await db
+        .run('UPDATE secrets SET value = ? WHERE user_id = ? AND provider_id = ? AND value = ?', [
+          await sealSecret(c, db, opened.plain),
+          userId,
+          providerId,
+          stored,
+        ])
+        .catch(() => undefined);
+    }
+    return opened.plain;
+  }
+  async function readSecret(c: Context<AppEnv>, userId: string, providerId: string): Promise<string | null> {
+    const db = c.get('db');
+    const s = await db.first<{ value: string }>('SELECT value FROM secrets WHERE user_id = ? AND provider_id = ?', [userId, providerId]);
+    return s ? openSecret(c, db, userId, providerId, s.value) : null;
+  }
   async function hasUsers(db: DB) {
     return !!(await db.first('SELECT id FROM users LIMIT 1'));
   }
@@ -237,6 +293,7 @@ export function createApp(opts: AppOptions) {
     const db = c.get('db');
     const body = await c.req.json().catch(() => ({}));
     const { username, password } = validateCredentials(body.username, body.password);
+    assertStrongPassword(password);
     const first = !(await hasUsers(db));
     if (!first && !(await allowRegister(c))) fail(403, 'Registration is disabled');
     if (await db.first('SELECT id FROM users WHERE username = ?', [username])) fail(409, 'Username already exists');
@@ -264,16 +321,21 @@ export function createApp(opts: AppOptions) {
   app.post('/api/auth/login', async (c) => {
     const db = c.get('db');
     const ip = clientIp(c);
-    checkThrottle(ip);
     const body = await c.req.json().catch(() => ({}));
     const username = String(body.username ?? '');
     const password = String(body.password ?? '');
+    const ipScope = `ip:${ip}`;
+    const userScope = `user:${username.toLowerCase()}`;
+    await checkThrottle(db, ipScope);
+    await checkThrottle(db, userScope);
     const user = await db.first<UserRow>('SELECT * FROM users WHERE username = ?', [username]);
     if (!user || !(await verifyPassword(password, user.password_hash))) {
-      recordFailure(ip);
+      await recordFailure(db, ipScope);
+      if (user) await recordFailure(db, userScope);
       fail(401, 'Invalid username or password');
     }
-    loginFailures.delete(ip);
+    await clearFailures(db, ipScope);
+    await clearFailures(db, userScope);
     return c.json({ token: await createSession(c, user), user: publicUser(user) });
   });
 
@@ -316,6 +378,7 @@ export function createApp(opts: AppOptions) {
     const body = await c.req.json().catch(() => ({}));
     if (!(await verifyPassword(String(body.oldPassword ?? ''), user.password_hash))) fail(400, 'Current password is incorrect');
     const { password } = validateCredentials(user.username, body.newPassword);
+    assertStrongPassword(password);
     await db.batch([
       { sql: 'UPDATE users SET password_hash = ? WHERE id = ?', params: [await hashPassword(password, opts.passwordIterations(c)), user.id] },
       { sql: 'DELETE FROM sessions WHERE user_id = ? AND id != ?', params: [user.id, c.get('sessionId')] },
@@ -377,6 +440,7 @@ export function createApp(opts: AppOptions) {
     const target = await db.first<UserRow>('SELECT * FROM users WHERE id = ?', [id]);
     if (!target) fail(404, 'User not found');
     const { password } = validateCredentials(target.username, body.password);
+    assertStrongPassword(password);
     await db.batch([
       { sql: 'UPDATE users SET password_hash = ? WHERE id = ?', params: [await hashPassword(password, opts.passwordIterations(c)), id] },
       // Sign the user out everywhere (except this very session, when admins reset their own password).
@@ -532,7 +596,6 @@ export function createApp(opts: AppOptions) {
       ).map((r) => [`${r.kind}:${r.id}`, r]),
     );
 
-    const secret = await getSecret(c, db);
     const stmts: Statement[] = [];
     const results: { kind: string; id: string; updatedAt: number }[] = [];
     const touched = new Set<string>();
@@ -589,7 +652,7 @@ export function createApp(opts: AppOptions) {
           stmts.push({ sql: 'DELETE FROM secrets WHERE user_id = ? AND provider_id = ?', params: [user.id, op.id] });
         } else {
           const prevData = prev && !prev.deleted ? parseJson<ProviderData | null>(prev.data, null) : null;
-          const prepared = await prepareProvider(user, op.id, JSON.parse(json) as ProviderData, prevData, secret, stmts, t);
+          const prepared = await prepareProvider(user, op.id, JSON.parse(json) as ProviderData, prevData, (key) => sealSecret(c, db, key), stmts, t);
           json = JSON.stringify(prepared);
         }
       }
@@ -625,11 +688,14 @@ export function createApp(opts: AppOptions) {
     id: string,
     data: ProviderData,
     prev: ProviderData | null,
-    secret: string,
+    seal: (key: string) => Promise<string>,
     stmts: Statement[],
     t: number,
   ): Promise<ProviderData> {
     const out: ProviderData = { ...data };
+    // A patch without models keeps the stored list; malformed entries would break every client that syncs them.
+    if (!Array.isArray(out.models)) out.models = Array.isArray(prev?.models) ? prev.models : [];
+    else out.models = out.models.filter((m) => m && typeof m.id === 'string');
     if (typeof out.baseUrl === 'string' && out.baseUrl) {
       let url: URL;
       try {
@@ -646,7 +712,7 @@ export function createApp(opts: AppOptions) {
         stmts.push({
           sql: `INSERT INTO secrets (user_id, provider_id, value, updated_at) VALUES (?, ?, ?, ?)
                 ON CONFLICT(user_id, provider_id) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
-          params: [user.id, id, await encryptSecret(key, secret), t],
+          params: [user.id, id, await seal(key), t],
         });
         out.hasKey = true;
         out.keyHint = maskKey(key);
@@ -672,9 +738,7 @@ export function createApp(opts: AppOptions) {
     );
     if (!row) fail(404, 'Provider not found');
     const provider = parseJson<ProviderData>(row.data, {} as ProviderData);
-    const s = await db.first<{ value: string }>('SELECT value FROM secrets WHERE user_id = ? AND provider_id = ?', [user.id, id]);
-    const key = s ? await decryptSecret(s.value, await getSecret(c, db)) : null;
-    return { provider, key };
+    return { provider, key: await readSecret(c, user.id, id) };
   }
 
   // Direct (browser → provider) mode needs the key on the client.
@@ -724,7 +788,7 @@ export function createApp(opts: AppOptions) {
 
     let upstream: Response;
     try {
-      upstream = await upstreamFetch(target.toString(), { method, headers, body, signal: c.req.raw.signal, redirect: 'follow' });
+      upstream = await upstreamFetch(target.toString(), { method, headers, body, signal: c.req.raw.signal, redirect: 'manual' });
     } catch (err) {
       if (c.req.raw.signal.aborted) return new Response(null, { status: 499 });
       const msg = err instanceof Error ? `${err.message}${err.cause ? ` (${String((err.cause as Error).message ?? err.cause)})` : ''}` : String(err);
@@ -737,6 +801,11 @@ export function createApp(opts: AppOptions) {
     for (const h of ['retry-after', 'x-request-id', 'request-id']) {
       const v = upstream.headers.get(h);
       if (v) out.set(h, v);
+    }
+    // Redirects are passed back rather than followed, so a provider cannot bounce the key-bearing request elsewhere.
+    if (upstream.status >= 300 && upstream.status < 400) {
+      const loc = upstream.headers.get('location');
+      if (loc) out.set('location', loc);
     }
     out.set('cache-control', 'no-cache, no-transform');
     out.set('x-accel-buffering', 'no');
@@ -773,10 +842,9 @@ export function createApp(opts: AppOptions) {
   // service the keyless default applies; picking none stores { kind: null }.
   const WEB_SEARCH_ID = '__websearch__';
   async function loadWebSearch(c: Context<AppEnv>): Promise<WebSearchConfig | null> {
-    const db = c.get('db');
-    const row = await db.first<{ value: string }>('SELECT value FROM secrets WHERE user_id = ? AND provider_id = ?', [c.get('user').id, WEB_SEARCH_ID]);
-    if (!row) return DEFAULT_WEB_SEARCH;
-    const cfg = parseJson<WebSearchConfig | null>(await decryptSecret(row.value, await getSecret(c, db)), null);
+    const stored = await readSecret(c, c.get('user').id, WEB_SEARCH_ID);
+    if (stored === null) return DEFAULT_WEB_SEARCH;
+    const cfg = parseJson<WebSearchConfig | null>(stored, null);
     return cfg?.kind ? cfg : null;
   }
   /** DeepSeek search takes the same key as DeepSeek's models, so an added DeepSeek provider's key is used when none is set. */
@@ -790,8 +858,7 @@ export function createApp(opts: AppOptions) {
     for (const row of rows) {
       const p = parseJson<ProviderData>(row.data, {} as ProviderData);
       if (!/^https:\/\/api\.deepseek\.com(\/|$)/.test(p.baseUrl ?? '')) continue;
-      const s = await db.first<{ value: string }>('SELECT value FROM secrets WHERE user_id = ? AND provider_id = ?', [userId, row.id]);
-      const key = s ? await decryptSecret(s.value, await getSecret(c, db)) : null;
+      const key = await readSecret(c, userId, row.id);
       if (key) return { name: p.name || 'DeepSeek', key };
     }
     return null;
@@ -813,7 +880,7 @@ export function createApp(opts: AppOptions) {
       db.run(
         `INSERT INTO secrets (user_id, provider_id, value, updated_at) VALUES (?, ?, ?, ?)
          ON CONFLICT(user_id, provider_id) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
-        [userId, WEB_SEARCH_ID, await encryptSecret(JSON.stringify(cfg), await getSecret(c, db)), Date.now()],
+        [userId, WEB_SEARCH_ID, await sealSecret(c, db, JSON.stringify(cfg)), Date.now()],
       );
     if (!body.kind) {
       await store({ kind: null });
@@ -896,13 +963,17 @@ export function createApp(opts: AppOptions) {
       [user.id],
     );
     let keys: Record<string, string> | undefined;
+    const undecryptable: string[] = [];
     if (includeKeys) {
       keys = {};
-      const secret = await getSecret(c, db);
       for (const s of await db.all<{ provider_id: string; value: string }>("SELECT provider_id, value FROM secrets WHERE user_id = ? AND provider_id NOT LIKE '\\_\\_%' ESCAPE '\\'", [
         user.id,
       ])) {
-        keys[s.provider_id] = await decryptSecret(s.value, secret);
+        try {
+          keys[s.provider_id] = await openSecret(c, db, user.id, s.provider_id, s.value);
+        } catch {
+          undecryptable.push(s.provider_id);
+        }
       }
     }
     return c.json({
@@ -912,6 +983,7 @@ export function createApp(opts: AppOptions) {
       entities: entities.map((e) => ({ kind: e.kind, id: e.id, data: parseJson(e.data, {}) })),
       messages: messages.map((m) => ({ id: m.id, conversationId: m.conversation_id, data: parseJson(m.data, {}) })),
       keys,
+      ...(undecryptable.length ? { undecryptableKeys: undecryptable } : {}),
     });
   });
 

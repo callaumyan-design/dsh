@@ -32,7 +32,7 @@ export const en: Record<keyof typeof zh, string> = {
   'auth.registerTitle': 'Create an account',
   'auth.registerDesc': 'Sign up to sync your chats across devices.',
   'auth.username': 'Username',
-  'auth.password': 'Password (6+ characters)',
+  'auth.password': 'Password (8+ characters)',
   'auth.confirm': 'Confirm password',
   'auth.mismatch': 'Passwords do not match',
   'auth.login': 'Sign in',

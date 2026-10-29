@@ -140,6 +140,18 @@ r = await call('/api/search?q=y');
 check('search endpoint responds', Array.isArray(r.json?.results), r.json);
 r = await call('/api/export');
 check('export contains entities and messages, no keys by default', r.json?.app === 'omnichat' && r.json.messages.length >= 1 && !r.json.keys, Object.keys(r.json ?? {}));
+r = await call('/api/export?includeKeys=1');
+check('export with keys decrypts stored API keys', Object.values(r.json?.keys ?? {}).includes('sk-mock') && !r.json.undecryptableKeys, r.json?.keys);
+
+// Last: these lock the test account out for the rest of the throttle window.
+console.log('▶ password rules and login throttling');
+r = await call('/api/auth/password', { body: { oldPassword: 'secret123', newPassword: 'abc1234' } });
+check('passwords shorter than 8 characters rejected', r.status === 400, r.status);
+r = await call('/api/auth/password', { body: { oldPassword: 'secret123', newPassword: 'password123' } });
+check('common passwords rejected', r.status === 400, r.status);
+for (let i = 0; i < 8; i++) await call('/api/auth/login', { body: { username: 'admin', password: 'wrong-pass' }, auth: false });
+r = await call('/api/auth/login', { body: { username: 'admin', password: 'secret123' }, auth: false });
+check('repeated failures throttle the account', r.status === 429, r.status);
 
 console.log(failures ? `\n${failures} check(s) failed` : '\nAll API checks passed.');
 process.exit(failures ? 1 : 0);

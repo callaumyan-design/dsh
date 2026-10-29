@@ -30,7 +30,7 @@ export const zh = {
   'auth.registerTitle': '注册新账户',
   'auth.registerDesc': '创建账户以在多台设备间同步对话。',
   'auth.username': '用户名',
-  'auth.password': '密码（至少 6 位）',
+  'auth.password': '密码（至少 8 位）',
   'auth.confirm': '确认密码',
   'auth.mismatch': '两次输入的密码不一致',
   'auth.login': '登录',

@@ -83,6 +83,7 @@ npm install
 npx wrangler login
 npx wrangler d1 create omnichat          # 把输出的 database_id 填入 wrangler.toml
 npx wrangler secret put APP_SECRET       # 输入一串足够长的随机字符串，用于加密 API 密钥
+npx wrangler secret put APP_KDF_SALT     # 可选：再输入一串随机字符串，进一步隔离加密密钥
 npm run cf:deploy
 ```
 
@@ -111,6 +112,7 @@ npm start            # 默认端口 3000，数据保存在 ./data
 | `HOST` | `0.0.0.0` | 监听地址 |
 | `DATA_DIR` | `./data` | 数据目录（Docker 中为 `/data`） |
 | `APP_SECRET` | 自动生成 | 加密 API 密钥用的密钥。未设置时自动生成并保存在 `DATA_DIR/secret.key` |
+| `APP_KDF_SALT` | – | 可选。与 `APP_SECRET` 一起派生 API 密钥的加密密钥。设置后旧格式的密钥会在读取时自动迁移；设置后请勿再更改 |
 | `ALLOW_REGISTER` | `false` | 管理员创建后是否允许他人注册（也可在「设置 → 管理」中切换） |
 | `TRUST_PROXY` | `false` | 位于反向代理之后时设为 `true`，用于正确识别客户端 IP（登录限流） |
 | `ALLOW_PRIVATE_NETWORK` | `false` | 是否允许**非管理员**用户把接口地址指向内网地址（管理员始终允许） |

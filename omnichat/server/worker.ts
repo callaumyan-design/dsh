@@ -6,6 +6,7 @@ import type { DB } from './db';
 interface Env {
   DB: D1Database;
   APP_SECRET?: string;
+  APP_KDF_SALT?: string;
   ALLOW_REGISTER?: string;
   ALLOW_PRIVATE_NETWORK?: string;
   PASSWORD_ITERATIONS?: string;
@@ -23,6 +24,7 @@ const app = createApp({
     return cached.db;
   },
   getSecret: (c) => env(c).APP_SECRET,
+  getKdfSalt: (c) => env(c).APP_KDF_SALT,
   // Workers cap PBKDF2 at 100k iterations and the free plan has a small CPU budget.
   passwordIterations: (c) => Math.min(Number(env(c).PASSWORD_ITERATIONS) || 30_000, 100_000),
   defaultAllowRegister: (c) => bool(env(c).ALLOW_REGISTER),

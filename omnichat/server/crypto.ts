@@ -65,33 +65,59 @@ export async function verifyPassword(password: string, stored: string): Promise<
 
 const keyCache = new Map<string, Promise<CryptoKey>>();
 
-function aesKey(secret: string): Promise<CryptoKey> {
-  let k = keyCache.get(secret);
+/**
+ * Key derivation for stored API keys. Without a salt the key is SHA-256(secret), the original format; with
+ * APP_KDF_SALT it is domain-separated as SHA-256("omnichat/api-key/v1\0" + salt + "\0" + secret).
+ */
+function aesKey(secret: string, kdfSalt?: string): Promise<CryptoKey> {
+  const material = kdfSalt === undefined ? secret : `omnichat/api-key/v1\0${kdfSalt}\0${secret}`;
+  let k = keyCache.get(material);
   if (!k) {
     k = crypto.subtle
-      .digest('SHA-256', enc.encode(secret))
+      .digest('SHA-256', enc.encode(material))
       .then((raw) => crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt', 'decrypt']));
-    keyCache.set(secret, k);
+    keyCache.set(material, k);
   }
   return k;
 }
 
 /** Encrypts API keys at rest with AES-GCM. Format: v1:<iv b64>:<ciphertext b64> */
-export async function encryptSecret(plain: string, secret: string): Promise<string> {
+export async function encryptSecret(plain: string, secret: string, kdfSalt?: string): Promise<string> {
   const iv = crypto.getRandomValues(new Uint8Array(12));
-  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, await aesKey(secret), enc.encode(plain));
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, await aesKey(secret, kdfSalt), enc.encode(plain));
   return `v1:${toBase64(iv)}:${toBase64(new Uint8Array(ct))}`;
 }
 
-export async function decryptSecret(stored: string, secret: string): Promise<string> {
+export async function decryptSecret(stored: string, secret: string, kdfSalt?: string): Promise<string> {
   if (!stored.startsWith('v1:')) return stored;
   const [, iv, ct] = stored.split(':');
   const pt = await crypto.subtle.decrypt(
     { name: 'AES-GCM', iv: fromBase64(iv) as BufferSource },
-    await aesKey(secret),
+    await aesKey(secret, kdfSalt),
     fromBase64(ct) as BufferSource,
   );
   return dec.decode(pt);
+}
+
+/**
+ * Decrypts with the current derivation, falling back to the others a deployment may have written before
+ * (unsalted, and salted with an empty salt). `stale` tells the caller to re-encrypt with the current one.
+ * Returns null when no derivation fits, i.e. the server secret changed.
+ */
+export async function decryptSecretAny(
+  stored: string,
+  secret: string,
+  kdfSalt?: string,
+): Promise<{ plain: string; stale: boolean } | null> {
+  const candidates = [kdfSalt, undefined, ''].filter((s, i, all) => all.indexOf(s) === i);
+  for (const salt of candidates) {
+    try {
+      return { plain: await decryptSecret(stored, secret, salt), stale: salt !== kdfSalt };
+    } catch {
+      /* try the next derivation */
+    }
+  }
+  return null;
 }
 
 export function maskKey(key: string): string {

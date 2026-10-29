@@ -59,6 +59,11 @@ CREATE TABLE IF NOT EXISTS messages (
   PRIMARY KEY (user_id, id)
 );
 CREATE INDEX IF NOT EXISTS idx_messages_conv ON messages(user_id, conversation_id, updated_at);
+CREATE TABLE IF NOT EXISTS login_failures (
+  ip TEXT PRIMARY KEY,
+  count INTEGER NOT NULL,
+  until INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS secrets (
   user_id TEXT NOT NULL,
   provider_id TEXT NOT NULL,

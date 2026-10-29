@@ -136,7 +136,7 @@ export function AccountTab() {
             <Input type="password" autoComplete="new-password" value={newPw} onChange={(e) => setNewPw(e.target.value)} />
           </Field>
         </div>
-        <Button type="submit" size="sm" variant="primary" loading={saving} disabled={!oldPw || newPw.length < 6}>
+        <Button type="submit" size="sm" variant="primary" loading={saving} disabled={!oldPw || newPw.length < 8}>
           {t('account.updatePassword')}
         </Button>
       </form>

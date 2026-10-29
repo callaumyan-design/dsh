@@ -63,6 +63,7 @@ const trustProxy = bool(env.TRUST_PROXY);
 const app = createApp({
   getDb: () => db,
   getSecret: () => secret,
+  getKdfSalt: () => env.APP_KDF_SALT || undefined,
   passwordIterations: () => Number(env.PASSWORD_ITERATIONS) || 300_000,
   defaultAllowRegister: () => bool(env.ALLOW_REGISTER),
   allowPrivateNetwork: () => bool(env.ALLOW_PRIVATE_NETWORK),

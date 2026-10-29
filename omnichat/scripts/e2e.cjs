@@ -62,7 +62,7 @@ async function send(page, text) {
   await a.getByText('创建管理员账户').waitFor();
   await a.screenshot({ path: path.join(OUT, '01-setup.png') });
   await a.getByPlaceholder('用户名').fill('admin');
-  await a.getByPlaceholder('密码（至少 6 位）').fill('secret123');
+  await a.getByPlaceholder('密码（至少 8 位）').fill('secret123');
   await a.getByPlaceholder('确认密码').fill('secret123');
   await a.getByRole('button', { name: '创建并进入' }).click();
   await a.getByText('先连接一个 AI 服务').waitFor();
@@ -384,7 +384,7 @@ async function send(page, text) {
   const c = await ctxC.newPage();
   await c.goto(APP);
   await c.getByPlaceholder('用户名').fill('admin');
-  await c.getByPlaceholder('密码（至少 6 位）').fill('secret123');
+  await c.getByPlaceholder('密码（至少 8 位）').fill('secret123');
   await c.getByRole('button', { name: '登录' }).click();
   await c.getByText('E2E Main').click();
   await c.getByText('Sent from my phone').first().waitFor({ timeout: 15000 });

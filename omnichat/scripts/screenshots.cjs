@@ -77,7 +77,7 @@ async function login(ctx) {
   const page = await ctx.newPage();
   await page.goto(APP);
   await page.getByPlaceholder('用户名').fill('Yan');
-  await page.getByPlaceholder('密码（至少 6 位）').fill('demo-pass-123');
+  await page.getByPlaceholder('密码（至少 8 位）').fill('demo-pass-123');
   await page.getByPlaceholder('确认密码').fill('demo-pass-123');
   await page.getByRole('button', { name: '创建并进入' }).click();
   await page.waitForSelector('aside');
