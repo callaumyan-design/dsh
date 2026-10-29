@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ChevronRight,
   Cloud,
   CloudOff,
+  FolderInput,
+  FolderPlus,
   LogOut,
   MessageSquareText,
   Monitor,
@@ -22,11 +25,13 @@ import {
 import { Dropdown, IconButton, MenuDivider, MenuItem } from '@/components/ui/primitives';
 import { api } from '@/lib/api';
 import { cn, isMac, startOfDay } from '@/lib/utils';
-import type { Conversation, ThemeMode } from '@/lib/types';
+import type { Conversation, Project, ThemeMode } from '@/lib/types';
 import { logout, useDisplayName } from '@/store/auth';
 import { useChat } from '@/store/chat';
 import { removeConversation, updateConversation, updateSettings, useData } from '@/store/data';
-import { confirmDialog, openConversation, openSettings, promptDialog, useUI } from '@/store/ui';
+import { deleteProject, projectConversations, sortedProjects } from '@/store/projects';
+import { confirmDialog, openConversation, openProject, openSettings, promptDialog, useUI } from '@/store/ui';
+import { ProjectIcon } from '@/components/project/ProjectDialogs';
 import { useLang, useT } from '@/i18n';
 import { Logo } from './Logo';
 
@@ -72,7 +77,7 @@ function useGroups(conversations: Conversation[], lang: 'zh' | 'en', t: ReturnTy
   }, [conversations, lang, t]);
 }
 
-function ConversationItem({ c, active, streaming }: { c: Conversation; active: boolean; streaming: boolean }) {
+function ConversationItem({ c, active, streaming, nested }: { c: Conversation; active: boolean; streaming: boolean; nested?: boolean }) {
   const t = useT();
   return (
     <div
@@ -81,7 +86,11 @@ function ConversationItem({ c, active, streaming }: { c: Conversation; active: b
         active ? 'bg-hover text-fg' : 'text-fg-muted hover:bg-muted hover:text-fg',
       )}
     >
-      <button type="button" onClick={() => openConversation(c.id)} className="flex min-w-0 flex-1 items-center gap-2 py-2 pr-1 pl-2.5 text-left text-sm">
+      <button
+        type="button"
+        onClick={() => openConversation(c.id)}
+        className={cn('flex min-w-0 flex-1 items-center gap-2 py-2 pr-1 text-left text-sm', nested ? 'pl-8' : 'pl-2.5')}
+      >
         {streaming && <span className="size-1.5 shrink-0 animate-pulse rounded-full bg-accent" />}
         <span className="truncate">{c.title || t('chat.newChat')}</span>
       </button>
@@ -123,6 +132,15 @@ function ConversationItem({ c, active, streaming }: { c: Conversation; active: b
             >
               {c.pinned ? t('chat.unpin') : t('chat.pin')}
             </MenuItem>
+            <MenuItem
+              icon={<FolderInput />}
+              onClick={() => {
+                close();
+                useUI.setState({ moveConversationId: c.id });
+              }}
+            >
+              {t('project.moveTo')}
+            </MenuItem>
             <MenuDivider />
             <MenuItem
               danger
@@ -140,6 +158,107 @@ function ConversationItem({ c, active, streaming }: { c: Conversation; active: b
           </>
         )}
       </Dropdown>
+    </div>
+  );
+}
+
+const PROJECT_PREVIEW = 5;
+
+function ProjectItem({
+  p,
+  chats,
+  selected,
+  expanded,
+  onToggle,
+  activeId,
+  streaming,
+}: {
+  p: Project;
+  chats: Conversation[];
+  selected: boolean;
+  expanded: boolean;
+  onToggle(): void;
+  activeId: string | null;
+  streaming: Record<string, unknown>;
+}) {
+  const t = useT();
+  return (
+    <div>
+      <div
+        className={cn(
+          'group relative flex items-center rounded-lg transition-colors',
+          selected ? 'bg-hover text-fg' : 'text-fg-muted hover:bg-muted hover:text-fg',
+        )}
+      >
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-label={p.name}
+          aria-expanded={expanded}
+          disabled={!chats.length}
+          className="ml-0.5 flex size-7 shrink-0 items-center justify-center rounded-md text-fg-subtle hover:text-fg disabled:opacity-0"
+        >
+          <ChevronRight className={cn('size-3.5 transition-transform', expanded && 'rotate-90')} />
+        </button>
+        <button type="button" onClick={() => openProject(p.id)} className="flex min-w-0 flex-1 items-center gap-2 py-2 pr-1 text-left text-sm">
+          <ProjectIcon icon={p.icon} className="size-4 text-[15px]" />
+          <span className="truncate">{p.name}</span>
+        </button>
+        <Dropdown
+          width={180}
+          trigger={({ ref, onClick, open }) => (
+            <button
+              ref={ref}
+              type="button"
+              onClick={onClick}
+              aria-label={t('common.more')}
+              className={cn(
+                'mr-1 flex size-7 shrink-0 items-center justify-center rounded-md text-fg-subtle hover:bg-line hover:text-fg',
+                open || selected ? 'opacity-100' : 'opacity-100 md:opacity-0 md:group-hover:opacity-100',
+              )}
+            >
+              <MoreHorizontal className="size-4" />
+            </button>
+          )}
+        >
+          {(close) => (
+            <>
+              <MenuItem
+                icon={<Pencil />}
+                onClick={() => {
+                  close();
+                  useUI.setState({ projectEditor: p.id });
+                }}
+              >
+                {t('project.edit')}
+              </MenuItem>
+              <MenuDivider />
+              <MenuItem
+                danger
+                icon={<Trash2 />}
+                onClick={() => {
+                  close();
+                  void deleteProject(p.id);
+                }}
+              >
+                {t('project.delete')}
+              </MenuItem>
+            </>
+          )}
+        </Dropdown>
+      </div>
+      {expanded && (
+        <>
+          {chats.slice(0, PROJECT_PREVIEW).map((c) => (
+            <ConversationItem key={c.id} c={c} nested active={c.id === activeId} streaming={!!streaming[c.id]} />
+          ))}
+          {chats.length > PROJECT_PREVIEW && (
+            <button type="button" onClick={() => openProject(p.id)} className="block w-full rounded-lg py-1.5 pl-8 text-left text-xs text-fg-subtle hover:bg-muted hover:text-fg">
+              {t('project.viewAll', { count: chats.length })}
+            </button>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -170,7 +289,9 @@ export function Sidebar() {
   const lang = useLang();
   const open = useUI((s) => s.sidebarOpen);
   const activeId = useUI((s) => s.activeId);
+  const projectId = useUI((s) => s.projectId);
   const conversationsMap = useData((s) => s.conversations);
+  const projectsMap = useData((s) => s.projects);
   const theme = useData((s) => s.settings.theme);
   const streaming = useChat((s) => s.streaming);
   const name = useDisplayName();
@@ -178,10 +299,21 @@ export function Sidebar() {
   const [hits, setHits] = useState<{ conversationId: string; snippet: string }[]>([]);
   const searchRef = useRef<HTMLInputElement>(null);
 
+  const [toggled, setToggled] = useState<Record<string, boolean>>({});
+
   const conversations = useMemo(() => Object.values(conversationsMap), [conversationsMap]);
   const query = q.trim().toLowerCase();
-  const filtered = useMemo(() => (query ? conversations.filter((c) => c.title.toLowerCase().includes(query)) : conversations), [conversations, query]);
+  // Chats of a project are listed under it; a search looks through all chats.
+  const filtered = useMemo(
+    () => (query ? conversations.filter((c) => c.title.toLowerCase().includes(query)) : conversations.filter((c) => !c.projectId || !projectsMap[c.projectId])),
+    [conversations, query, projectsMap],
+  );
   const groups = useGroups(filtered, lang, t);
+  const projects = useMemo(() => {
+    const list = sortedProjects(projectsMap, conversationsMap);
+    return query ? list.filter((p) => p.name.toLowerCase().includes(query)) : list;
+  }, [projectsMap, conversationsMap, query]);
+  const activeProject = activeId ? conversationsMap[activeId]?.projectId : undefined;
 
   useEffect(() => {
     if (query.length < 2) {
@@ -267,6 +399,49 @@ export function Sidebar() {
         </div>
 
         <nav className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+          {(!query || projects.length > 0) && (
+            <div className="mb-2">
+              <div className="sticky top-0 z-[1] flex items-center bg-soft px-2.5 pt-2 pb-1 text-xs font-medium text-fg-subtle">
+                <span className="flex-1">{t('project.projects')}</span>
+                <button
+                  type="button"
+                  onClick={() => useUI.setState({ projectEditor: 'new' })}
+                  aria-label={t('project.new')}
+                  title={t('project.new')}
+                  className="-my-1 flex size-6 items-center justify-center rounded-md hover:bg-line hover:text-fg"
+                >
+                  <FolderPlus className="size-3.5" />
+                </button>
+              </div>
+              {projects.map((p) => {
+                const chats = projectConversations(p.id, conversationsMap);
+                const expanded = !query && (toggled[p.id] ?? p.id === activeProject) && chats.length > 0;
+                return (
+                  <ProjectItem
+                    key={p.id}
+                    p={p}
+                    chats={chats}
+                    selected={p.id === projectId}
+                    expanded={expanded}
+                    onToggle={() => setToggled((s) => ({ ...s, [p.id]: !expanded }))}
+                    activeId={activeId}
+                    streaming={streaming}
+                  />
+                );
+              })}
+              {!projects.length && (
+                <button
+                  type="button"
+                  onClick={() => useUI.setState({ projectEditor: 'new' })}
+                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm text-fg-muted hover:bg-muted hover:text-fg"
+                  title={t('project.sidebarEmpty')}
+                >
+                  <FolderPlus className="size-4 shrink-0" />
+                  {t('project.new')}
+                </button>
+              )}
+            </div>
+          )}
           {groups.map((g) => (
             <div key={g.key} className="mb-2">
               <div className="sticky top-0 z-[1] bg-soft px-2.5 pt-2 pb-1 text-xs font-medium text-fg-subtle">{g.label}</div>
@@ -291,7 +466,7 @@ export function Sidebar() {
               ))}
             </div>
           )}
-          {!groups.length && !contentHits.length && (
+          {!groups.length && !contentHits.length && (query || !projects.length) && (
             <div className="flex flex-col items-center gap-2 px-4 py-10 text-center text-sm text-fg-subtle">
               <MessageSquareText className="size-6" />
               {query ? t('sidebar.noResults') : t('sidebar.empty')}

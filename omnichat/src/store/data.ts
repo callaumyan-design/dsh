@@ -11,7 +11,7 @@ import {
   startAutoSync,
   type SyncStatus,
 } from '@/lib/sync';
-import { DEFAULT_SETTINGS, type Conversation, type Message, type Prompt, type Provider, type Settings } from '@/lib/types';
+import { DEFAULT_SETTINGS, type Conversation, type Message, type Project, type Prompt, type Provider, type Settings } from '@/lib/types';
 import type { EntityKind, MessageRecord } from '../../shared/types';
 
 interface CachedEntity {
@@ -26,6 +26,7 @@ interface DataState {
   providers: Record<string, Provider>;
   conversations: Record<string, Conversation>;
   prompts: Record<string, Prompt>;
+  projects: Record<string, Project>;
   settings: Settings;
   messages: Record<string, Message[]>;
   messagesLoaded: Record<string, boolean>;
@@ -38,6 +39,7 @@ export const useData = create<DataState>(() => ({
   providers: {},
   conversations: {},
   prompts: {},
+  projects: {},
   settings: DEFAULT_SETTINGS,
   messages: {},
   messagesLoaded: {},
@@ -48,11 +50,12 @@ const SETTINGS_ID = 'user';
 const set = useData.setState;
 const get = useData.getState;
 
-type Collection = 'providers' | 'conversations' | 'prompts';
+type Collection = 'providers' | 'conversations' | 'prompts' | 'projects';
 const collectionOf: Record<Exclude<EntityKind, 'settings'>, Collection> = {
   provider: 'providers',
   conversation: 'conversations',
   prompt: 'prompts',
+  project: 'projects',
 };
 
 function strip<T extends { syncedAt?: number }>(obj: T): Record<string, unknown> {
@@ -75,6 +78,7 @@ configureSync({
       providers: { ...s.providers },
       conversations: { ...s.conversations },
       prompts: { ...s.prompts },
+      projects: { ...s.projects },
     };
     let settings = s.settings;
     const puts: CachedEntity[] = [];
@@ -93,6 +97,8 @@ configureSync({
         puts.push({ key, kind: r.kind, id: r.id, data: { ...(r.data as object), syncedAt: r.updatedAt } });
         continue;
       }
+      // Skip kinds this version doesn't know (written by a newer app on another device).
+      if (!collectionOf[r.kind]) continue;
       const coll = next[collectionOf[r.kind]] as Record<string, { syncedAt?: number }>;
       if (r.deleted) {
         if (coll[r.id]) delete coll[r.id];
@@ -206,14 +212,16 @@ export async function hydrate(userId: string) {
   const providers: Record<string, Provider> = {};
   const conversations: Record<string, Conversation> = {};
   const prompts: Record<string, Prompt> = {};
+  const projects: Record<string, Project> = {};
   let settings = DEFAULT_SETTINGS;
   for (const e of cached) {
     if (e.kind === 'provider') providers[e.id] = e.data as unknown as Provider;
     else if (e.kind === 'conversation') conversations[e.id] = e.data as unknown as Conversation;
     else if (e.kind === 'prompt') prompts[e.id] = e.data as unknown as Prompt;
+    else if (e.kind === 'project') projects[e.id] = e.data as unknown as Project;
     else if (e.kind === 'settings') settings = { ...DEFAULT_SETTINGS, ...(e.data as Partial<Settings>) };
   }
-  set({ providers, conversations, prompts, settings, messages: {}, messagesLoaded: {}, hydrated: true });
+  set({ providers, conversations, prompts, projects, settings, messages: {}, messagesLoaded: {}, hydrated: true });
   startAutoSync();
   await pull();
 }
@@ -224,6 +232,7 @@ export function resetData() {
     providers: {},
     conversations: {},
     prompts: {},
+    projects: {},
     settings: DEFAULT_SETTINGS,
     messages: {},
     messagesLoaded: {},
@@ -300,6 +309,23 @@ export function removeConversation(id: string) {
 
 export const savePrompt = (p: Prompt) => saveEntity('prompt', p);
 export const removePrompt = (id: string) => removeEntity('prompt', id);
+
+export const saveProject = (p: Project) => saveEntity('project', p);
+
+export function updateProject(id: string, patch: Partial<Project>) {
+  const p = get().projects[id];
+  if (!p) return;
+  const next = { ...p, ...patch };
+  set((s) => ({ projects: { ...s.projects, [id]: next } }));
+  void idb.put('entities', { key: `project:${id}`, kind: 'project', id, data: next });
+  enqueue({ kind: 'project', id, data: patchData(patch), patch: true });
+}
+
+/** Deletes a project together with its chats. */
+export function removeProject(id: string) {
+  for (const c of Object.values(get().conversations)) if (c.projectId === id) removeConversation(c.id);
+  removeEntity('project', id);
+}
 
 export function updateSettings(patch: Partial<Settings>) {
   const settings = { ...get().settings, ...patch };

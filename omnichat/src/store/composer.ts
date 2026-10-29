@@ -20,7 +20,8 @@ interface ComposerState {
 
 export const useComposer = create<ComposerState>(() => ({ drafts: {}, busy: false }));
 
-export const draftKey = (activeId: string | null) => activeId ?? 'new';
+/** Each chat keeps its own draft; so do the new-chat screen and each project's page. */
+export const draftKey = (activeId: string | null, projectId?: string | null) => activeId ?? (projectId ? `project:${projectId}` : 'new');
 const EMPTY: Draft = { text: '', attachments: [] };
 
 export function getDraft(key: string): Draft {
@@ -48,7 +49,7 @@ export function attachmentsBytes(list: Attachment[]) {
   return list.reduce((n, a) => n + (a.dataUrl?.length ?? 0) + (a.text?.length ?? 0) * 3, 0);
 }
 
-function syncedLimit() {
+export function syncedLimit() {
   return Math.floor(getSyncLimits().maxRecordBytes * 0.95);
 }
 
@@ -78,7 +79,8 @@ export async function fileToAttachment(file: File): Promise<Attachment | null> {
 
 /** Adds files to the draft of the active conversation. */
 export async function addFiles(files: File[] | FileList) {
-  const key = draftKey(useUI.getState().activeId);
+  const { activeId, projectId } = useUI.getState();
+  const key = draftKey(activeId, projectId);
   const list = Array.from(files);
   if (!list.length) return;
   useComposer.setState({ busy: true });

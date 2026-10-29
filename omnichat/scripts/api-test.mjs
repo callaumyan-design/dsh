@@ -120,6 +120,21 @@ const m2 = r.json?.rows?.find((x) => x.model === 'm2');
 check('stats count every version once (m1: 2 requests, 15 in / 25 out)', m1?.requests === 2 && m1.input === 15 && m1.output === 25, m1);
 check('stats include the other model of a multi-model answer', m2?.requests === 1 && m2.input === 1 && m2.output === 2, m2);
 
+console.log('▶ projects');
+await push([
+  { kind: 'project', id: 'proj1', data: { name: 'Thesis', instructions: 'Be brief', createdAt: 1 } },
+  { kind: 'conversation', id: 'c-in-p1', data: { title: 'in project', projectId: 'proj1', createdAt: 1 } },
+]);
+r = await call('/api/sync?since=0&v=2');
+check('projects sync to current clients', r.json?.entities?.some((x) => x.kind === 'project' && x.id === 'proj1' && x.data.name === 'Thesis'), r.json?.entities?.map((x) => x.kind));
+r = await call('/api/sync?since=0');
+check('projects are withheld from clients that predate them', r.json?.entities?.length > 0 && !r.json.entities.some((x) => x.kind === 'project'), r.json?.entities?.map((x) => x.kind));
+check('their chats still reach older clients', r.json?.entities?.some((x) => x.id === 'c-in-p1'));
+await push([{ kind: 'project', id: 'proj1', data: { instructions: null }, patch: true }]);
+r = await call('/api/sync?since=1&v=2');
+e = r.json?.entities?.find((x) => x.id === 'proj1');
+check('project patches merge field by field', e?.data.name === 'Thesis' && !('instructions' in e.data), e?.data);
+
 console.log('▶ search and export');
 r = await call('/api/search?q=y');
 check('search endpoint responds', Array.isArray(r.json?.results), r.json);

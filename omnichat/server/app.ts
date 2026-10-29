@@ -21,6 +21,8 @@ import { GO_PREFIX, isOpencodeGo, OPENCODE_GO_USER_AGENT, opencodeGoAuthStyle, o
 import {
   APP_VERSION,
   ENTITY_KINDS,
+  LEGACY_ENTITY_KINDS,
+  SYNC_VERSION,
   type AuthStatus,
   type EntityKind,
   type ProviderData,
@@ -425,12 +427,15 @@ export function createApp(opts: AppOptions) {
 
   app.get('/api/sync', async (c) => {
     const since = Number(c.req.query('since') ?? 0) || 0;
+    // Clients from before projects existed would choke on kinds they don't know.
+    const legacy = (Number(c.req.query('v')) || 1) < SYNC_VERSION;
+    const kindFilter = legacy ? ` AND kind IN (${LEGACY_ENTITY_KINDS.map((k) => `'${k}'`).join(',')})` : '';
     const t = now();
     const rows = await c
       .get('db')
       .all<{ kind: EntityKind; id: string; data: string; updated_at: number; deleted: number }>(
         `SELECT kind, id, data, updated_at, deleted FROM entities
-         WHERE user_id = ? AND updated_at > ? AND (deleted = 0 OR ? > 0) ORDER BY updated_at`,
+         WHERE user_id = ? AND updated_at > ? AND (deleted = 0 OR ? > 0)${kindFilter} ORDER BY updated_at`,
         [c.get('user').id, since, since],
       );
     return c.json({

@@ -31,7 +31,8 @@ async function addProvider(page, presetLabel, { key, url, expectModel, testModel
 }
 
 async function pickModel(page, model) {
-  await page.locator('header button').filter({ has: page.locator('svg.lucide-chevron-down') }).first().click();
+  // The model picker sits in the composer, the last chevron button in the main pane.
+  await page.locator('main button').filter({ has: page.locator('svg.lucide-chevron-down') }).last().click();
   await page.getByPlaceholder(/搜索模型|Search models/).fill(model);
   await page.locator('div[role="button"]').first().click();
 }
@@ -307,6 +308,44 @@ async function send(page, text) {
   ok(`usage tab shows per-model totals and ${bars} bar segment(s)`);
   await a.keyboard.press('Escape');
 
+  step('Projects: shared instructions and files, moving chats in and out');
+  await a.locator('aside').getByRole('button', { name: '新建项目' }).first().click();
+  const editor = a.getByRole('dialog').last();
+  await editor.getByPlaceholder(/毕业论文、/).fill('E2E Project');
+  await editor.locator('textarea').fill('PROJECT-RULE: answer like a pirate.');
+  await editor.getByRole('button', { name: '创建项目' }).click();
+  await a.locator('main h1').filter({ hasText: 'E2E Project' }).waitFor();
+  await a.locator('main input[type="file"]').last().setInputFiles({ name: 'notes.md', mimeType: 'text/markdown', buffer: Buffer.from('# Notes\nPROJECT-FILE-CONTENT') });
+  await a.locator('main').getByText('notes.md').waitFor();
+  ok('project created with instructions and a knowledge file');
+  await a.screenshot({ path: path.join(OUT, '04b-project.png') });
+  await pickModel(a, 'mock-gpt');
+  await send(a, 'Question inside the project');
+  await a.getByText('You said: "Question inside the project"').waitFor({ timeout: 15000 });
+  await waitIdle(a);
+  const projectReq = (await (await fetch(`${MOCK}/__log`)).json()).filter((x) => x.api === 'openai' && x.system).pop();
+  if (!projectReq?.system?.includes('PROJECT-RULE') || !projectReq.system.includes('PROJECT-FILE-CONTENT')) {
+    throw new Error(`project instructions/files missing from the system prompt: ${projectReq && projectReq.system}`);
+  }
+  ok('project instructions and file content sent as the system prompt');
+  await a.locator('header').getByRole('button', { name: 'E2E Project' }).waitFor();
+  await a.locator('header').getByRole('button', { name: 'E2E Project' }).click();
+  await a.locator('main').getByRole('button', { name: /Mock Chat Title|Question inside the project/ }).first().waitFor({ timeout: 15000 });
+  ok('chat listed on the project page, breadcrumb links back');
+  const mainItem = a.locator('aside .group').filter({ hasText: 'E2E Main' });
+  await mainItem.hover();
+  await mainItem.getByRole('button', { name: '更多' }).click();
+  await a.locator('[data-popover]').getByRole('button', { name: '移到项目…' }).click();
+  await a.getByRole('dialog').last().getByRole('button', { name: 'E2E Project' }).click();
+  await a.getByText('已移到「E2E Project」').waitFor();
+  await a.locator('main').getByRole('button', { name: /E2E Main/ }).waitFor();
+  await a.locator('main').getByRole('button', { name: /E2E Main/ }).click();
+  await a.locator('header').getByRole('button', { name: '更多' }).click();
+  await a.locator('[data-popover]').getByRole('button', { name: '移到项目…' }).click();
+  await a.getByRole('dialog').last().getByRole('button', { name: '移出项目' }).click();
+  await a.getByText('已移出项目').waitFor();
+  ok('chat moved into the project and back out');
+
   step('Second device: sign in on a phone-sized browser and see the same history');
   await a.waitForTimeout(1500); // let the outbox flush
   const ctxB = await browser.newContext({ locale: 'en-US', viewport: { width: 390, height: 844 }, colorScheme: 'dark', isMobile: true, hasTouch: true });
@@ -320,6 +359,8 @@ async function send(page, text) {
   await b.getByText(/Good (morning|afternoon|evening)|Up late/).waitFor();
   await b.screenshot({ path: path.join(OUT, '05-mobile-welcome-dark.png') });
   await b.getByRole('button', { name: 'Open sidebar' }).first().click();
+  await b.locator('aside').getByText('E2E Project').waitFor();
+  ok('project synced to second device');
   await b.getByText('E2E Main').click();
   await b.getByText('Hello from mock-gpt').first().waitFor({ timeout: 15000 });
   ok('conversation and messages synced to second device');

@@ -173,7 +173,9 @@ function WebSearchToggle() {
 export function Composer({ compact }: { compact?: boolean }) {
   const t = useT();
   const activeId = useUI((s) => s.activeId);
-  const key = draftKey(activeId);
+  const projectId = useUI((s) => s.projectId);
+  const projectName = useData((s) => (!activeId && projectId ? s.projects[projectId]?.name : undefined));
+  const key = draftKey(activeId, projectId);
   const draft = useComposer((s) => s.drafts[key]);
   const busy = useComposer((s) => s.busy);
   const sendKey = useData((s) => s.settings.sendKey);
@@ -196,7 +198,7 @@ export function Composer({ compact }: { compact?: boolean }) {
   // Focus on desktop only; on phones it would pop up the keyboard unasked.
   useEffect(() => {
     if (!window.matchMedia('(pointer: coarse)').matches) taRef.current?.focus();
-  }, [activeId]);
+  }, [activeId, projectId]);
 
   useEffect(() => {
     const onFocus = () => taRef.current?.focus();
@@ -280,7 +282,7 @@ export function Composer({ compact }: { compact?: boolean }) {
           ref={taRef}
           value={text}
           rows={1}
-          placeholder={t('composer.placeholder')}
+          placeholder={projectName ? t('project.placeholder', { name: projectName }) : t('composer.placeholder')}
           onChange={(e) => setDraft(key, { text: e.target.value })}
           onKeyDown={onKeyDown}
           onPaste={onPaste}

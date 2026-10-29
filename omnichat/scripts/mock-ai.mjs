@@ -174,7 +174,8 @@ const server = http.createServer(async (req, res) => {
       const body = await readBody(req);
       const lastMsg = body.messages?.[body.messages.length - 1];
       const images = Array.isArray(lastMsg?.content) ? lastMsg.content.filter((p) => p.type === 'image_url').length : 0;
-      log.push({ api: 'openai', images, search: wantsSearch(body), body: { ...body, messages: body.messages?.length } });
+      const system = body.messages?.find((m) => m.role === 'system')?.content;
+      log.push({ api: 'openai', images, system, search: wantsSearch(body), body: { ...body, messages: body.messages?.length } });
       if (body.model === 'mock-error') return json(res, 400, { error: { message: 'This model is intentionally broken' } });
       const user = lastUserText(body.messages ?? []);
       const text = answerFor(user, body.model, 'Mock Chat Title');

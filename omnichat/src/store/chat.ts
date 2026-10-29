@@ -3,10 +3,11 @@ import { create } from 'zustand';
 import { streamChat } from '@/lib/ai';
 import { localLocks } from '@/lib/sync';
 import { throttle, truncate, uid } from '@/lib/utils';
-import type { Attachment, Conversation, Message, MessageVersion, Provider, Source } from '@/lib/types';
+import type { Attachment, Conversation, Message, MessageVersion, Project, Provider, Source } from '@/lib/types';
 import { mergeSources } from '@/lib/ai/search';
 import { effectiveSearchMode, streamChatWithSearch } from '@/lib/ai/tools';
 import type { ChatTurn } from '@/lib/ai';
+import { attachmentsAsText } from '@/lib/ai/transport';
 import { t } from '@/i18n';
 import {
   deleteMessages,
@@ -134,7 +135,8 @@ export async function sendMessage(text: string, attachments: Attachment[], compa
       openSettings('providers');
       return false;
     }
-    conv = newConversation({ title: truncate(text || attachments[0]?.name || t('chat.newChat'), 40) });
+    const project = ui.projectId ? useData.getState().projects[ui.projectId] : undefined;
+    conv = newConversation({ title: truncate(text || attachments[0]?.name || t('chat.newChat'), 40), projectId: project?.id });
     useUI.setState({ draft: {} });
     openConversation(conv.id);
   } else if (useChat.getState().streaming[conv.id]) {
@@ -178,12 +180,34 @@ export function renderPromptVars(text: string, target?: Target): string {
   return text.replace(/\{\{\s*(\w+)\s*\}\}/g, (m, k: string) => vars[k.toLowerCase()] ?? m);
 }
 
+export function projectOf(conv: Conversation): Project | undefined {
+  return conv.projectId ? useData.getState().projects[conv.projectId] : undefined;
+}
+
+/** Project instructions, then the chat's own system prompt, then the project's text files. */
+function buildSystem(conv: Conversation, target: Target): string | undefined {
+  const project = projectOf(conv);
+  const parts = [project?.instructions, conv.systemPrompt].map((s) => renderPromptVars(s?.trim() ?? '', target)).filter(Boolean);
+  const files = attachmentsAsText(project?.files);
+  if (files) {
+    parts.push(
+      `The user has attached the following files to the project "${project!.name}" as reference material for this conversation:\n\n` +
+        `<project_files>\n${files}\n</project_files>`,
+    );
+  }
+  return parts.join('\n\n') || undefined;
+}
+
 function buildContext(conv: Conversation, history: Message[]): ChatTurn[] {
   let context = history.filter((m) => m.status !== 'error' && m.status !== 'streaming' && (m.content.trim() || m.attachments?.length));
   const count = conv.params?.contextCount;
   if (count && count > 0) context = context.slice(-count);
   while (context.length && context[0].role === 'assistant') context = context.slice(1);
-  return context.map((m) => ({ role: m.role, content: m.content, attachments: m.attachments }));
+  const turns: ChatTurn[] = context.map((m) => ({ role: m.role, content: m.content, attachments: m.attachments }));
+  // Project images and PDFs ride along with the first turn that is sent, so they stay in view however long the chat gets.
+  const media = projectOf(conv)?.files?.filter((f) => f.kind !== 'text') ?? [];
+  if (media.length && turns[0]) turns[0] = { ...turns[0], attachments: [...media, ...(turns[0].attachments ?? [])] };
+  return turns;
 }
 
 /** Streams one model's reply, reporting progress; never throws. */
@@ -216,7 +240,7 @@ async function streamOne(
     const result = await run({
       provider: target.provider,
       model: target.model,
-      system: renderPromptVars(conv.systemPrompt?.trim() ?? '', target) || undefined,
+      system: buildSystem(conv, target),
       messages: turns,
       params: { ...conv.params },
       signal,
@@ -407,6 +431,7 @@ export function forkConversation(m: Message) {
     systemPrompt: conv.systemPrompt,
     params: conv.params,
     promptId: conv.promptId,
+    projectId: conv.projectId,
     titleGenerated: true,
   });
   for (const x of upto) saveMessage({ ...x, id: uid(), conversationId: fork.id, syncedAt: undefined });

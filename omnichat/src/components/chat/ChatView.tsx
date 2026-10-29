@@ -10,6 +10,7 @@ import { ChatSettingsPanel } from './ChatSettingsPanel';
 import { Composer } from './Composer';
 import { MessageList } from './MessageList';
 import { Welcome } from './Welcome';
+import { ProjectView } from '@/components/project/ProjectView';
 import { preloadMarkdown } from './LazyMarkdown';
 
 const EMPTY: never[] = [];
@@ -17,6 +18,7 @@ const EMPTY: never[] = [];
 export function ChatView() {
   const t = useT();
   const activeId = useUI((s) => s.activeId);
+  const projectId = useUI((s) => s.projectId);
   const hydrated = useData((s) => s.hydrated);
   const conv = useData((s) => (activeId ? s.conversations[activeId] : undefined));
   const messages = useData((s) => (activeId ? (s.messages[activeId] ?? EMPTY) : EMPTY));
@@ -79,6 +81,8 @@ export function ChatView() {
             )}
             <Composer />
           </>
+        ) : projectId && hydrated ? (
+          <ProjectView projectId={projectId} />
         ) : (
           <Welcome />
         )}

@@ -3,7 +3,7 @@
 import { api, ApiError } from './api';
 import { idb } from './idb';
 import { debounce } from './utils';
-import type { EntityRecord, MessageRecord, PushOp } from '../../shared/types';
+import { SYNC_VERSION, type EntityRecord, type MessageRecord, type PushOp } from '../../shared/types';
 
 export type SyncStatus = 'idle' | 'syncing' | 'offline' | 'error';
 
@@ -63,6 +63,11 @@ export async function initSync(userId: string) {
   if (owner && owner !== userId) await idb.clearAll();
   await idb.put('meta', userId, 'userId');
   cursor = (await idb.get<number>('meta', 'cursor')) ?? 0;
+  // The server withheld newer entity kinds (projects) from older app versions: fetch everything once.
+  if ((await idb.get<number>('meta', 'syncVersion')) !== SYNC_VERSION) {
+    cursor = 0;
+    await idb.put('meta', SYNC_VERSION, 'syncVersion');
+  }
   msgCursors = (await idb.get<Record<string, number>>('meta', 'msgCursors')) ?? {};
   const ops = (await idb.get<PushOp[]>('meta', 'outbox')) ?? [];
   outbox.clear();
@@ -164,7 +169,7 @@ export function pull(): Promise<void> {
   pulling = (async () => {
     const since = cursor ? Math.max(0, cursor - OVERLAP_MS) : 0;
     try {
-      const res = await api<{ now: number; entities: EntityRecord[] }>(`/api/sync?since=${since}`);
+      const res = await api<{ now: number; entities: EntityRecord[] }>(`/api/sync?since=${since}&v=${SYNC_VERSION}`);
       if (!active) return;
       h.applyEntities(
         res.entities.filter((e) => !hasPending(keyOf(e))),

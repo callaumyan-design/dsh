@@ -91,6 +91,8 @@ export interface Conversation {
   params?: ChatParams;
   pinned?: boolean;
   promptId?: string;
+  /** The project this chat belongs to: its instructions and files are part of every request. */
+  projectId?: string;
   createdAt: number;
   lastMessageAt?: number;
   titleGenerated?: boolean;
@@ -107,6 +109,21 @@ export interface Prompt {
   model?: string;
   createdAt: number;
   order?: number;
+  syncedAt?: number;
+}
+
+/** A workspace that groups chats and gives them shared instructions and reference files. */
+export interface Project {
+  id: string;
+  name: string;
+  /** An emoji shown in place of the folder icon. */
+  icon?: string;
+  description?: string;
+  /** Added to the system prompt of every chat in the project. */
+  instructions?: string;
+  /** Knowledge files: text goes into the system prompt, images and PDFs are attached to the conversation. */
+  files?: Attachment[];
+  createdAt: number;
   syncedAt?: number;
 }
 

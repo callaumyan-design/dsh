@@ -11,6 +11,7 @@ export function ChatSettingsPanel({ conversationId }: { conversationId: string }
   const t = useT();
   const conv = useData((s) => s.conversations[conversationId]);
   const prompts = useData((s) => s.prompts);
+  const project = useData((s) => (conv?.projectId ? s.projects[conv.projectId] : undefined));
   if (!conv) return null;
   const target = resolveTarget(conv.providerId, conv.model);
   const close = () => useUI.setState({ chatSettingsOpen: false });
@@ -27,6 +28,15 @@ export function ChatSettingsPanel({ conversationId }: { conversationId: string }
           </IconButton>
         </div>
         <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-4">
+          {project && (
+            <button
+              type="button"
+              onClick={() => useUI.setState({ projectEditor: project.id })}
+              className="block w-full rounded-xl bg-accent-soft px-3 py-2.5 text-left text-xs leading-relaxed text-accent hover:opacity-90"
+            >
+              {t('project.chatHint', { name: project.name })}
+            </button>
+          )}
           <Field
             label={t('chatSettings.system')}
             hint={t('chatSettings.systemHint')}

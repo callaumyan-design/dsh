@@ -1,7 +1,10 @@
 // Types shared by the server and the web client.
 
-export type EntityKind = 'conversation' | 'provider' | 'prompt' | 'settings';
-export const ENTITY_KINDS: EntityKind[] = ['conversation', 'provider', 'prompt', 'settings'];
+export type EntityKind = 'conversation' | 'provider' | 'prompt' | 'settings' | 'project';
+export const ENTITY_KINDS: EntityKind[] = ['conversation', 'provider', 'prompt', 'settings', 'project'];
+/** Kinds known to clients that predate the sync protocol version (`/api/sync?v=`); newer kinds are withheld from them. */
+export const LEGACY_ENTITY_KINDS: EntityKind[] = ['conversation', 'provider', 'prompt', 'settings'];
+export const SYNC_VERSION = 2;
 
 /** Wire protocol a provider speaks. Almost every vendor offers an OpenAI-compatible endpoint. */
 export type ProviderType = 'openai' | 'anthropic' | 'gemini';

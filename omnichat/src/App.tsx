@@ -5,6 +5,7 @@ import { Sidebar } from '@/components/layout/Sidebar';
 import { Logo } from '@/components/layout/Logo';
 import { SettingsModal } from '@/components/settings/SettingsModal';
 import { Dialogs, Toasts } from '@/components/ui/overlays';
+import { ProjectDialogs } from '@/components/project/ProjectDialogs';
 import { hasOpenOverlay } from '@/components/ui/primitives';
 import { applyTheme, cachedTheme } from '@/lib/theme';
 import { initAuth, useAuth } from '@/store/auth';
@@ -96,6 +97,7 @@ function Shell() {
       <Sidebar />
       <ChatView />
       <SettingsModal />
+      <ProjectDialogs />
     </div>
   );
 }
