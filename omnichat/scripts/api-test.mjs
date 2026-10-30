@@ -1,4 +1,4 @@
-// API-level tests for auth, sync semantics, limits and the AI proxy.
+// API-level tests for auth, sync semantics, limits, the AI proxy and background generation.
 //   node scripts/api-test.mjs http://localhost:3101 http://127.0.0.1:3199   (fresh server, mock-ai running)
 const BASE = process.argv[2] || 'http://localhost:3101';
 const MOCK = process.argv[3] || 'http://127.0.0.1:3199';
@@ -134,6 +134,115 @@ await push([{ kind: 'project', id: 'proj1', data: { instructions: null }, patch:
 r = await call('/api/sync?since=1&v=2');
 e = r.json?.entities?.find((x) => x.id === 'proj1');
 check('project patches merge field by field', e?.data.name === 'Thesis' && !('instructions' in e.data), e?.data);
+
+console.log('▶ background generation');
+r = await call('/api/auth/status');
+check('status announces background generation', r.json?.features?.backgroundGeneration === true, r.json?.features);
+const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
+const genBody = (conversationId, messageId, model = 'mock-gpt', extra = {}) => ({
+  conversationId,
+  messageId,
+  createdAt: Date.now(),
+  targets: [{ providerId: 'p1', model }],
+  messages: [{ role: 'user', content: 'Hi there' }],
+  params: {},
+  emptyText: 'empty',
+  ...extra,
+});
+/** Starts a reply and reads only its first event, like a page that is closed right after sending. */
+async function startAndLeave(body) {
+  const ac = new AbortController();
+  const res = await fetch(`${BASE}/api/generate`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+    signal: ac.signal,
+  });
+  const first = res.ok ? new TextDecoder().decode((await res.body.getReader().read()).value) : await res.text();
+  ac.abort();
+  return { status: res.status, first };
+}
+async function message(conversationId, id) {
+  const x = await call(`/api/messages?conversationId=${conversationId}`);
+  return x.json?.messages?.find((m) => m.id === id);
+}
+async function waitFor(fn, ms = 10_000) {
+  for (const end = Date.now() + ms; Date.now() < end; await sleep(100)) {
+    const v = await fn();
+    if (v) return v;
+  }
+  return fn();
+}
+await push([{ kind: 'conversation', id: 'c-bg', data: { title: 'bg', createdAt: Date.now() } }]);
+let g = await startAndLeave(genBody('c-bg', 'a-bg'));
+check('a reply starts and streams its state first', g.status === 200 && g.first.startsWith('event: init'), g);
+let msg = await waitFor(async () => {
+  const m = await message('c-bg', 'a-bg');
+  return m?.data.status === 'done' ? m : null;
+});
+check('the reply finishes and is saved after the page went away', msg?.data.status === 'done' && /Hello from \*\*mock-gpt/.test(msg.data.content), msg?.data);
+check('it records usage and timing', msg?.data.usage?.output === 128 && msg.data.durationMs >= 0, msg?.data);
+e = await entity('c-bg');
+check('the conversation is bumped with lastMessageAt', e?.data.lastMessageAt > 0 && e.data.title === 'bg', e?.data);
+
+g = await startAndLeave(genBody('c-bg', 'a-slow', 'mock-slow'));
+r = await call('/api/generate');
+check('running replies are listed', r.json?.conversations?.includes('c-bg'), r.json);
+r = await call('/api/generate', { body: genBody('c-bg', 'a-other') });
+check('a second reply in the same chat is refused while one runs', r.status === 409, r.status);
+msg = await waitFor(async () => {
+  const m = await message('c-bg', 'a-slow');
+  return m?.data.status === 'streaming' && m.data.content ? m : null;
+});
+check('progress is saved while it streams', msg?.data.status === 'streaming' && msg.data.content.length > 0, msg?.data);
+const attached = await fetch(`${BASE}/api/generate/c-bg`, { headers: { authorization: `Bearer ${token}` } });
+const reader = attached.body.getReader();
+let seen = '';
+while (!/event: delta/.test(seen)) seen += new TextDecoder().decode((await reader.read()).value);
+check('another page can follow it live', attached.status === 200 && seen.startsWith('event: init') && /"messageId":"a-slow"/.test(seen), seen.slice(0, 120));
+r = await call('/api/generate/c-bg/stop', { body: {} });
+check('stop is accepted', r.json?.stopped === true, r.json);
+for (;;) {
+  const { value, done } = await reader.read();
+  if (done) break;
+  seen += new TextDecoder().decode(value);
+}
+check('followers get the saved message when it stops', /event: done\ndata: \{"message":\{[^\n]*"status":"aborted"/.test(seen), seen.slice(-300));
+msg = await message('c-bg', 'a-slow');
+check('a stopped reply is saved as stopped, with what it had written', msg?.data.status === 'aborted' && msg.data.content.length > 0, msg?.data);
+r = await call('/api/generate/c-bg');
+check('nothing to follow once it is done', r.status === 404, r.status);
+
+g = await startAndLeave(genBody('c-bg', 'a-discard', 'mock-slow'));
+await sleep(300);
+await call('/api/generate/c-bg/stop', { body: { discard: true } });
+msg = await waitFor(async () => {
+  const m = await message('c-bg', 'a-discard');
+  return !m || m.deleted ? { gone: true } : null;
+});
+check('a discarded reply is not kept', msg?.gone === true, msg);
+
+await push([{ kind: 'message', id: 'a-del', data: { conversationId: 'c-bg', role: 'assistant', content: '', createdAt: Date.now() } }]);
+g = await startAndLeave(genBody('c-bg', 'a-del', 'mock-slow'));
+await sleep(300);
+await push([{ kind: 'message', id: 'a-del', deleted: true }]);
+await waitFor(async () => !(await call('/api/generate')).json?.conversations?.includes('c-bg'), 8000);
+msg = await message('c-bg', 'a-del');
+check('a reply deleted on another device stops and stays deleted', !msg, msg?.data);
+
+await push([{ kind: 'conversation', id: 'c-title', data: { title: 'Hi there', createdAt: Date.now() } }]);
+g = await startAndLeave(genBody('c-title', 'a-title', 'mock-gpt', { title: { providerId: 'p1', model: 'mock-gpt' } }));
+e = await waitFor(async () => {
+  const x = await entity('c-title');
+  return x?.data.titleGenerated ? x : null;
+});
+check('the chat is named after its first reply', e?.data.title === 'Mock Chat Title' && e.data.titleGenerated === true, e?.data);
+
+await push([{ kind: 'conversation', id: 'c-gone', deleted: true }]);
+r = await call('/api/generate', { body: genBody('c-gone', 'a-gone') });
+check('no replies in a deleted chat', r.status === 404, r.status);
+r = await call('/api/generate', { body: { ...genBody('c-bg', 'a-x'), targets: [{ providerId: 'missing', model: 'm' }] } });
+check('unknown providers are rejected', r.status === 404, r.status);
 
 console.log('▶ search and export');
 r = await call('/api/search?q=y');

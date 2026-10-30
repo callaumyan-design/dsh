@@ -23,6 +23,7 @@
 **多设备同步与数据保存**
 - 账户体系：首个注册用户为管理员，可开放/关闭注册、管理用户；每个账户数据隔离。
 - 对话、消息、服务商配置、提示词、个人设置全部保存在服务端数据库，任一设备登录即可继续对话。
+- **后台生成**（Docker / Node 部署）：回复由服务器生成并保存，发出问题后可以直接关掉网页或切到别的 App，回来再看；重新打开、刷新或在另一台设备上打开同一对话，会自动接上正在生成的回复继续实时显示。生成中途服务器重启时，已生成的部分会保留并标注为中断。
 - 本地 IndexedDB 缓存 + 离线写入队列：打开即显示、断网可查看历史，恢复网络后自动同步。
 - API 密钥使用 AES-GCM 加密存储，默认由服务器代理调用，浏览器拿不到明文密钥。
 - 全文搜索历史消息、导出备份（JSON / Markdown）、导入备份及 **ChatGPT 导出的 conversations.json**。
@@ -89,6 +90,8 @@ npm run cf:deploy
 部署完成后会得到一个 `https://omnichat.<你的子域>.workers.dev` 地址，可在 Cloudflare 后台绑定自己的域名。
 
 > 说明：Workers 在离你最近的边缘节点发起 API 请求。如果某些服务商限制了所在地区，可把该服务商切换为「浏览器直连」模式，或改用 Docker 部署在合适地区的服务器上。
+>
+> Workers 无法在请求结束后长时间运行，因此不支持「后台生成」：回复在浏览器里生成，生成过程中请保持页面打开。需要关掉网页也能继续生成，请使用 Docker / Node 部署。
 
 ### 方式三：直接用 Node.js 运行（Windows / macOS / Linux）
 
@@ -116,6 +119,7 @@ npm start            # 默认端口 3000，数据保存在 ./data
 | `ALLOW_PRIVATE_NETWORK` | `false` | 是否允许**非管理员**用户把接口地址指向内网地址（管理员始终允许） |
 | `HTTPS_PROXY` / `HTTP_PROXY` / `NO_PROXY` | – | 服务器访问 AI 接口时使用的代理（如国内服务器访问 OpenAI） |
 | `PASSWORD_ITERATIONS` | 300000（Workers 为 30000） | 密码哈希 PBKDF2 迭代次数 |
+| `BACKGROUND_GENERATION` | `true` | 回复由服务器生成，关闭网页后继续生成并保存。设为 `false` 恢复为在浏览器中生成 |
 
 ### 忘记密码
 
@@ -168,7 +172,8 @@ docker exec omnichat node dist/server/index.mjs reset-password admin 新密码
 ```
 浏览器（React SPA，IndexedDB 缓存 + 离线写入队列）
    │  ① /api/sync、/api/messages  增量同步（每 20 秒 / 切回页面时）
-   │  ② /api/proxy/<服务商>/…     流式转发，服务器附加密钥
+   │  ② /api/generate             后台生成：服务器调用模型并保存回复，浏览器通过 SSE 实时跟随（可随时断开、重连）
+   │  ③ /api/proxy/<服务商>/…     流式转发，服务器附加密钥（Workers 部署时的对话，以及获取模型、测试连接等）
    ▼
 OmniChat 服务端（Hono；Node + SQLite 或 Cloudflare Workers + D1）
    │
@@ -176,7 +181,7 @@ OmniChat 服务端（Hono；Node + SQLite 或 Cloudflare Workers + D1）
 OpenAI / Claude / Gemini / DeepSeek / 通义 / …
 ```
 
-- 服务端只做鉴权、存储和透明转发，各家协议的请求构造与流式解析都在浏览器端完成，因此服务端非常轻量，也能运行在 Workers 免费额度内。
+- 各家协议的请求构造与流式解析（`src/lib/ai/`）是一份同时运行在浏览器和服务器上的代码。Docker / Node 部署时由服务器执行（后台生成），回复每隔几秒写入数据库，结束后保存最终结果；Workers 部署和「浏览器直连」的服务商仍在浏览器中执行，服务端只做鉴权、存储和透明转发，因此也能运行在 Workers 免费额度内。
 - 同步采用「服务端为准、按更新时间增量拉取、本地修改先进入持久化队列」的方式；同一条数据在多端同时修改时以最后写入为准。
 
 ## 开发
@@ -199,9 +204,9 @@ node scripts/e2e.cjs http://localhost:3100 http://127.0.0.1:3199 ./screenshots
 项目结构：
 
 ```
-server/          服务端（Hono）：app.ts 路由、db-*.ts 存储适配、node.ts / worker.ts 两种入口
+server/          服务端（Hono）：app.ts 路由、generation.ts 后台生成、db-*.ts 存储适配、node.ts / worker.ts 两种入口
 shared/          前后端共享的类型与鉴权工具
-src/lib/ai/      各协议适配器（openai / anthropic / gemini）与服务商预设
+src/lib/ai/      各协议适配器（openai / anthropic / gemini）与服务商预设，浏览器和服务器共用
 src/lib/sync.ts  同步引擎（离线队列 + 增量拉取）
 src/store/       状态管理（zustand）
 src/components/  界面组件

@@ -78,7 +78,8 @@ function useSyncNotices() {
 function useLeaveGuard() {
   useEffect(() => {
     const h = (e: BeforeUnloadEvent) => {
-      if (Object.keys(useChat.getState().streaming).length) {
+      // Replies generated on the server keep going when the page closes; only warn about ones streamed here.
+      if (Object.values(useChat.getState().streaming).some((x) => !x.remote)) {
         e.preventDefault();
         e.returnValue = '';
       }

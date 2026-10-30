@@ -59,6 +59,8 @@ export interface MessageVersion {
   usage?: Usage;
   status?: MessageStatus;
   error?: string;
+  /** Known error shown in the user's language instead of `error` ('interrupted': the server restarted mid-reply). */
+  errorCode?: 'interrupted';
   durationMs?: number;
   firstTokenMs?: number;
   reasoningMs?: number;

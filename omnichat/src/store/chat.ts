@@ -1,16 +1,22 @@
 // Chat runtime: sending, streaming, regenerating and titling conversations.
 import { create } from 'zustand';
 import { streamChat } from '@/lib/ai';
-import { localLocks } from '@/lib/sync';
+import { authFetch, api } from '@/lib/api';
+import { flushNow, hasPending, localLocks, pull, pullMessages } from '@/lib/sync';
 import { throttle, truncate, uid } from '@/lib/utils';
-import type { Attachment, Conversation, Message, MessageVersion, Project, Provider, Source } from '@/lib/types';
-import { mergeSources } from '@/lib/ai/search';
-import { effectiveSearchMode, streamChatWithSearch } from '@/lib/ai/tools';
+import type { Attachment, Conversation, Message, MessageVersion, Project, Provider } from '@/lib/types';
+import { effectiveSearchMode, searchViaServer } from '@/lib/ai/tools';
 import type { ChatTurn } from '@/lib/ai';
 import { attachmentsAsText } from '@/lib/ai/transport';
+import { runReply } from '@/lib/ai/reply';
+import { readSSE } from '@/lib/ai/sse';
+import { cleanTitle, titlePrompt } from '@/lib/ai/title';
+import { applyDelta, composeMessage, type GenerateRequest, type JobEvents, type JobSnapshot } from '@/lib/ai/background';
 import { t } from '@/i18n';
 import {
+  applyServerMessage,
   deleteMessages,
+  dropLocalMessage,
   getMessages,
   saveConversation,
   saveMessage,
@@ -18,10 +24,18 @@ import {
   updateConversation,
   useData,
 } from './data';
+import { useAuth } from './auth';
 import { openConversation, openSettings, toast, useUI } from './ui';
 
+interface Streaming {
+  messageId: string;
+  controller: AbortController;
+  /** The server generates this reply; the page only follows it, so closing it doesn't stop the reply. */
+  remote?: boolean;
+}
+
 interface ChatState {
-  streaming: Record<string, { messageId: string; controller: AbortController }>;
+  streaming: Record<string, Streaming>;
 }
 
 export const useChat = create<ChatState>(() => ({ streaming: {} }));
@@ -70,11 +84,6 @@ function snapshot(m: Message): MessageVersion {
     finishReason: m.finishReason,
     sources: m.sources,
   };
-}
-
-function errorText(err: unknown): string {
-  if (err instanceof Error) return err.message || err.name;
-  return String(err);
 }
 
 export function newConversation(opts: Partial<Conversation> = {}): Conversation {
@@ -156,8 +165,44 @@ export async function sendMessage(text: string, attachments: Attachment[], compa
   return true;
 }
 
-export function stopGeneration(conversationId: string) {
-  useChat.getState().streaming[conversationId]?.controller.abort();
+/** Resolves once the conversation has no reply streaming (or after `ms`). */
+function settled(conversationId: string, ms = 10_000): Promise<void> {
+  if (!useChat.getState().streaming[conversationId]) return Promise.resolve();
+  return new Promise((resolve) => {
+    const done = () => {
+      clearTimeout(timer);
+      unsub();
+      resolve();
+    };
+    const timer = setTimeout(done, ms);
+    const unsub = useChat.subscribe((s) => {
+      if (!s.streaming[conversationId]) done();
+    });
+  });
+}
+
+/**
+ * Stops the reply being generated in a conversation. With `discard`, a reply generated on the server is dropped
+ * instead of saved (the caller deletes the message). Resolves when it has stopped.
+ */
+export function stopGeneration(conversationId: string, opts: { discard?: boolean } = {}): Promise<void> {
+  const s = useChat.getState().streaming[conversationId];
+  if (!s) return Promise.resolve();
+  if (!s.remote) {
+    s.controller.abort();
+    return settled(conversationId);
+  }
+  return api<{ stopped: boolean }>(`/api/generate/${encodeURIComponent(conversationId)}/stop`, { body: { discard: !!opts.discard } })
+    .then((r) => {
+      // Nothing running on the server: stop following.
+      if (!r.stopped) s.controller.abort();
+    })
+    .catch(() => s.controller.abort())
+    .then(() => settled(conversationId))
+    .then(() => {
+      // The server didn't confirm in time: let go of the reply locally.
+      if (useChat.getState().streaming[conversationId]?.controller === s.controller) s.controller.abort();
+    });
 }
 
 /** Fills {{date}}, {{time}}, {{datetime}}, {{weekday}}, {{model}}, {{provider}}, {{language}}, {{timezone}}. */
@@ -210,70 +255,294 @@ function buildContext(conv: Conversation, history: Message[]): ChatTurn[] {
   return turns;
 }
 
-/** Streams one model's reply, reporting progress; never throws. */
-async function streamOne(
-  target: Target,
-  conv: Conversation,
-  turns: ChatTurn[],
-  signal: AbortSignal,
-  onUpdate: (v: MessageVersion) => void,
-): Promise<MessageVersion> {
-  const v: MessageVersion = { content: '', model: target.model, providerId: target.provider.id, providerName: target.provider.name, status: 'streaming' };
-  const started = performance.now();
-  let content = '';
-  let reasoning = '';
-  let firstAt = 0;
-  let reasoningStart = 0;
-  let reasoningEnd = 0;
-  const sources: Source[] = [];
-  let searching: string | undefined;
-  const snap = (): MessageVersion => ({
-    ...v,
-    content,
-    reasoning: reasoning || undefined,
-    sources: sources.length ? [...sources] : undefined,
-    searching: v.status === 'streaming' ? searching : undefined,
-  });
-  // Without provider-native search, web search runs as a tool through the account's search service.
-  const run = conv.params?.webSearch && effectiveSearchMode(target.provider, target.model) === 'tool' ? streamChatWithSearch : streamChat;
-  try {
-    const result = await run({
-      provider: target.provider,
-      model: target.model,
-      system: buildSystem(conv, target),
-      messages: turns,
-      params: { ...conv.params },
-      signal,
-      sessionId: conv.id,
-      onDelta: (d) => {
-        const now = performance.now();
-        if (d.sources) mergeSources(sources, d.sources);
-        if (d.searching) searching = d.searching;
-        if (!firstAt && (d.content || d.reasoning)) firstAt = now;
-        if (d.reasoning) {
-          if (!reasoningStart) reasoningStart = now;
-          reasoning += d.reasoning;
-        }
-        if (d.content) {
-          if (reasoningStart && !reasoningEnd) reasoningEnd = now;
-          content += d.content;
-        }
-        onUpdate(snap());
-      },
-    });
-    Object.assign(v, { status: 'done', usage: result.usage, finishReason: result.finishReason });
-    if (!content.trim() && !reasoning.trim()) Object.assign(v, { status: 'error', error: t('chat.emptyResponse') });
-  } catch (err) {
-    Object.assign(v, { status: signal.aborted ? 'aborted' : 'error', error: signal.aborted ? undefined : errorText(err) });
-  }
-  const end = performance.now();
+/** Whether replies can be generated on the server, so they finish even if the page is closed. */
+function backgroundGeneration(): boolean {
+  return !!useAuth.getState().status?.features?.backgroundGeneration;
+}
+
+/** Web search runs as a tool (through the account's search service) for models without their own search. */
+function usesSearchTool(conv: Conversation, target: Target): boolean {
+  return !!conv.params?.webSearch && effectiveSearchMode(target.provider, target.model) === 'tool';
+}
+
+function titleTarget(conv: Conversation): Target | null {
+  const { settings } = useData.getState();
+  return settings.titleModel ? resolveTarget(settings.titleProviderId, settings.titleModel) : resolveTarget(conv.providerId, conv.model);
+}
+
+interface Follower {
+  controller: AbortController;
+  /** The message as it stands (respecting the version tab the user picked while streaming). */
+  compose(): Message;
+  render: ReturnType<typeof throttle<[]>>;
+  /** Stops showing the reply as streaming. */
+  end(): void;
+}
+
+/** Shows a reply while it streams. The message stays local (not synced) and remote copies can't overwrite it meanwhile. */
+function follow(job: JobSnapshot, remote: boolean): Follower {
+  const lockKey = `message:${job.messageId}`;
+  localLocks.add(lockKey);
+  const controller = new AbortController();
+  useChat.setState((s) => ({ streaming: { ...s.streaming, [job.conversationId]: { messageId: job.messageId, controller, remote } } }));
+  let shown = false;
+  // The user may switch version tabs while streaming; respect the selection stored on the message.
+  const compose = () => {
+    const current = shown ? getMessages(job.conversationId).find((m) => m.id === job.messageId) : undefined;
+    shown = true;
+    return composeMessage(job, current?.versionIndex);
+  };
+  setLocalMessage(compose());
+  const render = throttle(() => setLocalMessage(compose()), 60);
+  let ended = false;
   return {
-    ...snap(),
-    durationMs: Math.round(end - started),
-    firstTokenMs: firstAt ? Math.round(firstAt - started) : undefined,
-    reasoningMs: reasoningStart ? Math.round((reasoningEnd || end) - reasoningStart) : undefined,
+    controller,
+    compose,
+    render,
+    end() {
+      if (ended) return;
+      ended = true;
+      render.cancel();
+      localLocks.delete(lockKey);
+      useChat.setState((s) => {
+        if (s.streaming[job.conversationId]?.controller !== controller) return s;
+        const streaming = { ...s.streaming };
+        delete streaming[job.conversationId];
+        return { streaming };
+      });
+    },
   };
 }
+
+/** The page streams the reply itself (Cloudflare Workers, or providers in direct mode). It stops if the page closes. */
+async function generateHere(conv: Conversation, job: JobSnapshot, targets: Target[], turns: ChatTurn[], withTitle: boolean) {
+  const f = follow(job, false);
+  await Promise.all(
+    targets.map((x, i) =>
+      runReply({
+        target: x,
+        request: { system: buildSystem(conv, x), messages: turns, params: { ...conv.params }, sessionId: conv.id },
+        signal: f.controller.signal,
+        search: usesSearchTool(conv, x) ? searchViaServer : undefined,
+        emptyText: t('chat.emptyResponse'),
+        onDelta: (_d, v) => {
+          job.live[i] = v;
+          f.render();
+        },
+      }).then((v) => {
+        job.live[i] = v;
+      }),
+    ),
+  );
+  f.render.cancel();
+  const final = f.compose();
+  // The conversation (or this message) may have been deleted while streaming.
+  const stillExists = !!useData.getState().conversations[conv.id] && getMessages(conv.id).some((m) => m.id === job.messageId);
+  if (stillExists) saveMessage(final);
+  f.end();
+  if (useData.getState().conversations[conv.id]) updateConversation(conv.id, { lastMessageAt: Date.now() });
+  if (withTitle && job.live.some((v) => v.status === 'done')) void autoTitle(conv.id);
+}
+
+/** The server generates and saves the reply; the page follows it live. */
+async function generateOnServer(conv: Conversation, job: JobSnapshot, targets: Target[], turns: ChatTurn[], withTitle: boolean) {
+  const f = follow(job, true);
+  const { settings } = useData.getState();
+  const title = withTitle && settings.autoTitle && !conv.titleGenerated ? titleTarget(conv) : null;
+  const titleOnServer = title && title.provider.mode !== 'direct' ? title : null;
+  const body: GenerateRequest = {
+    conversationId: conv.id,
+    messageId: job.messageId,
+    createdAt: job.createdAt,
+    prior: job.prior,
+    targets: targets.map((x) => ({ providerId: x.provider.id, model: x.model, system: buildSystem(conv, x), searchTool: usesSearchTool(conv, x) })),
+    messages: turns,
+    params: { ...conv.params },
+    title: titleOnServer ? { providerId: titleOnServer.provider.id, model: titleOnServer.model } : undefined,
+    emptyText: t('chat.emptyResponse'),
+  };
+  let res: Response | null = null;
+  let error = '';
+  try {
+    // The server reads the provider config it has: send pending changes first.
+    if (targets.some((x) => hasPending(`provider:${x.provider.id}`))) await flushNow();
+    // Send the new message and chat along right away, in case the page is closed as soon as the reply starts.
+    else void flushNow();
+    res = await authFetch('/api/generate', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: f.controller.signal,
+    });
+    if (!res.ok && res.status !== 409) {
+      error = ((await res.json().catch(() => null)) as { error?: string } | null)?.error || `${res.status} ${res.statusText}`;
+      res = null;
+    }
+  } catch (err) {
+    // The request may still have reached the server: look for the reply before giving up on it.
+    if (!f.controller.signal.aborted) res = await authFetch(`/api/generate/${encodeURIComponent(conv.id)}`, { signal: f.controller.signal }).catch(() => null);
+    if (!res?.ok) {
+      res = null;
+      error = f.controller.signal.aborted ? '' : (err as Error).message || t('msg.failed');
+    }
+  }
+  if (!res) {
+    // Never started: keep the failure on the message, like a reply that failed in the browser.
+    job.live = job.live.map((v) => ({ ...v, status: error ? 'error' : 'aborted', error: error || undefined }));
+    const final = f.compose();
+    f.end();
+    if (useData.getState().conversations[conv.id] && getMessages(conv.id).some((m) => m.id === job.messageId)) saveMessage(final);
+    return;
+  }
+  if (res.status === 409) {
+    // Another device is already generating a reply in this chat: drop this one and show that one instead.
+    f.end();
+    dropLocalMessage(conv.id, job.messageId);
+    void attach(conv.id, '');
+    return;
+  }
+  const done = await track(conv.id, res, { job, f });
+  if (done && withTitle && title && !titleOnServer) void autoTitle(conv.id);
+}
+
+const sleep = (ms: number, signal: AbortSignal) =>
+  new Promise<void>((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    signal.addEventListener('abort', () => (clearTimeout(timer), resolve()), { once: true });
+  });
+
+function whenVisible(signal: AbortSignal): Promise<void> {
+  if (document.visibilityState === 'visible' || signal.aborted) return Promise.resolve();
+  return new Promise((resolve) => {
+    const h = () => {
+      if (document.visibilityState !== 'visible' && !signal.aborted) return;
+      document.removeEventListener('visibilitychange', h);
+      resolve();
+    };
+    document.addEventListener('visibilitychange', h);
+    signal.addEventListener('abort', h, { once: true });
+  });
+}
+
+/**
+ * Follows a reply the server is generating until it is done, re-connecting whenever the connection drops (a phone
+ * switching apps, a flaky network). Returns whether the reply finished while followed. Starts following on the
+ * stream's first event when `started` is not given.
+ */
+async function track(conversationId: string, first: Response | null, started?: { job: JobSnapshot; f: Follower }): Promise<boolean> {
+  let job = started?.job ?? null;
+  let f = started?.f ?? null;
+  const signal = () => f?.controller.signal ?? new AbortController().signal;
+  let res = first;
+  let delay = 1000;
+  let finished = false;
+  try {
+    for (;;) {
+      if (res?.ok) {
+        try {
+          for await (const ev of readSSE(res)) {
+            const name = ev.event as keyof JobEvents;
+            let data: JobEvents[keyof JobEvents];
+            try {
+              data = JSON.parse(ev.data);
+            } catch {
+              continue;
+            }
+            if (name === 'init') {
+              const snap = data as JobEvents['init'];
+              if (job && f && snap.messageId !== job.messageId) {
+                // The reply followed so far ended unseen and another one started: fetch the first, follow the second.
+                f.end();
+                void pullMessages(conversationId);
+                job = null;
+              }
+              if (!job || !f) {
+                job = { ...snap };
+                f = follow(job, true);
+              } else {
+                job.prior = snap.prior;
+                job.live = snap.live;
+                f.render();
+              }
+            } else if (name === 'delta' && job && f) {
+              const { t: i, d } = data as JobEvents['delta'];
+              if (job.live[i]) job.live[i] = applyDelta(job.live[i], d);
+              f.render();
+            } else if (name === 'version' && job && f) {
+              const { t: i, v } = data as JobEvents['version'];
+              job.live[i] = v;
+              f.render();
+            } else if (name === 'done' && f) {
+              const { message, updatedAt } = data as JobEvents['done'];
+              finished = true;
+              const picked = f.compose().versionIndex;
+              f.end();
+              if (message) {
+                applyServerMessage(message, updatedAt);
+                // Keep the version tab the user picked while it streamed.
+                const vi = picked ?? message.versionIndex;
+                const v = vi !== undefined && vi !== message.versionIndex ? message.versions?.[vi] : undefined;
+                if (v) saveMessage({ ...message, ...v, createdAt: message.createdAt, versions: message.versions, versionIndex: vi });
+              }
+              void pull();
+            } else if (name === 'title') {
+              void pull();
+            }
+          }
+        } catch {
+          /* connection dropped, or stopped following */
+        }
+        delay = 1000;
+      } else if (res && res.status !== 409 && res.status < 500) {
+        break; // 404: nothing running any more
+      }
+      // Nothing to show yet (the stream broke before its first event): leave it to sync.
+      if (finished || signal().aborted || !f) break;
+      await sleep(delay, signal());
+      await whenVisible(signal());
+      if (signal().aborted) break;
+      delay = Math.min(delay * 2, 30_000);
+      res = await authFetch(`/api/generate/${encodeURIComponent(conversationId)}`, { signal: signal() }).catch(() => null);
+    }
+  } finally {
+    if (!finished) {
+      // Stopped following before the end: fetch whatever the server saved.
+      f?.end();
+      void pullMessages(conversationId);
+    }
+  }
+  return finished;
+}
+
+const attachTries = new Map<string, number>();
+
+/** Follows a reply started elsewhere (another device, or before this page was reloaded). */
+async function attach(conversationId: string, messageId: string) {
+  const key = `${conversationId}:${messageId}`;
+  if (useChat.getState().streaming[conversationId] || Date.now() - (attachTries.get(key) ?? 0) < 30_000) return;
+  attachTries.set(key, Date.now());
+  const res = await authFetch(`/api/generate/${encodeURIComponent(conversationId)}`).catch(() => null);
+  if (!res || useChat.getState().streaming[conversationId]) {
+    void res?.body?.cancel();
+    return;
+  }
+  if (!res.ok) {
+    // Finished meanwhile: the saved copy is newer than the one shown.
+    if (res.status === 404) void pullMessages(conversationId);
+    return;
+  }
+  await track(conversationId, res);
+}
+
+// A reply that is still being generated shows up through sync or the local cache: follow it live.
+useData.subscribe((s, prev) => {
+  if (s.messages === prev.messages || !backgroundGeneration()) return;
+  for (const [conversationId, list] of Object.entries(s.messages)) {
+    if (list === prev.messages[conversationId] || useChat.getState().streaming[conversationId]) continue;
+    const m = list[list.length - 1];
+    if (m?.role === 'assistant' && (m.status === 'streaming' || m.versions?.some((v) => v.status === 'streaming'))) void attach(conversationId, m.id);
+  }
+});
 
 /**
  * Generates the assistant reply for the latest turn, or regenerates `regenerateId`.
@@ -299,7 +568,8 @@ export async function generate(conversationId: string, opts: { regenerateId?: st
 
   const all = getMessages(conversationId);
   let history: Message[];
-  let base: Message;
+  let messageId: string;
+  let createdAt: number;
   let prior: MessageVersion[] = [];
   if (opts.regenerateId) {
     const idx = all.findIndex((m) => m.id === opts.regenerateId);
@@ -309,65 +579,25 @@ export async function generate(conversationId: string, opts: { regenerateId?: st
     prior = existing.versions?.length ? [...existing.versions] : [];
     if (prior.length) prior[existing.versionIndex ?? prior.length - 1] = snapshot(existing);
     else prior.push(snapshot(existing));
-    base = { id: existing.id, conversationId, role: 'assistant', createdAt: existing.createdAt, content: '' };
+    messageId = existing.id;
+    createdAt = existing.createdAt;
   } else {
     history = all;
-    base = { id: uid(), conversationId, role: 'assistant', createdAt: nextTimestamp(conversationId), content: '' };
+    messageId = uid();
+    createdAt = nextTimestamp(conversationId);
   }
   const turns = buildContext(conv, history);
-
-  const live: MessageVersion[] = targets.map((x) => ({
-    content: '',
-    model: x.model,
-    providerId: x.provider.id,
-    providerName: x.provider.name,
-    status: 'streaming',
-  }));
-  const multi = prior.length > 0 || targets.length > 1;
-  const firstLive = prior.length;
-  let shown = false;
-  // The user may switch version tabs while streaming; respect the selection stored on the message.
-  const compose = (): Message => {
-    if (!multi) return { ...base, ...live[0] };
-    const versions = [...prior, ...live];
-    const current = shown ? getMessages(conversationId).find((m) => m.id === base.id) : undefined;
-    let vi = current?.versionIndex ?? firstLive;
-    if (vi < 0 || vi >= versions.length) vi = firstLive;
-    shown = true;
-    return { ...base, ...versions[vi], createdAt: base.createdAt, versions, versionIndex: vi };
+  const job: JobSnapshot = {
+    conversationId,
+    messageId,
+    createdAt,
+    prior,
+    live: targets.map((x) => ({ content: '', model: x.model, providerId: x.provider.id, providerName: x.provider.name, status: 'streaming' })),
   };
-
-  const lockKey = `message:${base.id}`;
-  localLocks.add(lockKey);
-  const controller = new AbortController();
-  useChat.setState((s) => ({ streaming: { ...s.streaming, [conversationId]: { messageId: base.id, controller } } }));
-  setLocalMessage(compose());
-  const render = throttle(() => setLocalMessage(compose()), 60);
-
-  await Promise.all(
-    targets.map((x, i) =>
-      streamOne(x, conv, turns, controller.signal, (v) => {
-        live[i] = v;
-        render();
-      }).then((v) => {
-        live[i] = v;
-      }),
-    ),
-  );
-  render.cancel();
-  const final = compose();
-
-  // The conversation (or this message) may have been deleted while streaming.
-  const stillExists = !!useData.getState().conversations[conversationId] && getMessages(conversationId).some((m) => m.id === base.id);
-  if (stillExists) saveMessage(final);
-  localLocks.delete(lockKey);
-  useChat.setState((s) => {
-    const streaming = { ...s.streaming };
-    delete streaming[conversationId];
-    return { streaming };
-  });
-  if (useData.getState().conversations[conversationId]) updateConversation(conversationId, { lastMessageAt: Date.now() });
-  if (!opts.regenerateId && live.some((v) => v.status === 'done')) void autoTitle(conversationId);
+  const withTitle = !opts.regenerateId;
+  // Direct-mode providers are reached from the browser, so only the page can stream them.
+  if (backgroundGeneration() && targets.every((x) => x.provider.mode !== 'direct')) await generateOnServer(conv, job, targets, turns, withTitle);
+  else await generateHere(conv, job, targets, turns, withTitle);
 }
 
 export function regenerate(m: Message) {
@@ -393,7 +623,8 @@ export async function editMessage(m: Message, content: string, resend: boolean) 
     saveMessage({ ...m, content });
     return;
   }
-  stopGeneration(m.conversationId);
+  // The reply being generated (if any) comes after this message and is deleted below.
+  const stopped = stopGeneration(m.conversationId, { discard: true });
   const all = getMessages(m.conversationId);
   const idx = all.findIndex((x) => x.id === m.id);
   saveMessage({ ...m, content });
@@ -401,8 +632,8 @@ export async function editMessage(m: Message, content: string, resend: boolean) 
     m.conversationId,
     all.slice(idx + 1).map((x) => x.id),
   );
-  // Wait for an aborted stream to settle before starting a new one.
-  for (let i = 0; i < 50 && useChat.getState().streaming[m.conversationId]; i++) await new Promise((r) => setTimeout(r, 20));
+  // Wait for a stopped stream to settle before starting a new one.
+  await stopped;
   await generate(m.conversationId);
 }
 
@@ -415,7 +646,7 @@ export function retryLast(conversationId: string) {
 }
 
 export function deleteMessage(m: Message) {
-  if (useChat.getState().streaming[m.conversationId]?.messageId === m.id) stopGeneration(m.conversationId);
+  if (useChat.getState().streaming[m.conversationId]?.messageId === m.id) void stopGeneration(m.conversationId, { discard: true });
   deleteMessages(m.conversationId, [m.id]);
 }
 
@@ -439,21 +670,11 @@ export function forkConversation(m: Message) {
 }
 
 export function clearConversation(conversationId: string) {
-  stopGeneration(conversationId);
+  void stopGeneration(conversationId, { discard: true });
   deleteMessages(
     conversationId,
     getMessages(conversationId).map((m) => m.id),
   );
-}
-
-function cleanTitle(s: string) {
-  return s
-    .replace(/<think>[\s\S]*?<\/think>/g, '')
-    .replace(/^\s*(title|标题)\s*[:：]\s*/i, '')
-    .replace(/[\s"'“”‘’《》「」*#`]+/g, (m) => (/\s/.test(m) ? ' ' : ''))
-    .replace(/[。.!！?？,，;；:：]+$/, '')
-    .trim()
-    .slice(0, 50);
 }
 
 export async function autoTitle(conversationId: string, force = false) {
@@ -464,12 +685,9 @@ export async function autoTitle(conversationId: string, force = false) {
   const user = msgs.find((m) => m.role === 'user');
   const reply = msgs.find((m) => m.role === 'assistant' && m.content);
   if (!user || !reply) return;
-  const target = settings.titleModel ? resolveTarget(settings.titleProviderId, settings.titleModel) : resolveTarget(conv.providerId, conv.model);
+  const target = titleTarget(conv);
   if (!target) return;
-  const prompt =
-    `Write a short title for the conversation below, in the same language the user wrote in ` +
-    `(at most 12 Chinese characters or 6 English words). Reply with the title only — no quotes, no punctuation at the end.\n\n` +
-    `User: ${truncate(user.content || user.attachments?.map((a) => a.name).join(', ') || '', 800)}\n\nAssistant: ${truncate(reply.content, 800)}`;
+  const prompt = titlePrompt(user.content || user.attachments?.map((a) => a.name).join(', ') || '', reply.content);
   let out = '';
   try {
     await streamChat({

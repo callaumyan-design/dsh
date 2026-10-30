@@ -94,18 +94,18 @@ export async function anthropicChat(req: ChatRequest): Promise<ChatResult> {
   }
   mergeExtra(body, p.extraBody, params.extraBody);
 
-  const res = await providerFetch(p, '/messages', {
-    method: 'POST',
-    headers: JSON_HEADERS,
-    body: JSON.stringify(body),
-    signal: req.signal,
-  });
+  const res = await providerFetch(
+    p,
+    '/messages',
+    { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(body), signal: req.signal },
+    req.fetch,
+  );
   if (!res.ok) throw await readError(res);
 
   const usage: Usage = {};
   const ct = res.headers.get('content-type') ?? '';
   if (!stream || ct.includes('application/json')) {
-    const j = await res.json();
+    const j: any = await res.json();
     const err = embeddedError(j);
     if (err) throw err;
     for (const b of j.content ?? []) {
@@ -203,6 +203,6 @@ function resultSources(block: any): Source[] {
 export async function anthropicModels(p: Provider): Promise<ModelInfo[]> {
   const res = await providerFetch(p, '/models?limit=1000', { method: 'GET' });
   if (!res.ok) throw await readError(res);
-  const j = await res.json();
+  const j: any = await res.json();
   return (j.data ?? []).map((m: any) => ({ id: String(m.id), name: m.display_name || undefined }));
 }

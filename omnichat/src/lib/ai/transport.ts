@@ -1,6 +1,5 @@
-import { ANTHROPIC_DEFAULT_VERSION, applyAuth, joinUrl } from '../../../shared/provider-auth';
-import { api, proxyFetch } from '../api';
-import { flushNow, hasPending } from '../sync';
+// Protocol-neutral request plumbing shared by every adapter. It runs in the browser and, for background
+// generation, on the server: how a request reaches the provider is plugged in (see ./browser-transport.ts).
 import type { Attachment, ChatParams, Provider, Source, Usage } from '../types';
 
 export interface ChatTurn {
@@ -34,6 +33,8 @@ export interface ChatRequest {
   toolChoice?: 'auto' | 'none';
   /** Earlier rounds of this reply's tool loop, replayed after the last user turn. */
   toolRounds?: ToolRound[];
+  /** How requests reach the provider; defaults to the browser transport. */
+  fetch?: ProviderFetcher;
 }
 
 export interface ToolDef {
@@ -58,6 +59,9 @@ export interface ToolRound {
 
 /** A provider as one request sees it: adapters for multi-protocol gateways add a path prefix and per-request headers. */
 export type WireProvider = Provider & { pathPrefix?: string; requestHeaders?: Record<string, string> };
+
+/** Sends one HTTP request to a provider's API; `path` is relative to its base URL. */
+export type ProviderFetcher = (p: WireProvider, path: string, init: RequestInit) => Promise<Response>;
 
 export interface ChatResult {
   usage?: Usage;
@@ -86,51 +90,24 @@ export class ProviderError extends Error {
   }
 }
 
-const keyCache = new Map<string, string>();
+let defaultFetcher: ProviderFetcher | null = null;
 
-export function forgetProviderKey(providerId?: string) {
-  if (providerId) keyCache.delete(providerId);
-  else keyCache.clear();
+/** Sets the transport used by requests that don't bring their own (the browser registers one at startup). */
+export function setProviderFetcher(f: ProviderFetcher) {
+  defaultFetcher = f;
 }
 
-async function getKey(p: Provider): Promise<string> {
-  if (!p.hasKey) return '';
-  const cached = keyCache.get(p.id);
-  if (cached !== undefined) return cached;
-  const r = await api<{ apiKey: string }>(`/api/providers/${encodeURIComponent(p.id)}/key`);
-  keyCache.set(p.id, r.apiKey);
-  return r.apiKey;
-}
-
-/** Sends a request to a provider, either through the server proxy or straight from the browser. */
-export async function providerFetch(p: WireProvider, path: string, init: RequestInit): Promise<Response> {
-  // The server must know the latest provider config (and key) before proxying.
-  if (hasPending(`provider:${p.id}`)) await flushNow();
+/** Sends a request to a provider, applying the gateway path prefix and per-request headers. */
+export async function providerFetch(p: WireProvider, path: string, init: RequestInit, fetcher?: ProviderFetcher): Promise<Response> {
   if (p.pathPrefix) path = p.pathPrefix + (path.startsWith('/') ? path : `/${path}`);
   if (p.requestHeaders) {
     const h = new Headers(init.headers);
     for (const [k, v] of Object.entries(p.requestHeaders)) h.set(k, v);
     init = { ...init, headers: h };
   }
-  if (p.mode === 'direct') {
-    if (!p.baseUrl) throw new ProviderError('Base URL is empty');
-    const headers = new Headers(init.headers);
-    for (const [k, v] of Object.entries(p.headers ?? {})) if (k) headers.set(k, v);
-    if (p.type === 'anthropic') {
-      if (!headers.has('anthropic-version')) headers.set('anthropic-version', ANTHROPIC_DEFAULT_VERSION);
-      headers.set('anthropic-dangerous-direct-browser-access', 'true');
-    }
-    applyAuth(headers, p, await getKey(p));
-    try {
-      return await fetch(joinUrl(p.baseUrl, path), { ...init, headers });
-    } catch (err) {
-      if ((err as Error).name === 'AbortError') throw err;
-      throw new ProviderError(
-        `Cannot reach ${p.baseUrl} from the browser. Check the address, CORS settings (e.g. OLLAMA_ORIGINS=*), or switch to server proxy mode.`,
-      );
-    }
-  }
-  return proxyFetch(p.id, path, init);
+  const f = fetcher ?? defaultFetcher;
+  if (!f) throw new ProviderError('No provider transport configured');
+  return f(p, path, init);
 }
 
 function pickMessage(j: unknown): string | undefined {

@@ -59,6 +59,13 @@ CREATE TABLE IF NOT EXISTS messages (
   PRIMARY KEY (user_id, id)
 );
 CREATE INDEX IF NOT EXISTS idx_messages_conv ON messages(user_id, conversation_id, updated_at);
+CREATE TABLE IF NOT EXISTS jobs (
+  user_id TEXT NOT NULL,
+  message_id TEXT NOT NULL,
+  conversation_id TEXT NOT NULL,
+  started_at INTEGER NOT NULL,
+  PRIMARY KEY (user_id, message_id)
+);
 CREATE TABLE IF NOT EXISTS secrets (
   user_id TEXT NOT NULL,
   provider_id TEXT NOT NULL,

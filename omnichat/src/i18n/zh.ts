@@ -142,6 +142,7 @@ export const zh = {
   'msg.failed': '请求失败',
   'msg.retry': '重试',
   'msg.stopped': '已停止生成',
+  'msg.interrupted': '服务器重启，这条回复没有生成完',
   'msg.truncated': '输出达到长度上限，内容可能不完整',
   'msg.refusal': '模型拒绝了此请求',
   'msg.filtered': '内容被安全策略拦截（{reason}）',

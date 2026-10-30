@@ -4,6 +4,7 @@ import { HTTPException } from 'hono/http-exception';
 import { secureHeaders } from 'hono/secure-headers';
 import type { DB, Statement } from './db';
 import { ensureSchema } from './db';
+import { now } from './clock';
 import {
   decryptSecret,
   encryptSecret,
@@ -16,6 +17,7 @@ import {
 } from './crypto';
 import { ANTHROPIC_DEFAULT_VERSION, applyAuth, joinUrl } from '../shared/provider-auth';
 import type { BackupService } from './backup';
+import { registerGeneration, type GenerationEngine } from './generation';
 import { DEFAULT_WEB_SEARCH, KEYLESS_KINDS, WEB_SEARCH_KINDS, webSearch, type WebSearchConfig } from './websearch';
 import { GO_PREFIX, isOpencodeGo, OPENCODE_GO_USER_AGENT, opencodeGoAuthStyle, opencodeGoRoot } from '../shared/opencode-go';
 import {
@@ -47,6 +49,8 @@ export interface AppOptions {
   limits(c: Context): SyncLimits;
   /** Scheduled database backups (self-hosted only). */
   backups?: BackupService;
+  /** Background generation: replies run on the server and survive closed pages (needs a long-running process). */
+  generation?: GenerationEngine;
 }
 
 export interface SyncLimits {
@@ -63,15 +67,7 @@ interface UserRow {
 }
 
 type Vars = { db: DB; user: UserRow; sessionId: string };
-type AppEnv = { Variables: Vars; Bindings: object };
-
-let lastTs = 0;
-/** Monotonic millisecond clock used for sync cursors. */
-function now(): number {
-  const t = Date.now();
-  lastTs = t > lastTs ? t : lastTs + 1;
-  return lastTs;
-}
+export type AppEnv = { Variables: Vars; Bindings: object };
 
 const publicUser = (u: UserRow): PublicUser => ({
   id: u.id,
@@ -229,6 +225,7 @@ export function createApp(opts: AppOptions) {
       allowRegister: await allowRegister(c),
       version: APP_VERSION,
       limits: opts.limits(c),
+      features: { backgroundGeneration: !!opts.generation },
     };
     return c.json(status);
   });
@@ -389,7 +386,7 @@ export function createApp(opts: AppOptions) {
     const id = c.req.param('id');
     if (id === c.get('user').id) fail(400, 'You cannot delete yourself');
     await c.get('db').batch(
-      ['users WHERE id', 'sessions WHERE user_id', 'entities WHERE user_id', 'messages WHERE user_id', 'secrets WHERE user_id'].map(
+      ['users WHERE id', 'sessions WHERE user_id', 'entities WHERE user_id', 'messages WHERE user_id', 'secrets WHERE user_id', 'jobs WHERE user_id'].map(
         (t) => ({ sql: `DELETE FROM ${t} = ?`, params: [id] }),
       ),
     );
@@ -685,26 +682,38 @@ export function createApp(opts: AppOptions) {
 
   // ---------- AI proxy ----------
 
-  app.all('/api/proxy/:pid/*', bodyLimit({ maxSize: 64 * 1024 * 1024, onError: () => fail(413, 'Payload too large') }), async (c) => {
-    const pid = c.req.param('pid');
-    const { provider, key } = await loadProvider(c, pid);
+  /**
+   * Sends a request to a provider with its stored key. Used by the browser's proxy calls and by background generation.
+   * `headers` are filtered to FORWARDED_HEADERS; `path` is relative to the provider's base URL and may carry a query.
+   */
+  async function providerRequest(o: {
+    provider: ProviderData;
+    key: string | null;
+    userId: string;
+    /** Whether the base URL may point at a private / loopback address. */
+    allowPrivate: boolean;
+    path: string;
+    method: string;
+    headers: Headers;
+    body?: BodyInit | null;
+    signal?: AbortSignal | null;
+  }): Promise<Response> {
+    const { provider } = o;
     if (!provider.baseUrl) fail(400, 'Provider has no base URL');
-
-    const url = new URL(c.req.url);
-    const prefix = `/api/proxy/${encodeURIComponent(pid)}`;
-    const idx = url.pathname.indexOf(prefix);
-    const rest = idx >= 0 ? url.pathname.slice(idx + prefix.length) : '/';
+    const q = o.path.indexOf('?');
+    const rest = q >= 0 ? o.path.slice(0, q) : o.path;
+    const search = q >= 0 ? o.path.slice(q) : '';
     // OpenCode Go serves several protocols under one root; the client sends the protocol prefix in the path.
     const go = isOpencodeGo(provider);
-    const target = new URL(joinUrl(go ? opencodeGoRoot(provider.baseUrl) : provider.baseUrl, rest || '/') + url.search);
+    const target = new URL(joinUrl(go ? opencodeGoRoot(provider.baseUrl) : provider.baseUrl, rest || '/') + search);
     if (target.protocol !== 'http:' && target.protocol !== 'https:') fail(400, 'Unsupported protocol');
-    if (!c.get('user').is_admin && !opts.allowPrivateNetwork(c) && isPrivateHost(target.hostname)) {
+    if (!o.allowPrivate && isPrivateHost(target.hostname)) {
       fail(403, 'Private network addresses are not allowed. Use direct (browser) mode for local models.');
     }
 
     const headers = new Headers();
     for (const name of FORWARDED_HEADERS) {
-      const v = c.req.header(name);
+      const v = o.headers.get(name);
       if (v) headers.set(name, v);
     }
     const anthropicWire = go ? rest.startsWith(GO_PREFIX.anthropic) : provider.type === 'anthropic';
@@ -712,23 +721,50 @@ export function createApp(opts: AppOptions) {
     if (go) {
       // Go rejects requests without a session id and asks clients to name themselves instead of a generic HTTP library.
       headers.set('user-agent', OPENCODE_GO_USER_AGENT);
-      if (!headers.has('x-opencode-session')) headers.set('x-opencode-session', `catgpt-${c.get('user').id}`);
+      if (!headers.has('x-opencode-session')) headers.set('x-opencode-session', `catgpt-${o.userId}`);
     }
     for (const [k, v] of Object.entries(provider.headers ?? {})) {
       if (k && typeof v === 'string') headers.set(k, v);
     }
-    applyAuth(headers, go ? { type: provider.type, authStyle: opencodeGoAuthStyle(rest) } : provider, key);
+    applyAuth(headers, go ? { type: provider.type, authStyle: opencodeGoAuthStyle(rest) } : provider, o.key);
 
+    try {
+      return await upstreamFetch(target.toString(), { method: o.method, headers, body: o.body, signal: o.signal, redirect: 'follow' });
+    } catch (err) {
+      if (o.signal?.aborted) throw err;
+      const msg = err instanceof Error ? `${err.message}${err.cause ? ` (${String((err.cause as Error).message ?? err.cause)})` : ''}` : String(err);
+      fail(502, `Failed to reach ${target.host}: ${msg}`);
+    }
+  }
+
+  const mayUsePrivateNetwork = (c: Context<AppEnv>) => !!c.get('user').is_admin || opts.allowPrivateNetwork(c);
+
+  app.all('/api/proxy/:pid/*', bodyLimit({ maxSize: 64 * 1024 * 1024, onError: () => fail(413, 'Payload too large') }), async (c) => {
+    const pid = c.req.param('pid');
+    const { provider, key } = await loadProvider(c, pid);
+
+    const url = new URL(c.req.url);
+    const prefix = `/api/proxy/${encodeURIComponent(pid)}`;
+    const idx = url.pathname.indexOf(prefix);
+    const rest = idx >= 0 ? url.pathname.slice(idx + prefix.length) : '/';
     const method = c.req.method.toUpperCase();
-    const body = method === 'GET' || method === 'HEAD' ? undefined : await c.req.arrayBuffer();
 
     let upstream: Response;
     try {
-      upstream = await upstreamFetch(target.toString(), { method, headers, body, signal: c.req.raw.signal, redirect: 'follow' });
+      upstream = await providerRequest({
+        provider,
+        key,
+        userId: c.get('user').id,
+        allowPrivate: mayUsePrivateNetwork(c),
+        path: rest + url.search,
+        method,
+        headers: c.req.raw.headers,
+        body: method === 'GET' || method === 'HEAD' ? undefined : await c.req.arrayBuffer(),
+        signal: c.req.raw.signal,
+      });
     } catch (err) {
       if (c.req.raw.signal.aborted) return new Response(null, { status: 499 });
-      const msg = err instanceof Error ? `${err.message}${err.cause ? ` (${String((err.cause as Error).message ?? err.cause)})` : ''}` : String(err);
-      fail(502, `Failed to reach ${target.host}: ${msg}`);
+      throw err;
     }
 
     const out = new Headers();
@@ -832,10 +868,8 @@ export function createApp(opts: AppOptions) {
     return c.json(await publicWebSearch(c, cfg));
   });
 
-  app.post('/api/websearch', async (c) => {
-    const body = await c.req.json().catch(() => ({}));
-    const query = typeof body.query === 'string' ? body.query.trim().slice(0, 400) : '';
-    if (!query) fail(400, 'Empty query');
+  /** The account's search service, ready to call (key filled in), or an HTTP error explaining why it can't run. */
+  async function resolveWebSearch(c: Context<AppEnv>): Promise<WebSearchConfig> {
     let cfg = await loadWebSearch(c);
     if (!cfg) fail(400, 'No search service is configured');
     if (!KEYLESS_KINDS.includes(cfg.kind) && !cfg.apiKey) {
@@ -843,12 +877,20 @@ export function createApp(opts: AppOptions) {
       if (!fallback) fail(400, 'The search service has no API key');
       cfg = { ...cfg, apiKey: fallback.key };
     }
-    if (cfg.kind === 'searxng' && cfg.url && !c.get('user').is_admin && !opts.allowPrivateNetwork(c) && isPrivateHost(new URL(cfg.url).hostname)) {
+    if (cfg.kind === 'searxng' && cfg.url && !mayUsePrivateNetwork(c) && isPrivateHost(new URL(cfg.url).hostname)) {
       fail(403, 'Private network addresses are not allowed');
     }
+    return cfg;
+  }
+
+  app.post('/api/websearch', async (c) => {
+    const body = await c.req.json().catch(() => ({}));
+    const query = typeof body.query === 'string' ? body.query.trim().slice(0, 400) : '';
+    if (!query) fail(400, 'Empty query');
+    const cfg = await resolveWebSearch(c);
     const count = Math.min(10, Math.max(1, Number(body.count) || 6));
     try {
-      return c.json({ results: await webSearch(cfg, query, count, upstreamFetch) });
+      return c.json({ results: await webSearch(cfg, query, count, upstreamFetch, c.req.raw.signal) });
     } catch (err) {
       fail(502, (err as Error).message);
     }
@@ -914,6 +956,46 @@ export function createApp(opts: AppOptions) {
       keys,
     });
   });
+
+  // ---------- Background generation ----------
+
+  if (opts.generation) {
+    registerGeneration(app, {
+      engine: opts.generation,
+      async providerFor(c, providerId) {
+        const { provider, key } = await loadProvider(c, providerId);
+        const userId = c.get('user').id;
+        const allowPrivate = mayUsePrivateNetwork(c);
+        return {
+          provider: { ...provider, id: providerId },
+          // The adapter's wire provider only shapes the path and headers; the stored config decides where requests go.
+          fetch: (_wire, path, init) =>
+            providerRequest({
+              provider,
+              key,
+              userId,
+              allowPrivate,
+              path,
+              method: (init.method ?? 'GET').toUpperCase(),
+              headers: new Headers(init.headers),
+              body: init.body,
+              signal: init.signal,
+            }),
+        };
+      },
+      async searchFor(c) {
+        const cfg = await resolveWebSearch(c);
+        return async (query, signal) => {
+          try {
+            return await webSearch(cfg, query.slice(0, 400), 6, upstreamFetch, signal);
+          } catch (err) {
+            // HTTPException and fetch errors alike reach the model as text.
+            throw new Error((err as Error).message);
+          }
+        };
+      },
+    });
+  }
 
   app.all('/api/*', (c) => c.json({ error: 'Not found' }, 404));
 

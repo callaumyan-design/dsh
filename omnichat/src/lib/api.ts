@@ -76,9 +76,14 @@ export async function api<T = unknown>(path: string, opts: ApiOptions = {}): Pro
   return data as T;
 }
 
-/** Raw fetch to the server's AI proxy, preserving streaming. */
-export function proxyFetch(providerId: string, path: string, init: RequestInit): Promise<Response> {
+/** Raw authenticated fetch to the server (for streamed responses). */
+export function authFetch(path: string, init: RequestInit = {}): Promise<Response> {
   const headers = new Headers(init.headers);
   if (token) headers.set('authorization', `Bearer ${token}`);
-  return fetch(`/api/proxy/${encodeURIComponent(providerId)}${path.startsWith('/') ? path : `/${path}`}`, { ...init, headers });
+  return fetch(path, { ...init, headers });
+}
+
+/** Raw fetch to the server's AI proxy, preserving streaming. */
+export function proxyFetch(providerId: string, path: string, init: RequestInit): Promise<Response> {
+  return authFetch(`/api/proxy/${encodeURIComponent(providerId)}${path.startsWith('/') ? path : `/${path}`}`, init);
 }

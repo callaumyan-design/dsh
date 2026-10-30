@@ -111,7 +111,7 @@ export async function geminiChat(req: ChatRequest): Promise<ChatResult> {
   mergeExtra(body, p.extraBody, params.extraBody);
 
   const path = `${modelPath(req.model)}:${stream ? 'streamGenerateContent?alt=sse' : 'generateContent'}`;
-  const res = await providerFetch(p, path, { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(body), signal: req.signal });
+  const res = await providerFetch(p, path, { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(body), signal: req.signal }, req.fetch);
   if (!res.ok) throw await readError(res);
 
   let usage: Usage | undefined;
@@ -145,7 +145,7 @@ export async function geminiChat(req: ChatRequest): Promise<ChatResult> {
 
   const ct = res.headers.get('content-type') ?? '';
   if (!stream || ct.includes('application/json')) {
-    const j = await res.json();
+    const j: any = await res.json();
     for (const chunk of Array.isArray(j) ? j : [j]) handle(chunk);
   } else {
     for await (const ev of readSSE(res)) {
@@ -172,7 +172,7 @@ export async function geminiChat(req: ChatRequest): Promise<ChatResult> {
 export async function geminiModels(p: Provider): Promise<ModelInfo[]> {
   const res = await providerFetch(p, '/models?pageSize=1000', { method: 'GET' });
   if (!res.ok) throw await readError(res);
-  const j = await res.json();
+  const j: any = await res.json();
   return (j.models ?? [])
     .filter((m: any) => !m.supportedGenerationMethods || m.supportedGenerationMethods.includes('generateContent'))
     .map((m: any) => ({ id: String(m.name).replace(/^models\//, ''), name: m.displayName || undefined }));

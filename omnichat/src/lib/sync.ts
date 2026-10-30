@@ -47,7 +47,19 @@ const keyOf = (op: { kind: string; id: string }) => `${op.kind}:${op.id}`;
 function persistOutboxNow() {
   void idb.put('meta', [...outbox.values()].map((v) => v.op), 'outbox');
 }
-const persistOutbox = debounce(persistOutboxNow, 250);
+let persistQueued = false;
+/**
+ * Saves the outbox as soon as the current task's changes are in. Waiting longer would let a reload right after a
+ * change lose it, or bring back changes already sent (which would then overwrite newer edits made on the server).
+ */
+function persistOutbox() {
+  if (persistQueued) return;
+  persistQueued = true;
+  queueMicrotask(() => {
+    persistQueued = false;
+    persistOutboxNow();
+  });
+}
 const persistCursors = debounce(() => {
   void idb.put('meta', cursor, 'cursor');
   void idb.put('meta', msgCursors, 'msgCursors');

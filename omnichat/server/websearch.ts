@@ -1,5 +1,6 @@
-// Web search for models without a provider-native search tool: the browser runs a tool-calling loop and asks the
-// server to search; the server calls the search API with the account's stored key (it never reaches the browser).
+// Web search for models without a provider-native search tool: a tool-calling loop (in the browser, or on the server
+// for background replies) asks for searches; the server calls the search API with the account's stored key, which
+// never reaches the browser.
 
 export type WebSearchKind = 'exa-free' | 'deepseek' | 'tavily' | 'brave' | 'bocha' | 'exa' | 'searxng';
 export const WEB_SEARCH_KINDS: WebSearchKind[] = ['exa-free', 'deepseek', 'tavily', 'brave', 'bocha', 'exa', 'searxng'];
@@ -50,8 +51,8 @@ function parseExaText(text: string): WebResult[] {
     .filter((r) => /^https?:\/\//.test(r.url));
 }
 
-export async function webSearch(cfg: WebSearchConfig, query: string, count: number, f: typeof fetch): Promise<WebResult[]> {
-  const signal = AbortSignal.timeout(25_000);
+export async function webSearch(cfg: WebSearchConfig, query: string, count: number, f: typeof fetch, cancel?: AbortSignal): Promise<WebResult[]> {
+  const signal = cancel ? AbortSignal.any([cancel, AbortSignal.timeout(25_000)]) : AbortSignal.timeout(25_000);
   const post = (url: string, headers: Record<string, string>, body: unknown) =>
     f(url, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body), signal });
   switch (cfg.kind) {

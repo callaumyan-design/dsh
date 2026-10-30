@@ -11,6 +11,8 @@ import { sqliteDatabase } from './db-sqlite';
 import { hashPassword, randomToken } from './crypto';
 import { ensureSchema } from './db';
 import { createBackupService } from './backup';
+import { engine } from './engine';
+import { recoverInterruptedReplies } from './generation';
 import { APP_VERSION } from '../shared/types';
 
 const env = process.env;
@@ -79,6 +81,8 @@ const app = createApp({
   },
   fetch: upstreamFetch,
   limits: () => ({ maxOps: 500, maxRecordBytes: 48 * 1024 * 1024 }),
+  // Replies run on the server, so they finish (and are saved) even if the page is closed mid-answer.
+  generation: bool(env.BACKGROUND_GENERATION, true) ? engine : undefined,
   // Daily snapshots in <data>/backups; BACKUP_AZURE_URL (or the Azure VM tag "backup") adds an off-site copy.
   backups: bool(env.BACKUP_DISABLED)
     ? undefined
@@ -114,6 +118,9 @@ if (fs.existsSync(path.join(staticDir, 'index.html'))) {
 } else {
   console.warn(`[omnichat] No web build found at ${staticDir}; serving API only (use "npm run dev" for the UI).`);
 }
+
+await ensureSchema(db);
+await recoverInterruptedReplies(db);
 
 const port = Number(env.PORT) || (env.NODE_ENV === 'production' ? 3000 : 8787);
 const hostname = env.HOST || '0.0.0.0';

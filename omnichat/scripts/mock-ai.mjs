@@ -135,7 +135,7 @@ const server = http.createServer(async (req, res) => {
   // ---------- OpenAI ----------
   if (p.startsWith('/v1/')) {
     if (req.headers.authorization !== 'Bearer sk-mock') return json(res, 401, { error: { message: 'Incorrect API key provided', type: 'invalid_request_error' } });
-    if (p === '/v1/models') return json(res, 200, { object: 'list', data: ['mock-gpt', 'mock-reasoner', 'mock-think-tag', 'mock-error'].map((id) => ({ id, object: 'model' })) });
+    if (p === '/v1/models') return json(res, 200, { object: 'list', data: ['mock-gpt', 'mock-reasoner', 'mock-think-tag', 'mock-error', 'mock-slow'].map((id) => ({ id, object: 'model' })) });
     if (p === '/v1/responses') {
       const body = await readBody(req);
       log.push({ api: 'responses', search: (body.tools ?? []).some((t) => t.type === 'web_search'), reasoning: body.reasoning, model: body.model });
@@ -193,10 +193,12 @@ const server = http.createServer(async (req, res) => {
       }
       if (wantsSearch(body)) send({ choices: [{ delta: {} }], search_info: { search_results: SEARCH_RESULTS } });
       const content = body.model === 'mock-think-tag' ? `<think>Tag-based reasoning here.</think>\n\n${text}` : text;
+      // mock-slow streams slowly, for tests that act while a reply is still being generated.
+      const pace = body.model === 'mock-slow' ? 150 : 12;
       for (const c of chunks(content)) {
         if (res.destroyed) return;
         send({ choices: [{ delta: { content: c } }] });
-        await sleep(12);
+        await sleep(pace);
       }
       send({ choices: [{ delta: {}, finish_reason: 'stop' }] });
       send({ choices: [], usage: { prompt_tokens: 42, completion_tokens: 128 } });

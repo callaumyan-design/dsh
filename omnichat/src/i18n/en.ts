@@ -144,6 +144,7 @@ export const en: Record<keyof typeof zh, string> = {
   'msg.failed': 'Request failed',
   'msg.retry': 'Retry',
   'msg.stopped': 'Generation stopped',
+  'msg.interrupted': 'The server restarted before this reply finished',
   'msg.truncated': 'Hit the output length limit; the reply may be incomplete',
   'msg.refusal': 'The model declined this request',
   'msg.filtered': 'Blocked by a safety filter ({reason})',

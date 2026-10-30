@@ -359,6 +359,19 @@ export function setLocalMessage(msg: Message) {
   });
 }
 
+/** Shows a message the server has just saved (background generation): cached locally, nothing to sync. */
+export function applyServerMessage(msg: Message, updatedAt: number) {
+  if (!get().conversations[msg.conversationId] || !getMessages(msg.conversationId).some((m) => m.id === msg.id)) return;
+  const m = { ...msg, syncedAt: updatedAt };
+  setLocalMessage(m);
+  void idb.put('messages', m);
+}
+
+/** Removes a message that was only ever shown locally (never saved). */
+export function dropLocalMessage(conversationId: string, id: string) {
+  set((s) => ({ messages: { ...s.messages, [conversationId]: (s.messages[conversationId] ?? []).filter((m) => m.id !== id) } }));
+}
+
 /** Saves a message locally and queues it for sync. */
 export function saveMessage(msg: Message) {
   setLocalMessage(msg);

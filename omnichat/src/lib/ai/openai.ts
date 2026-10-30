@@ -114,12 +114,12 @@ export async function openaiChat(req: ChatRequest): Promise<ChatResult> {
   }
   mergeExtra(body, p.extraBody, params.extraBody);
 
-  const res = await providerFetch(p, '/chat/completions', {
-    method: 'POST',
-    headers: JSON_HEADERS,
-    body: JSON.stringify(body),
-    signal: req.signal,
-  });
+  const res = await providerFetch(
+    p,
+    '/chat/completions',
+    { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(body), signal: req.signal },
+    req.fetch,
+  );
   if (!res.ok) throw await readError(res);
 
   const think = createThinkParser(req.onDelta);
@@ -167,7 +167,7 @@ export async function openaiChat(req: ChatRequest): Promise<ChatResult> {
 
   const ct = res.headers.get('content-type') ?? '';
   if (!stream || ct.includes('application/json')) {
-    const j = await res.json();
+    const j: any = await res.json();
     const err = embeddedError(j);
     if (err && !j.choices) throw err;
     const msg = j.choices?.[0]?.message ?? {};
@@ -221,7 +221,7 @@ export async function openaiChat(req: ChatRequest): Promise<ChatResult> {
 export async function openaiModels(p: Provider): Promise<ModelInfo[]> {
   const res = await providerFetch(p, '/models', { method: 'GET' });
   if (!res.ok) throw await readError(res);
-  const j = await res.json();
+  const j: any = await res.json();
   const list: any[] = Array.isArray(j) ? j : (j.data ?? j.models ?? []);
   return list
     .map((m) => ({ id: String(m.id ?? m.name ?? m.model ?? ''), name: m.name && m.name !== m.id ? String(m.name) : undefined }))

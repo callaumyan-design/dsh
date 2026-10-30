@@ -1,26 +1,16 @@
-import { anthropicChat, anthropicModels } from './anthropic';
-import { geminiChat, geminiModels } from './gemini';
-import { openaiChat, openaiModels } from './openai';
-import { opencodeGoChat, opencodeGoModels } from './opencode-go';
+import './browser-transport';
+import { anthropicModels } from './anthropic';
+import { geminiModels } from './gemini';
+import { openaiModels } from './openai';
+import { opencodeGoModels } from './opencode-go';
 import { isOpencodeGo } from '../../../shared/opencode-go';
-import { responsesChat } from './responses';
-import type { ChatRequest, ChatResult } from './transport';
+import { streamChat } from './core';
 import type { ModelInfo, Provider } from '../types';
 
 export type { ChatRequest, ChatResult, ChatTurn, Delta } from './transport';
-export { ProviderError, forgetProviderKey } from './transport';
-
-export function streamChat(req: ChatRequest): Promise<ChatResult> {
-  if (isOpencodeGo(req.provider)) return opencodeGoChat(req);
-  switch (req.provider.type) {
-    case 'anthropic':
-      return anthropicChat(req);
-    case 'gemini':
-      return geminiChat(req);
-    default:
-      return req.provider.useResponsesApi ? responsesChat(req) : openaiChat(req);
-  }
-}
+export { ProviderError } from './transport';
+export { forgetProviderKey } from './browser-transport';
+export { streamChat };
 
 export async function listModels(p: Provider): Promise<ModelInfo[]> {
   const list = isOpencodeGo(p)

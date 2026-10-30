@@ -298,6 +298,35 @@ async function send(page, text) {
   await a.getByText('Edited reply text').waitFor();
   ok('assistant reply edited');
 
+  step('Background generation: a reply survives a reload and a closed page');
+  await a.getByRole('button', { name: '新对话' }).first().click();
+  await pickModel(a, 'mock-slow');
+  await send(a, 'Keep going after a reload');
+  await a.getByText('Hello from mock-slow').waitFor({ timeout: 15000 });
+  await a.reload();
+  await a.waitForSelector('[aria-label="停止生成"]', { timeout: 15000 });
+  ok('after a reload the page follows the running reply again');
+  await waitIdle(a);
+  await a.locator('main .katex').first().waitFor({ timeout: 15000 });
+  ok('the reply finished in full');
+  const away = await ctxA.newPage();
+  openPages.push(away);
+  await away.goto(APP);
+  await away.getByRole('button', { name: '新对话' }).first().click();
+  await pickModel(away, 'mock-slow');
+  await send(away, 'Finish this while I am away');
+  await away.getByText('Hello from mock-slow').waitFor({ timeout: 15000 });
+  const awayUrl = away.url();
+  await away.close();
+  openPages.pop();
+  await a.waitForTimeout(12000);
+  await a.goto(awayUrl);
+  await a.getByText('You said: "Finish this while I am away"').waitFor({ timeout: 15000 });
+  await a.locator('main .katex').first().waitFor({ timeout: 15000 });
+  if (await a.locator('[aria-label="停止生成"]').count()) throw new Error('the reply is still marked as generating');
+  ok('a reply started on a page that was then closed was finished and saved by the server');
+  await a.locator('aside').getByText('E2E Main').click();
+
   step('Usage statistics');
   await a.keyboard.press('Control+,');
   await a.getByRole('dialog').getByRole('button', { name: '用量统计' }).click();

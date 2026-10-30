@@ -1,6 +1,7 @@
 // Voice input: the browser's own speech recognition, or recorded audio sent to a transcription model
 // (any OpenAI-compatible /audio/transcriptions endpoint, e.g. Whisper on Groq or OpenAI, SenseVoice on SiliconFlow).
 import { providerFetch, readError } from './ai/transport';
+import { browserFetch } from './ai/browser-transport';
 import type { Provider } from './types';
 
 export interface VoiceSession {
@@ -86,7 +87,7 @@ export async function startRecording(provider: Provider, model: string, language
       form.append('file', new Blob(chunks, { type }), `voice.${ext}`);
       form.append('model', model);
       if (language) form.append('language', language);
-      const res = await providerFetch(provider, '/audio/transcriptions', { method: 'POST', body: form });
+      const res = await providerFetch(provider, '/audio/transcriptions', { method: 'POST', body: form }, browserFetch);
       if (!res.ok) throw await readError(res);
       const j = await res.json();
       return String(j.text ?? '').trim();

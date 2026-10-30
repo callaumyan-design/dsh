@@ -83,7 +83,7 @@ export async function responsesChat(req: ChatRequest): Promise<ChatResult> {
   };
 
   const send = (body: Record<string, unknown>) =>
-    providerFetch(p, '/responses', { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(body), signal: req.signal });
+    providerFetch(p, '/responses', { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(body), signal: req.signal }, req.fetch);
 
   // Reasoning summaries need a reasoning model (and, on some accounts, a verified organization).
   const wantSummary = guessReasoning(req.model);
@@ -122,7 +122,7 @@ export async function responsesChat(req: ChatRequest): Promise<ChatResult> {
 
   const ct = res.headers.get('content-type') ?? '';
   if (!stream || ct.includes('application/json')) {
-    const j = await res.json();
+    const j: any = await res.json();
     const err = embeddedError(j);
     if (err && !j.output) throw err;
     for (const item of j.output ?? []) {
