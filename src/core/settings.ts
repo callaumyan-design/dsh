@@ -40,7 +40,7 @@ export interface Settings {
     blobAccessory: BlobAccessory
     opacity: number
   }
-  app: { autoStart: boolean; dnd: boolean; hotkey: string; alwaysOnTop: boolean; clickThrough: boolean }
+  app: { autoStart: boolean; dnd: boolean; hotkey: string; alwaysOnTop: boolean; clickThrough: boolean; proxy: string }
   voice: { enabled: boolean; voiceName: string; rate: number; pitch: number; volume: number }
   window: { x: number | null; y: number | null }
   /** greeting shown */
@@ -61,7 +61,7 @@ export function defaultSettings(): Settings {
     proactive: { level: 'medium', quietEnabled: true, quietStart: '23:00', quietEnd: '08:00', useAI: false },
     game: { difficulty: 'normal', maxOfflineHours: 12 },
     appearance: { packId: BUILTIN_PACK_ID, scale: 1, walkEnabled: true, blobColor: '#8fd3ff', blobAccessory: 'bow', opacity: 1 },
-    app: { autoStart: false, dnd: false, hotkey: 'CommandOrControl+Shift+Space', alwaysOnTop: true, clickThrough: false },
+    app: { autoStart: false, dnd: false, hotkey: 'CommandOrControl+Shift+Space', alwaysOnTop: true, clickThrough: false, proxy: '' },
     voice: { enabled: false, voiceName: '', rate: 1.1, pitch: 1.3, volume: 0.9 },
     window: { x: null, y: null },
     onboarded: false,

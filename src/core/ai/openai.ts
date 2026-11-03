@@ -33,18 +33,26 @@ export async function streamOpenAI(cfg: ProviderConfig, messages: ChatMessage[],
   if (typeof cfg.temperature === 'number') body.temperature = cfg.temperature
   const maxTokens = opts.maxTokens ?? cfg.maxTokens
   if (maxTokens) body.max_tokens = maxTokens
+  if (opts.json) body.response_format = { type: 'json_object' }
 
-  let res: Response
-  try {
-    res = await f(joinUrl(cfg.baseURL, 'chat/completions'), {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(body),
-      signal: opts.signal
-    })
-  } catch (e) {
-    if ((e as Error).name === 'AbortError') throw e
-    throw new ProviderError(friendlyError(undefined, (e as Error).message))
+  const send = async (): Promise<Response> => {
+    try {
+      return await f(joinUrl(cfg.baseURL, 'chat/completions'), {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+        signal: opts.signal
+      })
+    } catch (e) {
+      if ((e as Error).name === 'AbortError') throw e
+      throw new ProviderError(friendlyError(undefined, (e as Error).message))
+    }
+  }
+  let res = await send()
+  if (!res.ok && opts.json && (res.status === 400 || res.status === 422)) {
+    // Provider does not support response_format: retry once without it.
+    delete body.response_format
+    res = await send()
   }
   if (!res.ok) {
     const detail = await errorDetail(res)

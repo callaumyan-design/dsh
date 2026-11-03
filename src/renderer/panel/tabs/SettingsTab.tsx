@@ -360,11 +360,17 @@ export function SettingsTab({ snap, onRefresh }: { snap: Snapshot; onRefresh: ()
         <Field label="聊天快捷键" hint="Electron 加速键格式，例如 CommandOrControl+Shift+Space">
           <input defaultValue={s.app.hotkey} onBlur={(e) => e.target.value !== s.app.hotkey && update({ app: { ...s.app, hotkey: e.target.value } })} />
         </Field>
+        <Field label="网络代理" hint="留空 = 跟随系统代理。例如 http://127.0.0.1:7890 或 socks5://127.0.0.1:1080（访问 OpenAI / Claude 时可能需要）">
+          <input defaultValue={s.app.proxy} placeholder="跟随系统" onBlur={(e) => e.target.value.trim() !== s.app.proxy && update({ app: { ...s.app, proxy: e.target.value.trim() } })} />
+        </Field>
         <Field label="数据目录" hint="存档、聊天记录、记忆库都在这里，整个文件夹复制走就是完整备份">
           <div className="row">
             <code className="path">{snap.dataDir}</code>
             <button className="btn ghost" onClick={() => void api.openDataFolder()}>
               打开
+            </button>
+            <button className="btn ghost" onClick={() => void api.openLogsFolder()}>
+              查看日志
             </button>
           </div>
         </Field>

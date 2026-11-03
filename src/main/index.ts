@@ -10,6 +10,7 @@ import {
   nativeImage,
   net,
   Notification,
+  session,
   powerMonitor,
   shell,
   Tray,
@@ -23,6 +24,7 @@ import { DEFAULT_PERSONA, normalizePersona } from '../core/persona/persona'
 import type { ProviderConfig } from '../core/ai/types'
 import { AppCore, EMBEDDING_SECRET } from './core'
 import { PetMotion } from './motion'
+import { installLogger } from './logger'
 import { importFolder, importZip } from './packImport'
 import { PackManager, registerAssetScheme } from './packs'
 import { createPanelWindow, createPetWindow } from './windows'
@@ -238,6 +240,17 @@ function applyHotkey(): void {
   }
 }
 
+/** '' = system proxy; otherwise e.g. http://127.0.0.1:7890 or socks5://127.0.0.1:1080 */
+async function applyProxy(): Promise<void> {
+  const p = core.settings.data.app.proxy.trim()
+  try {
+    await session.defaultSession.setProxy(p ? { proxyRules: p, proxyBypassRules: '<local>' } : { mode: 'system' })
+    console.log('[proxy]', p || 'system')
+  } catch (e) {
+    console.warn('[proxy] invalid', p, e)
+  }
+}
+
 function applyAutoStart(): void {
   if (process.platform === 'linux' || !app.isPackaged) return
   app.setLoginItemSettings({ openAtLogin: core.settings.data.app.autoStart })
@@ -324,6 +337,7 @@ function registerIpc(): void {
     motion?.setPaused('disabled', !s.appearance.walkEnabled)
     if (s.app.dnd !== before.app.dnd || s.app.clickThrough !== before.app.clickThrough) rebuildTray()
     if (s.app.clickThrough !== before.app.clickThrough) applyClickThrough()
+    if (s.app.proxy !== before.app.proxy) void applyProxy()
     return pub
   })
   h('provider:upsert', (_e, cfg: ProviderConfig) => {
@@ -398,6 +412,7 @@ function registerIpc(): void {
   h('packs:select', (_e, id: string) => core.updateSettings({ appearance: { ...core.settings.data.appearance, packId: id } }))
   h('app:openPacks', () => void shell.openPath(packs.userDir))
   h('app:openData', () => void shell.openPath(core.dataDir))
+  h('app:openLogs', () => void shell.openPath(path.join(core.dataDir, 'logs')))
   h('app:openExternal', (_e, url: string) => {
     if (/^https?:\/\//.test(url)) void shell.openExternal(url)
   })
@@ -432,8 +447,11 @@ function registerIpc(): void {
 async function main(): Promise<void> {
   if (process.platform === 'darwin') app.dock?.hide()
   if (process.platform === 'win32') app.setAppUserModelId('io.github.soulpet.app') // needed for toast notifications
+  const dataDir = resolveDataDir()
+  installLogger(dataDir)
+  console.log(`[app] SoulPet ${app.getVersion()} on ${process.platform}, data: ${dataDir}`)
   core = new AppCore({
-    dataDir: resolveDataDir(),
+    dataDir,
     fetch: (url, init) => net.fetch(url, init as RequestInit),
     broadcast,
     systemIdleSeconds: () => powerMonitor.getSystemIdleTime()
@@ -445,6 +463,7 @@ async function main(): Promise<void> {
       console.warn('[notify]', e)
     }
   }
+  await applyProxy()
   packs = new PackManager(path.join(resourcesDir, 'pets'), path.join(core.dataDir, 'pets'))
   packs.installProtocol()
   packs.scan()

@@ -44,6 +44,7 @@ const api: SoulPetAPI = {
   packImport: (kind) => invoke('packs:import', kind),
   openPacksFolder: () => invoke('app:openPacks'),
   openDataFolder: () => invoke('app:openData'),
+  openLogsFolder: () => invoke('app:openLogs'),
   openExternal: (url) => invoke('app:openExternal', url),
 
   openPanel: (tab) => invoke('app:openPanel', tab),

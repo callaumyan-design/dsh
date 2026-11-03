@@ -596,6 +596,7 @@ export class AppCore {
       apiKey: this.keyFor(p),
       fetch: this.opts.fetch,
       maxTokens: p.kind === 'anthropic' ? 8000 : 800,
+      json: true,
       signal: AbortSignal.timeout(60_000)
     })
     this.recordUsage(r.usage.inputTokens, r.usage.outputTokens)
@@ -621,7 +622,7 @@ export class AppCore {
       const r = await chat(
         p,
         buildDiaryMessages({ persona: this.persona.data, date, chat: chatMsgs, activities, status: describeForPrompt(this.game.data) }),
-        { apiKey: this.keyFor(p), fetch: this.opts.fetch, maxTokens: p.kind === 'anthropic' ? 8000 : 900, signal: AbortSignal.timeout(90_000) }
+        { apiKey: this.keyFor(p), fetch: this.opts.fetch, maxTokens: p.kind === 'anthropic' ? 8000 : 900, json: true, signal: AbortSignal.timeout(90_000) }
       )
       this.recordUsage(r.usage.inputTokens, r.usage.outputTokens)
       const parsed = parseDiary(r.text)
@@ -653,6 +654,7 @@ export class AppCore {
         apiKey: this.keyFor(p),
         fetch: this.opts.fetch,
         maxTokens: p.kind === 'anthropic' ? 8000 : 1200,
+        json: true,
         signal: AbortSignal.timeout(90_000)
       })
       this.recordUsage(r.usage.inputTokens, r.usage.outputTokens)

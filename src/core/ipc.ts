@@ -125,6 +125,7 @@ export interface SoulPetAPI {
   packImport(kind: 'zip' | 'folder'): Promise<{ ok: boolean; packId?: string; name?: string; warnings?: string[]; error?: string }>
   openPacksFolder(): Promise<void>
   openDataFolder(): Promise<void>
+  openLogsFolder(): Promise<void>
   openExternal(url: string): Promise<void>
 
   openPanel(tab?: string): Promise<void>

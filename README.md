@@ -4,6 +4,7 @@
 
 <p>
   <img src="docs/screenshots/pet-reply.png" height="200" alt="内置宠物团子在桌面上说话">
+  <img src="docs/screenshots/pet-focus.png" height="200" alt="番茄钟专注中的团子">
   <img src="docs/screenshots/pet-codex.png" height="200" alt="Codex 格式示例宠物小灵">
 </p>
 

@@ -44,6 +44,8 @@ export interface CallOptions {
   onDelta?: (text: string) => void
   fetch?: FetchLike
   maxTokens?: number
+  /** Ask OpenAI-compatible providers for a JSON object (falls back if unsupported). */
+  json?: boolean
 }
 
 export class ProviderError extends Error {
