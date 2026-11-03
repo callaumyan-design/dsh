@@ -42,7 +42,7 @@ export interface GameState {
   /** action name -> timestamp (ms) when it becomes available again */
   cooldowns: Record<string, number>
   daily: { date: string; affectionFromChat: number; affectionFromPet: number }
-  totals: { fed: number; played: number; worked: number; studied: number; chats: number; baths: number; pets: number }
+  totals: { fed: number; played: number; worked: number; studied: number; chats: number; baths: number; pets: number; focusMinutes: number }
   lastPetAt: number
 }
 
@@ -59,6 +59,7 @@ export type GameAction =
   | { type: 'buy'; itemId: string; count?: number }
   | { type: 'checkIn' }
   | { type: 'chat' }
+  | { type: 'focus'; minutes: number }
 
 export type Delta = Partial<Record<StatKey | 'affection' | 'exp' | 'coins', number>>
 

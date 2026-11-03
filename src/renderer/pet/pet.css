@@ -144,3 +144,15 @@ html, body, #root {
   to { transform: none; opacity: 1; }
 }
 @keyframes blink { 50% { opacity: 0; } }
+
+.focus-badge {
+  padding: 4px 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #e0483a;
+  font-weight: 700;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 3px 10px rgba(30, 35, 70, 0.15);
+  pointer-events: none;
+}

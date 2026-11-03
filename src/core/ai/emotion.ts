@@ -4,6 +4,7 @@
  * Works with every provider because it needs no function calling.
  */
 import type { PetAnimState } from '../game/types'
+import { ACTION_TAG_RE } from '../tasks'
 
 export type Emotion = 'neutral' | 'happy' | 'excited' | 'sad' | 'angry' | 'surprised' | 'shy' | 'sleepy' | 'love' | 'thinking'
 
@@ -80,7 +81,7 @@ export class EmotionStreamParser {
 
   private emit(chunk: string): { text: string; emotion: Emotion | null } {
     if (!chunk) return { text: '', emotion: this.emotion }
-    let text = chunk.replace(TAG_RE, (full, tag: string) => {
+    let text = chunk.replace(ACTION_TAG_RE, '').replace(TAG_RE, (full, tag: string) => {
       const e = normalizeEmotion(tag)
       if (!e) return full
       this.emotion ??= e
@@ -96,6 +97,9 @@ export class EmotionStreamParser {
 
   /** Index from which text must be held back (an opening bracket with no close yet). */
   private findHoldIndex(s: string): number {
+    // [[remind|...]] action tags can be long; hold them until closed (bounded)
+    const dbl = s.lastIndexOf('[[')
+    if (dbl >= 0 && !s.slice(dbl).includes(']]') && s.length - dbl <= 260) return dbl
     const lastOpen = Math.max(s.lastIndexOf('['), s.lastIndexOf('【'))
     if (lastOpen < 0) return s.length
     const after = s.slice(lastOpen)

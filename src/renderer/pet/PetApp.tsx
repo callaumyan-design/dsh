@@ -4,6 +4,7 @@ import { CONDITION_LABEL, expToNext, STAGE_SCALE, stageOf } from '../../core/gam
 import type { Condition, GameState, PetAnimState } from '../../core/game/types'
 import type { MotionEvent, PublicSettings } from '../../core/ipc'
 import { builtinPack, type ResolvedPack } from '../../core/pets/pack'
+import type { FocusSession } from '../../core/tasks'
 import { api } from '../shared/api'
 import { PetView } from '../shared/PetView'
 
@@ -24,6 +25,11 @@ function idleFor(game: GameState, conds: Condition[]): PetAnimState {
   return 'idle'
 }
 
+function fmtRemain(ms: number): string {
+  const s = Math.max(0, Math.round(ms / 1000))
+  return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
+}
+
 function bubbleDuration(text: string): number {
   return Math.min(16_000, Math.max(3500, text.length * 220))
 }
@@ -42,6 +48,7 @@ export function PetApp() {
   const [hover, setHover] = useState(false)
   const [hearts, setHearts] = useState<number[]>([])
   const [petName, setPetName] = useState('它')
+  const [focus, setFocus] = useState<FocusSession | null>(null)
   const [, force] = useState(0)
 
   const bubbleTimer = useRef<number | null>(null)
@@ -67,9 +74,11 @@ export function PetApp() {
       setSettings(s.settings)
       setPacks(s.packs)
       setPetName(s.persona.name)
+      setFocus(s.tasks.focus)
     })
     const off = [
       api.on('persona:update', (p) => setPetName(p.name)),
+      api.on('tasks:update', (t) => setFocus(t.focus)),
       api.on('game:update', (p) => {
         setGame(p.game)
         setConds(p.conditions)
@@ -117,6 +126,13 @@ export function PetApp() {
     api.petSetSize(winW, winH)
   }, [winW, winH])
 
+  const focusing = !!focus && focus.endsAt > Date.now()
+  useEffect(() => {
+    if (!focusing) return
+    const t = window.setInterval(() => force((n) => n + 1), 1000)
+    return () => window.clearInterval(t)
+  }, [focusing])
+
   useEffect(() => {
     api.petInputState(inputOpen)
     if (inputOpen) {
@@ -128,7 +144,7 @@ export function PetApp() {
   }, [inputOpen, hover])
 
   // ------------------------------------------------------------ animation state
-  let state: PetAnimState = game ? idleFor(game, conds) : 'idle'
+  let state: PetAnimState = game ? (focusing && !game.asleep ? 'work' : idleFor(game, conds)) : 'idle'
   const now = Date.now()
   if (motion.mode === 'drag') state = 'drag'
   else if (motion.mode === 'fall') state = 'fall'
@@ -241,6 +257,8 @@ export function PetApp() {
               {bubble.streaming && bubble.text && <span className="caret" />}
             </div>
           </div>
+        ) : focusing && !hover ? (
+          <div className="focus-badge">🍅 {fmtRemain(focus!.endsAt - Date.now())}</div>
         ) : hover && !drag.current ? (
           <div className="hud">
             <div className="hud-head">

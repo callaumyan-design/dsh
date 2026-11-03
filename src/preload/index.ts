@@ -21,6 +21,11 @@ const api: SoulPetAPI = {
 
   diaryList: () => invoke('diary:list'),
   diaryGenerate: (date) => invoke('diary:generate', date),
+  tasksAddReminder: (input) => invoke('tasks:addReminder', input),
+  tasksAddTodo: (text) => invoke('tasks:addTodo', text),
+  tasksEdit: (op) => invoke('tasks:edit', op),
+  focusStart: (minutes, label) => invoke('focus:start', minutes, label),
+  focusStop: () => invoke('focus:stop'),
 
   settingsUpdate: (patch) => invoke('settings:update', patch),
   providerUpsert: (cfg) => invoke('provider:upsert', cfg),

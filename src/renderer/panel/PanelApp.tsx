@@ -9,6 +9,7 @@ import { PersonaTab } from './tabs/PersonaTab'
 import { SettingsTab } from './tabs/SettingsTab'
 import { ShopTab } from './tabs/ShopTab'
 import { StatusTab } from './tabs/StatusTab'
+import { TasksTab } from './tabs/TasksTab'
 import { WelcomeTab } from './tabs/WelcomeTab'
 import { ToastProvider } from './ui'
 
@@ -17,6 +18,7 @@ const TABS = [
   { id: 'chat', label: '聊天', icon: '💬' },
   { id: 'status', label: '状态', icon: '📊' },
   { id: 'shop', label: '商店', icon: '🛒' },
+  { id: 'tasks', label: '提醒', icon: '⏰' },
   { id: 'memory', label: '记忆', icon: '🧠' },
   { id: 'diary', label: '日记', icon: '📔' },
   { id: 'appearance', label: '形象', icon: '🎨' },
@@ -38,6 +40,7 @@ export function PanelApp() {
       api.on('persona:update', (persona) => setSnap((s) => (s ? { ...s, persona } : s))),
       api.on('packs:update', (packs) => setSnap((s) => (s ? { ...s, packs } : s))),
       api.on('memory:changed', ({ count }) => setSnap((s) => (s ? { ...s, memoryCount: count } : s))),
+      api.on('tasks:update', (tasks) => setSnap((s) => (s ? { ...s, tasks } : s))),
       api.on('panel:tab', ({ tab }) => TABS.some((t) => t.id === tab) && setTab(tab as TabId))
     ]
     return () => off.forEach((f) => f())
@@ -81,6 +84,7 @@ export function PanelApp() {
           {tab === 'chat' && <ChatTab snap={snap} />}
           {tab === 'status' && <StatusTab snap={snap} />}
           {tab === 'shop' && <ShopTab snap={snap} />}
+          {tab === 'tasks' && <TasksTab snap={snap} />}
           {tab === 'memory' && <MemoryTab snap={snap} />}
           {tab === 'diary' && <DiaryTab snap={snap} />}
           {tab === 'appearance' && <AppearanceTab snap={snap} />}

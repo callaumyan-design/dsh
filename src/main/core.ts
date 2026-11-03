@@ -27,6 +27,17 @@ import {
   type ProactiveState
 } from '../core/proactive'
 import { deepMerge, normalizeSettings, type Settings } from '../core/settings'
+import {
+  addReminder,
+  addTodo,
+  describeDue,
+  describeTasksForPrompt,
+  fireDue,
+  normalizeTasks,
+  parseActionTags,
+  type Repeat,
+  type TasksState
+} from '../core/tasks'
 import { dateKey, previousDateKey, uid } from '../core/util'
 import { Secrets } from './secrets'
 import { ChatLog, JsonFile } from './storage'
@@ -48,7 +59,7 @@ export interface CoreOptions {
 
 const ACTION_LABEL: Record<GameAction['type'], string> = {
   pet: '摸了摸它', play: '一起玩耍', bath: '洗澡', sleep: '哄它睡觉', wake: '叫醒它', work: '去打工', study: '去学习',
-  use: '使用物品', feed: '喂食', buy: '购物', checkIn: '签到', chat: '聊天'
+  use: '使用物品', feed: '喂食', buy: '购物', checkIn: '签到', chat: '聊天', focus: '一起专注'
 }
 
 export class AppCore {
@@ -62,6 +73,9 @@ export class AppCore {
   readonly usage: JsonFile<Record<string, UsageDay>>
   readonly activity: JsonFile<Activity[]>
   readonly runtime: JsonFile<RuntimeState>
+  readonly tasks: JsonFile<TasksState>
+  /** Notify the OS (set by the window layer). */
+  notify: (title: string, body: string) => void = () => {}
   readonly chatLog: ChatLog
 
   private chatAbort: AbortController | null = null
@@ -93,6 +107,7 @@ export class AppCore {
       return { proactive: r.proactive ?? freshProactiveState(now), lastDiaryCheck: r.lastDiaryCheck ?? null }
     })
     this.chatLog = new ChatLog(f('chat'))
+    this.tasks = new JsonFile(f('tasks.json'), normalizeTasks)
 
     // Catch up on time spent closed (gentle, capped).
     const s = this.settings.data
@@ -107,6 +122,8 @@ export class AppCore {
 
   start(): void {
     this.timers.push(setInterval(() => this.clockTick(), 60_000))
+    this.timers.push(setInterval(() => this.taskTick(), 15_000))
+    setTimeout(() => this.taskTick(), 3000)
     this.timers.push(setInterval(() => void this.proactiveTick(), 60_000))
     this.timers.push(setInterval(() => void this.diaryTick(), 30 * 60_000))
     setTimeout(() => void this.diaryTick(), 15_000)
@@ -120,7 +137,7 @@ export class AppCore {
   }
 
   flushAll(): void {
-    for (const f of [this.settings, this.game, this.persona, this.memoryFile, this.diary, this.usage, this.activity, this.runtime]) f.flush()
+    for (const f of [this.settings, this.game, this.persona, this.memoryFile, this.diary, this.usage, this.activity, this.runtime, this.tasks]) f.flush()
     this.secrets.flush()
   }
 
@@ -371,7 +388,8 @@ export class AppCore {
         game: g,
         coreMemories: this.memory.core(s.memory.maxCore),
         relevantMemories: relevant.map((r) => r.item),
-        now: new Date(now)
+        now: new Date(now),
+        tasks: describeTasksForPrompt(this.tasks.data, now)
       })
       const messages = buildChatMessages(
         system,
@@ -393,8 +411,11 @@ export class AppCore {
       const tail = parser.flush()
       if (tail.text) this.opts.broadcast('chat:delta', { id, delta: tail.text, emotion: tail.emotion })
       this.recordUsage(result.usage.inputTokens, result.usage.outputTokens)
-      const clean = stripEmotionTags(result.text)
-      const reply: StoredMessage = { id, role: 'assistant', content: clean.text || '……', emotion: clean.emotion ?? parser.emotion, ts: Date.now() }
+      const tagged = parseActionTags(result.text, Date.now())
+      const notes = this.applyActionTags(tagged.actions)
+      const clean = stripEmotionTags(tagged.text)
+      const content = [clean.text || '……', ...notes].join('\n')
+      const reply: StoredMessage = { id, role: 'assistant', content, emotion: clean.emotion ?? parser.emotion, ts: Date.now() }
       this.chatLog.append(reply)
       this.opts.broadcast('chat:done', { id, message: reply })
 
@@ -423,6 +444,102 @@ export class AppCore {
 
   clearChat(): void {
     this.chatLog.clear()
+  }
+
+  // ---------------------------------------------------------------- reminders / todos / focus
+
+  private setTasks(next: TasksState): void {
+    this.tasks.set(next)
+    this.opts.broadcast('tasks:update', next)
+  }
+
+  /** Apply [[remind]] / [[todo]] tags from a reply; returns short notes appended to it. */
+  private applyActionTags(actions: ReturnType<typeof parseActionTags>['actions']): string[] {
+    const notes: string[] = []
+    const now = Date.now()
+    let st = this.tasks.data
+    for (const a of actions) {
+      if (a.kind === 'remind') {
+        st = addReminder(st, { text: a.text, dueAt: a.dueAt, repeat: a.repeat, source: 'ai' }, now).state
+        notes.push(`⏰ 已设提醒：${describeDue(a.dueAt, now)}${a.repeat === 'daily' ? '（每天）' : a.repeat === 'weekly' ? '（每周）' : ''} ${a.text}`)
+      } else {
+        st = addTodo(st, a.text, 'ai', now).state
+        notes.push(`📝 已记待办：${a.text}`)
+      }
+    }
+    if (actions.length) this.setTasks(st)
+    return notes
+  }
+
+  addReminder(input: { text: string; dueAt: number; repeat?: Repeat }): TasksState {
+    if (!input.text.trim()) throw new Error('提醒内容不能为空')
+    this.setTasks(addReminder(this.tasks.data, { ...input, source: 'user' }, Date.now()).state)
+    return this.tasks.data
+  }
+
+  addTodo(text: string): TasksState {
+    if (!text.trim()) throw new Error('待办内容不能为空')
+    this.setTasks(addTodo(this.tasks.data, text, 'user', Date.now()).state)
+    return this.tasks.data
+  }
+
+  updateTasks(fn: (t: TasksState) => TasksState): TasksState {
+    this.setTasks(fn(this.tasks.data))
+    return this.tasks.data
+  }
+
+  focusActive(): boolean {
+    const f = this.tasks.data.focus
+    return !!f && f.endsAt > Date.now()
+  }
+
+  startFocus(minutes: number, label = ''): TasksState {
+    const m = Math.max(1, Math.min(180, Math.round(minutes)))
+    const now = Date.now()
+    this.setTasks({ ...this.tasks.data, focus: { startedAt: now, endsAt: now + m * 60_000, minutes: m, label } })
+    this.say(`好！我陪你专注 ${m} 分钟，加油~ 这段时间我不会打扰你。`, { emotion: 'excited', save: false })
+    this.onFocusChange(true)
+    return this.tasks.data
+  }
+
+  stopFocus(): TasksState {
+    const f = this.tasks.data.focus
+    if (!f) return this.tasks.data
+    const doneMin = Math.floor((Date.now() - f.startedAt) / 60_000)
+    this.setTasks({ ...this.tasks.data, focus: null })
+    this.onFocusChange(false)
+    if (doneMin >= 5) {
+      const r = this.gameAction({ type: 'focus', minutes: doneMin })
+      this.say(`提前结束啦，也坚持了 ${doneMin} 分钟。${r.message}`, { emotion: 'happy', save: false })
+    } else {
+      this.say('好吧，下次再一起专注~', { emotion: 'neutral', save: false })
+    }
+    return this.tasks.data
+  }
+
+  /** Set by the window layer (pauses walking while focusing). */
+  onFocusChange: (active: boolean) => void = () => {}
+
+  private taskTick(): void {
+    const now = Date.now()
+    const f = this.tasks.data.focus
+    if (f && f.endsAt <= now) {
+      this.setTasks({ ...this.tasks.data, focus: null })
+      this.onFocusChange(false)
+      const r = this.gameAction({ type: 'focus', minutes: f.minutes })
+      const text = `🍅 ${f.minutes} 分钟专注完成！${r.message} 起来活动一下吧~`
+      this.say(text, { emotion: 'excited', proactive: true })
+      this.notify(`${this.persona.data.name}：专注完成`, text)
+    }
+    const { state, fired } = fireDue(this.tasks.data, now)
+    if (!fired.length) return
+    this.setTasks(state)
+    for (const r of fired.slice(0, 3)) {
+      const late = now - r.dueAt > 10 * 60_000 ? '（刚才错过了）' : ''
+      const text = `⏰ ${this.persona.data.userCallName}，该${r.text.replace(/^(该|去)/, '')}啦！${late}`
+      this.say(text, { emotion: 'excited', proactive: true })
+      this.notify(`${this.persona.data.name} 提醒你`, r.text)
+    }
   }
 
   // ---------------------------------------------------------------- memory
@@ -524,7 +641,7 @@ export class AppCore {
     const kind = decideProactive({
       now: new Date(),
       settings: s.proactive,
-      dnd: s.app.dnd,
+      dnd: s.app.dnd || this.focusActive(),
       game: this.game.data,
       state: this.runtime.data.proactive,
       systemIdleSec: idle,

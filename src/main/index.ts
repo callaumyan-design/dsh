@@ -9,6 +9,7 @@ import {
   Menu,
   nativeImage,
   net,
+  Notification,
   powerMonitor,
   shell,
   Tray,
@@ -73,6 +74,7 @@ function snapshot(): Snapshot {
     items: ITEMS,
     usageToday: core.usageToday(),
     memoryCount: core.memory.size,
+    tasks: core.tasks.data,
     platform: process.platform,
     dataDir: core.dataDir,
     version: app.getVersion()
@@ -123,6 +125,8 @@ function createPet(): void {
     setTimeout(() => core.greetIfNew(), 1200)
   })
   core.onChatBusy = (busy) => motion?.setPaused('chat', busy)
+  core.onFocusChange = (active) => motion?.setPaused('focus', active)
+  motion.setPaused('focus', core.focusActive())
 }
 
 // ------------------------------------------------------------------ menus
@@ -145,6 +149,13 @@ function petMenuTemplate(): MenuItemConstructorOptions[] {
     { label: '💼 打工赚钱', click: act('work') },
     { label: '📚 学习', click: act('study') },
     { label: '📅 每日签到', click: act('checkIn') },
+    core.focusActive()
+      ? { label: '🍅 结束专注', click: () => core.stopFocus() }
+      : {
+          label: '🍅 一起专注',
+          submenu: [15, 25, 45, 60].map((m) => ({ label: `${m} 分钟`, click: () => core.startFocus(m) }))
+        },
+    { label: '⏰ 提醒 / 待办', click: () => openPanel('tasks') },
     { type: 'separator' },
     { label: '📊 状态 / 背包', click: () => openPanel('status') },
     { label: '🧠 记忆', click: () => openPanel('memory') },
@@ -260,6 +271,27 @@ function registerIpc(): void {
 
   h('diary:list', () => core.diary.data)
   h('diary:generate', (_e, date?: string) => core.generateDiary(date))
+  h('tasks:addReminder', (_e, input) => core.addReminder(input))
+  h('tasks:addTodo', (_e, text: string) => core.addTodo(String(text ?? '')))
+  h('tasks:edit', (_e, op: { kind: string; id?: string }) =>
+    core.updateTasks((t) => {
+      const now = Date.now()
+      switch (op.kind) {
+        case 'toggleTodo':
+          return { ...t, todos: t.todos.map((x) => (x.id === op.id ? { ...x, done: !x.done, doneAt: x.done ? undefined : now } : x)) }
+        case 'deleteTodo':
+          return { ...t, todos: t.todos.filter((x) => x.id !== op.id) }
+        case 'deleteReminder':
+          return { ...t, reminders: t.reminders.filter((x) => x.id !== op.id) }
+        case 'clearDoneTodos':
+          return { ...t, todos: t.todos.filter((x) => !x.done) }
+        default:
+          return t
+      }
+    })
+  )
+  h('focus:start', (_e, minutes: number, label?: string) => core.startFocus(Number(minutes) || 25, label))
+  h('focus:stop', () => core.stopFocus())
 
   h('settings:update', (_e, patch) => {
     const before = core.settings.data
@@ -365,6 +397,13 @@ async function main(): Promise<void> {
     broadcast,
     systemIdleSeconds: () => powerMonitor.getSystemIdleTime()
   })
+  core.notify = (title, body) => {
+    try {
+      if (Notification.isSupported()) new Notification({ title, body, silent: false }).show()
+    } catch (e) {
+      console.warn('[notify]', e)
+    }
+  }
   packs = new PackManager(path.join(resourcesDir, 'pets'), path.join(core.dataDir, 'pets'))
   packs.installProtocol()
   packs.scan()

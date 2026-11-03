@@ -9,7 +9,7 @@ const GRAVITY = 2600 // px/s^2
 const WALK_SPEED = 55 // px/s
 const FRAME_MS = 1000 / 60
 
-export type PauseReason = 'chat' | 'input' | 'menu' | 'sleep' | 'disabled' | 'hidden' | 'anim'
+export type PauseReason = 'chat' | 'input' | 'menu' | 'sleep' | 'disabled' | 'hidden' | 'anim' | 'focus'
 
 export class PetMotion {
   private mode: MotionEvent['mode'] = 'idle'

@@ -54,7 +54,7 @@ export function createGame(now: number): GameState {
     checkInStreak: 0,
     cooldowns: {},
     daily: { date: dateKey(now), affectionFromChat: 0, affectionFromPet: 0 },
-    totals: { fed: 0, played: 0, worked: 0, studied: 0, chats: 0, baths: 0, pets: 0 },
+    totals: { fed: 0, played: 0, worked: 0, studied: 0, chats: 0, baths: 0, pets: 0, focusMinutes: 0 },
     lastPetAt: 0
   }
 }
@@ -240,8 +240,8 @@ function setCooldown(d: Draft, key: string, now: number, ms: number): void {
   d.state = { ...d.state, cooldowns: { ...d.state.cooldowns, [key]: now + ms } }
 }
 
-function bumpTotal(d: Draft, key: keyof GameState['totals']): void {
-  d.state = { ...d.state, totals: { ...d.state.totals, [key]: d.state.totals[key] + 1 } }
+function bumpTotal(d: Draft, key: keyof GameState['totals'], n = 1): void {
+  d.state = { ...d.state, totals: { ...d.state.totals, [key]: (d.state.totals[key] ?? 0) + n } }
 }
 
 function consume(d: Draft, itemId: string, n = 1): void {
@@ -406,6 +406,17 @@ export function applyAction(input: GameState, action: GameAction, now: number): 
       addExp(d, 10)
       d.state = { ...d.state, lastCheckIn: today, checkInStreak: streak }
       return done(d, `签到成功！连续 ${streak} 天，获得 ${reward} 金币`, 'wave')
+    }
+
+    case 'focus': {
+      const m = Math.round(clamp(action.minutes, 1, 180))
+      const coins = Math.round(m * 0.8)
+      applyStats(d, { energy: -Math.min(20, m / 2.5), satiety: -Math.min(10, m / 5), mood: 4 })
+      addCoins(d, coins)
+      addExp(d, Math.round(m * 0.6))
+      addAffection(d, Math.min(10, Math.round(m / 5)))
+      bumpTotal(d, 'focusMinutes', m)
+      return done(d, `一起专注了 ${m} 分钟，辛苦啦！获得 ${coins} 金币`, 'happy')
     }
 
     case 'chat': {

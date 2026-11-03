@@ -31,6 +31,8 @@ const server = http.createServer((req, res) => {
       reply = last.includes('草莓') ? '{"ops":[{"op":"add","text":"用户喜欢吃草莓","type":"preference","importance":7}]}' : '{"ops":[]}'
     } else if (system.includes('写一篇')) {
       reply = '{"diary":"今天主人告诉我他喜欢草莓，我也想尝尝！","insights":["用户喜欢甜甜的水果"]}'
+    } else if (last.includes('提醒我')) {
+      reply = '[happy]好哒，到时候叫你~[[remind|+20m|喝水]]'
     } else if (last.includes('吃什么')) {
       reply = system.includes('草莓') ? '[love]你喜欢草莓呀，我记得的~' : '[thinking]唔……我不记得了'
     } else {
@@ -143,6 +145,27 @@ assert.match(recallReq.messages[0].content, /用户喜欢吃草莓/, 'memory inj
 assert.ok(recallReq.messages.some((m) => m.role === 'assistant' && m.content.includes('记住啦')), 'chat history included')
 step('memory retrieved into the prompt and recalled')
 
+// reminders from chat (action tags) + firing + focus
+await pet.evaluate(() => window.soulpet.chatSend('20分钟后提醒我喝水'))
+await waitFor(async () => (await pet.textContent('.bubble'))?.includes('已设提醒'), 8000, 'reminder confirmation')
+assert.ok(!(await pet.textContent('.bubble')).includes('[['), 'action tag hidden from the bubble')
+let tasks = (await pet.evaluate(() => window.soulpet.getSnapshot())).tasks
+assert.ok(tasks.reminders.some((r) => r.text === '喝水' && r.source === 'ai' && r.dueAt > Date.now() + 19 * 60_000))
+step('AI created a reminder via [[remind]] tag; tag hidden in the bubble')
+await pet.evaluate(() => window.soulpet.tasksAddReminder({ text: '伸个懒腰', dueAt: Date.now() + 500 }))
+await waitFor(async () => (await pet.textContent('.bubble'))?.includes('伸个懒腰'), 25000, 'reminder fired')
+tasks = (await pet.evaluate(() => window.soulpet.getSnapshot())).tasks
+assert.ok(tasks.reminders.find((r) => r.text === '伸个懒腰')?.done)
+step('due reminder fired as a pet bubble')
+await pet.evaluate(() => window.soulpet.focusStart(25))
+await pet.waitForSelector('.pet[data-state="work"]')
+await pet.waitForTimeout(3600) // let the start bubble expire so the timer badge shows
+await pet.waitForSelector('.focus-badge')
+await pet.screenshot({ path: path.join(shots, 'pet-focus.png'), omitBackground: true })
+await pet.evaluate(() => window.soulpet.focusStop())
+assert.equal((await pet.evaluate(() => window.soulpet.getSnapshot())).tasks.focus, null)
+step('focus mode: work animation + countdown badge, stop works')
+
 // game
 const before = (await pet.evaluate(() => window.soulpet.getSnapshot())).game
 const fed = await pet.evaluate(() => window.soulpet.gameAction({ type: 'use', itemId: 'fish' }))
@@ -166,6 +189,7 @@ for (const [label, file] of [
   ['状态', 'panel-status.png'],
   ['记忆', 'panel-memory.png'],
   ['日记', 'panel-diary.png'],
+  ['提醒', 'panel-tasks.png'],
   ['形象', 'panel-appearance.png'],
   ['设置', 'panel-settings.png']
 ]) {

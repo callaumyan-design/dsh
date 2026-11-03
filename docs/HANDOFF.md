@@ -49,8 +49,9 @@ npm run dist:win           # 打包
 ## 进行中 / 待办（按优先级）
 
 - [ ] CI 跑绿，拿到 Windows 安装包（第一次 CI 因为 Electron 二进制没下载而失败，已修复，等验证）
-- [ ] 首次启动引导（选服务商、填 Key、测试、给宠物起名）
-- [ ] 提醒 / 待办 / 番茄钟；AI 可以用 `[[remind|时间|内容]]` 这类标签创建提醒
+- [x] 首次启动引导（`WelcomeTab`：起名、选服务商、填 Key 并测试、选形象；`settings.setupDone`）
+- [x] 提醒 / 待办 / 番茄钟（`src/core/tasks.ts`，`tasks.json`，每 15 秒检查一次；到点时冒泡并弹系统通知；专注期间宠物显示 work 动画和倒计时，主动搭话静音，完成后有奖励）
+- [x] AI 动作标签：`[[remind|时间|内容]]`、`[[todo|内容]]`，流式输出时就隐藏；时间格式见 `parseWhen`
 - [ ] 记忆整理（合并相似记忆）+ 旧对话摘要成情节记忆
 - [ ] 成就、随机事件、TTS 朗读（speechSynthesis）、鼠标穿透模式、zip 导入形象包
 - [ ] （以后）Live2D、语音输入、本地 Embedding、多宠物、MOD、自动更新、全屏检测

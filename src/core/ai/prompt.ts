@@ -14,6 +14,10 @@ export interface PromptContext {
   now: Date
   /** Extra situational hints, e.g. "用户刚回到电脑前". */
   situation?: string[]
+  /** Reminders / todos the pet is keeping track of (already formatted). */
+  tasks?: string
+  /** Enable [[remind]] / [[todo]] action tags. */
+  actions?: boolean
 }
 
 function memoryLine(m: MemoryItem): string {
@@ -40,6 +44,13 @@ export function buildSystemPrompt(ctx: PromptContext): string {
 4. 你的身体状况会影响语气：饿了可以撒娇要吃的，困了说话迷迷糊糊，生病了会虚弱。
 5. ${p.userCallName}真的需要帮忙时（比如问知识、要建议），可以认真但简短地回答，保持你的性格。`
   ]
+  if (ctx.tasks?.trim()) sections.push(`## 你帮${p.userCallName}记着的事\n${ctx.tasks.trim()}`)
+  if (ctx.actions !== false) {
+    sections.push(`## 你能做的事
+- ${p.userCallName}让你提醒他做某事时，在回复最后加上标记 [[remind|时间|提醒内容]]。时间写成 YYYY-MM-DD HH:MM（24 小时制），或相对时间 +30m / +2h，或“每天 08:00”。例如：[[remind|${dateKey(ctx.now)} 21:00|喝水]]
+- ${p.userCallName}让你记一件待办时，加上 [[todo|待办内容]]。
+- 这些标记会被自动隐藏，${p.userCallName}看不到；嘴上照常回应就行（比如“好哒，到时候叫你~”）。没被要求时不要加。`)
+  }
   if (p.exampleDialogue.trim()) sections.push(`## 说话示例（只参考语气，不要照抄）\n${p.exampleDialogue.trim()}`)
   return sections.join('\n\n')
 }

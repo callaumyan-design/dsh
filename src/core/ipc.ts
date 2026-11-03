@@ -7,6 +7,7 @@ import type { DiaryEntry, MemoryItem, MemoryType, ScoredMemory } from './memory/
 import type { Persona } from './persona/persona'
 import type { ResolvedPack } from './pets/pack'
 import type { Settings } from './settings'
+import type { Repeat, TasksState } from './tasks'
 
 export interface StoredMessage {
   id: string
@@ -35,6 +36,7 @@ export interface Snapshot {
   items: ItemDef[]
   usageToday: { input: number; output: number; requests: number }
   memoryCount: number
+  tasks: TasksState
   platform: string
   dataDir: string
   version: string
@@ -78,6 +80,7 @@ export interface EventMap {
   'pet:say': PetSayEvent
   'pet:anim': { anim: PetAnimState; duration: number }
   'pet:openInput': Record<string, never>
+  'tasks:update': TasksState
   'panel:tab': { tab: string }
 }
 
@@ -98,6 +101,11 @@ export interface SoulPetAPI {
   memoryImport(): Promise<{ added: number; merged: number } | null>
 
   diaryList(): Promise<DiaryEntry[]>
+  tasksAddReminder(input: { text: string; dueAt: number; repeat?: Repeat }): Promise<TasksState>
+  tasksAddTodo(text: string): Promise<TasksState>
+  tasksEdit(op: { kind: 'toggleTodo' | 'deleteTodo' | 'deleteReminder' | 'clearDoneTodos'; id?: string }): Promise<TasksState>
+  focusStart(minutes: number, label?: string): Promise<TasksState>
+  focusStop(): Promise<TasksState>
   diaryGenerate(date?: string): Promise<{ ok: boolean; entry?: DiaryEntry; error?: string }>
 
   settingsUpdate(patch: Partial<Settings>): Promise<PublicSettings>
