@@ -24,6 +24,7 @@ import { DEFAULT_PERSONA, normalizePersona } from '../core/persona/persona'
 import type { ProviderConfig } from '../core/ai/types'
 import { AppCore, EMBEDDING_SECRET, STT_SECRET } from './core'
 import { PetMotion } from './motion'
+import { checkForUpdate, type ReleaseInfo } from '../core/update'
 import { installLogger } from './logger'
 import { importFolder, importZip } from './packImport'
 import { PackManager, registerAssetScheme } from './packs'
@@ -228,16 +229,20 @@ function createTray(): void {
 
 function applyHotkey(): void {
   globalShortcut.unregisterAll()
-  const key = core.settings.data.app.hotkey
-  if (!key) return
-  try {
-    globalShortcut.register(key, () => {
-      setPetVisible(true)
-      broadcast('pet:openInput', {})
-    })
-  } catch (e) {
-    console.warn('[hotkey] cannot register', key, e)
+  const { hotkey, hideHotkey } = core.settings.data.app
+  const reg = (key: string, fn: () => void) => {
+    if (!key) return
+    try {
+      if (!globalShortcut.register(key, fn)) console.warn('[hotkey] already in use:', key)
+    } catch (e) {
+      console.warn('[hotkey] cannot register', key, e)
+    }
   }
+  reg(hotkey, () => {
+    setPetVisible(true)
+    broadcast('pet:openInput', {})
+  })
+  reg(hideHotkey, () => setPetVisible(!petWin?.isVisible()))
 }
 
 /** '' = system proxy; otherwise e.g. http://127.0.0.1:7890 or socks5://127.0.0.1:1080 */
@@ -248,6 +253,19 @@ async function applyProxy(): Promise<void> {
     console.log('[proxy]', p || 'system')
   } catch (e) {
     console.warn('[proxy] invalid', p, e)
+  }
+}
+
+let latest: ReleaseInfo | null = null
+
+async function runUpdateCheck(manual: boolean): Promise<{ ok: boolean; latest?: ReleaseInfo | null; error?: string }> {
+  try {
+    latest = await checkForUpdate(app.getVersion(), (url, init) => net.fetch(url, init))
+    if (latest && !manual) broadcast('pet:say', { text: `有新版本 ${latest.version} 啦！在 设置 → 关于 里可以下载~`, emotion: 'excited' })
+    return { ok: true, latest }
+  } catch (e) {
+    console.warn('[update]', (e as Error).message)
+    return { ok: false, error: (e as Error).message }
   }
 }
 
@@ -331,7 +349,7 @@ function registerIpc(): void {
     const before = core.settings.data
     const pub = core.updateSettings(patch)
     const s = core.settings.data
-    if (s.app.hotkey !== before.app.hotkey) applyHotkey()
+    if (s.app.hotkey !== before.app.hotkey || s.app.hideHotkey !== before.app.hideHotkey) applyHotkey()
     if (s.app.autoStart !== before.app.autoStart) applyAutoStart()
     if (s.app.alwaysOnTop !== before.app.alwaysOnTop) petWin?.setAlwaysOnTop(s.app.alwaysOnTop, 'floating')
     motion?.setPaused('disabled', !s.appearance.walkEnabled)
@@ -421,6 +439,7 @@ function registerIpc(): void {
     if (/^https?:\/\//.test(url)) void shell.openExternal(url)
   })
   h('app:openPanel', (_e, tab?: string) => openPanel(tab))
+  h('app:checkUpdate', () => runUpdateCheck(true))
   h('app:completeSetup', () => core.completeSetup())
 
   ipcMain.on('pet:dragStart', () => motion?.dragStart())
@@ -480,6 +499,7 @@ async function main(): Promise<void> {
   applyHotkey()
   applyAutoStart()
   core.start()
+  if (core.settings.data.app.checkUpdates && app.isPackaged) setTimeout(() => void runUpdateCheck(false), 30_000)
   if (process.env.SOULPET_OPEN_PANEL) openPanel(process.env.SOULPET_OPEN_PANEL)
   else if (!core.settings.data.setupDone) openPanel('welcome')
 }

@@ -221,6 +221,9 @@ export function WelcomeTab({ snap, onDone }: { snap: Snapshot; onDone: () => voi
               <b>鼠标停在它身上</b>：看它饿不饿、困不困
             </li>
             <li>
+              按 <code>{s.app.hideHotkey.replace('CommandOrControl', snap.platform === 'darwin' ? 'Cmd' : 'Ctrl')}</code>：一键藏起来 / 叫出来
+            </li>
+            <li>
               对它说“<b>记住……</b>”，它就会记下来；在“记忆”页面可以看到它记住的所有事
             </li>
           </ul>

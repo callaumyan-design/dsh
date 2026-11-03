@@ -164,6 +164,7 @@ export function SettingsTab({ snap, onRefresh }: { snap: Snapshot; onRefresh: ()
   const [editing, setEditing] = useState(s.activeProviderId)
   const [embKey, setEmbKey] = useState('')
   const [sttKey, setSttKey] = useState('')
+  const [update_, setUpdate] = useState<string>('')
   const provider = s.providers.find((p) => p.id === editing) ?? s.providers[0]
   const update = (patch: Partial<Settings>) => void api.settingsUpdate(patch)
 
@@ -423,6 +424,9 @@ export function SettingsTab({ snap, onRefresh }: { snap: Snapshot; onRefresh: ()
         <Field label="聊天快捷键" hint="Electron 加速键格式，例如 CommandOrControl+Alt+P（Ctrl+Alt+P）">
           <input defaultValue={s.app.hotkey} onBlur={(e) => e.target.value !== s.app.hotkey && update({ app: { ...s.app, hotkey: e.target.value } })} />
         </Field>
+        <Field label="隐藏 / 显示快捷键" hint="看视频、开会共享屏幕时一键藏起来">
+          <input defaultValue={s.app.hideHotkey} onBlur={(e) => e.target.value !== s.app.hideHotkey && update({ app: { ...s.app, hideHotkey: e.target.value } })} />
+        </Field>
         <Field label="网络代理" hint="留空 = 跟随系统代理。例如 http://127.0.0.1:7890 或 socks5://127.0.0.1:1080（访问 OpenAI / Claude 时可能需要）">
           <input defaultValue={s.app.proxy} placeholder="跟随系统" onBlur={(e) => e.target.value.trim() !== s.app.proxy && update({ app: { ...s.app, proxy: e.target.value.trim() } })} />
         </Field>
@@ -437,6 +441,31 @@ export function SettingsTab({ snap, onRefresh }: { snap: Snapshot; onRefresh: ()
             </button>
           </div>
         </Field>
+      </Section>
+      <Section title="关于" desc={`SoulPet 灵宠 v${snap.version} · MIT 开源 · 数据只保存在本机`}>
+        <Field label="自动检查更新" hint="启动时查询 GitHub Releases，只告诉你有新版本，不会自动下载">
+          <Toggle checked={s.app.checkUpdates} onChange={(v) => update({ app: { ...s.app, checkUpdates: v } })} />
+        </Field>
+        <div className="row">
+          <button
+            className="btn"
+            onClick={async () => {
+              setUpdate('检查中…')
+              const r = await api.checkUpdate()
+              if (!r.ok) setUpdate(`检查失败：${r.error}`)
+              else if (r.latest) {
+                setUpdate(`发现新版本 ${r.latest.version}`)
+                void api.openExternal(r.latest.url)
+              } else setUpdate('已经是最新版本')
+            }}
+          >
+            检查更新
+          </button>
+          <button className="btn ghost" onClick={() => void api.openExternal('https://github.com/callaumyan-design/dsh/tree/desktop-pet')}>
+            项目主页
+          </button>
+          {update_ && <span className="muted">{update_}</span>}
+        </div>
       </Section>
     </div>
   )

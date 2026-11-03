@@ -132,6 +132,7 @@ export interface SoulPetAPI {
 
   openPanel(tab?: string): Promise<void>
   completeSetup(): Promise<void>
+  checkUpdate(): Promise<{ ok: boolean; latest?: { version: string; url: string; name: string } | null; error?: string }>
   petDragStart(): void
   petDragEnd(): void
   petSetInteractive(interactive: boolean): void
