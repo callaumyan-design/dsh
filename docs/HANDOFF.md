@@ -62,7 +62,7 @@ npm run dist:win           # 打包
 
 - [x] CI 跑绿：单元测试 + Linux e2e + **真实 Windows e2e** + 三平台打包（Windows artifact 约 275MB：NSIS 安装包 + zip）
 - [x] 日志文件（`<数据目录>/logs/main.log`，API Key 会被打码）、代理设置（`settings.app.proxy`，`session.setProxy`）、后台 JSON 调用用 `response_format: json_object`（不支持就自动重试不带它）
-- [x] v0.2.0：版本号已更新，发布标签改为 `soulpet-v*`（避免和 DSH 的标签冲突），推送标签后生成 Release 草稿
+- [x] v0.2.0：版本号已更新，发布标签改为 `soulpet-v*`（避免和 DSH 的标签冲突）。**这个沙箱推不了 tag**（git 代理只放行分支），所以要手动触发 CI 的 workflow_dispatch，参数 `release=soulpet-vX.Y.Z`，由 workflow 用 GITHUB_TOKEN 创建 tag 和 Release 草稿（MCP 工具 `actions_run_trigger`）
 - [x] 首次启动引导（`WelcomeTab`：起名、选服务商、填 Key 并测试、选形象；`settings.setupDone`）
 - [x] 提醒 / 待办 / 番茄钟（`src/core/tasks.ts`，`tasks.json`，每 15 秒检查一次；到点时冒泡并弹系统通知；专注期间宠物显示 work 动画和倒计时，主动搭话静音，完成后有奖励）
 - [x] AI 动作标签：`[[remind|时间|内容]]`、`[[todo|内容]]`，流式输出时就隐藏；时间格式见 `parseWhen`

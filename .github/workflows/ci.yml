@@ -6,6 +6,11 @@ on:
     tags: ['soulpet-v*']
   pull_request:
   workflow_dispatch:
+    inputs:
+      release:
+        description: 'Create a draft release with this tag (e.g. soulpet-v0.2.0). Leave empty for a normal CI run.'
+        required: false
+        default: ''
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -98,7 +103,7 @@ jobs:
           if-no-files-found: error
 
   release:
-    if: startsWith(github.ref, 'refs/tags/soulpet-v')
+    if: startsWith(github.ref, 'refs/tags/soulpet-v') || startsWith(inputs.release, 'soulpet-v')
     needs: package
     runs-on: ubuntu-latest
     permissions:
@@ -109,7 +114,9 @@ jobs:
           path: dist
       - uses: softprops/action-gh-release@v2
         with:
-          name: SoulPet ${{ github.ref_name }}
+          name: SoulPet ${{ inputs.release || github.ref_name }}
+          tag_name: ${{ inputs.release || github.ref_name }}
+          target_commitish: ${{ github.sha }}
           files: dist/**/*
           draft: true
           body: |
