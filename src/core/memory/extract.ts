@@ -85,7 +85,8 @@ export function applyMemoryOps(store: MemoryStore, ops: MemoryOp[], allowedIds: 
   const summary: ApplySummary = { added: [], updated: [], deleted: [] }
   for (const op of ops) {
     if (op.op === 'add') {
-      const r = store.add({ text: op.text, type: op.type, importance: op.importance ?? 5, source: 'auto' }, now)
+      const pinned = (op.importance ?? 0) >= AUTO_PIN_IMPORTANCE && store.core(50).length < 12
+      const r = store.add({ text: op.text, type: op.type, importance: op.importance ?? 5, source: 'auto', pinned }, now)
       ;(r.merged ? summary.updated : summary.added).push(r.item.id)
     } else if (op.op === 'update' && allowedIds.has(op.id)) {
       const target = store.get(op.id)
@@ -118,3 +119,19 @@ export function detectExplicitRemember(userText: string): string | null {
 export function toThirdPerson(content: string): string {
   return content.replace(/^我的/, '用户的').replace(/^我/, '用户').replace(/(?<=[，,、])我/g, '用户')
 }
+
+const TRIVIAL = /^(嗯+|哦+|噢+|啊+|哈+|呵+|嘿+|嗯嗯|好+的?|好吧|行|可以|ok|okay|谢谢|谢了|晚安|早安|早|拜拜|再见|在吗|在不在|是的?|对的?|没事|没有|不用|收到|知道了|666|hh+|233+|[\p{P}\p{S}\s]+)$/iu
+
+/** Cheap filter: does this user message possibly contain something worth remembering? */
+export function worthExtracting(userText: string): boolean {
+  const t = userText.trim()
+  if (!t) return false
+  if (TRIVIAL.test(t)) return false
+  const visible = t.replace(/[\p{P}\p{S}\s]/gu, '')
+  if (visible.length >= 6) return true
+  // short but personal: "我叫小明" / "我18岁" / "明天考试"
+  return /[我咱俺]|名字|叫|生日|岁|住|喜欢|讨厌|明天|后天|下周|\d/.test(t)
+}
+
+/** Identity-level facts the model rates 9-10 are pinned automatically (always in context). */
+export const AUTO_PIN_IMPORTANCE = 9

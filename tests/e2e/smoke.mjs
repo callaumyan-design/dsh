@@ -310,6 +310,14 @@ assert.ok(mem2.some((m) => m.text.includes('草莓')))
 const hist = await pet.evaluate(() => window.soulpet.chatHistory(50))
 assert.ok(hist.length >= 4)
 step(`state persisted across restart (${mem2.length} memories, ${hist.length} messages)`)
+
+// idle resource usage (informational; software rendering under Xvfb inflates CPU)
+await app.evaluate(({ app }) => app.getAppMetrics()) // first call primes the counters
+await pet.waitForTimeout(8000)
+const metrics = await app.evaluate(({ app }) => app.getAppMetrics().map((m) => ({ type: m.type, cpu: m.cpu.percentCPUUsage, mem: m.memory.workingSetSize })))
+const cpu = metrics.reduce((s, m) => s + m.cpu, 0)
+const memMb = metrics.reduce((s, m) => s + m.mem, 0) / 1024
+step(`idle usage: ${cpu.toFixed(1)}% CPU, ${memMb.toFixed(0)} MB across ${metrics.length} processes (${metrics.map((m) => `${m.type} ${m.cpu.toFixed(1)}% ${(m.mem / 1024).toFixed(0)}MB`).join(", ")})`)
 await app.close()
 server.close()
 console.log('\nE2E OK')

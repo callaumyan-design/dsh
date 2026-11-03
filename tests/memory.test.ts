@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyMemoryOps, buildExtractionMessages, detectExplicitRemember, parseMemoryOps, toThirdPerson } from '../src/core/memory/extract'
+import { applyMemoryOps, buildExtractionMessages, detectExplicitRemember, parseMemoryOps, toThirdPerson, worthExtracting } from '../src/core/memory/extract'
 import { parseDiary } from '../src/core/memory/diary'
 import { MemoryStore } from '../src/core/memory/store'
 import { bigramSimilarity, bm25, tokenize } from '../src/core/memory/text'
@@ -152,5 +152,18 @@ describe('extraction', () => {
       summary: '2026-11-03 用户说工作忙'
     })
     expect(parseDiary('今天主人陪我玩了')).toEqual({ diary: '今天主人陪我玩了', insights: [], summary: '' })
+  })
+})
+
+describe('extraction gating and auto-pin', () => {
+  it('skips trivial messages but keeps short personal ones', () => {
+    for (const t of ['嗯', '哈哈哈', '好的', '晚安', 'ok', '？？', '666']) expect(worthExtracting(t)).toBe(false)
+    for (const t of ['我叫小明', '我18岁', '明天考试', '今天加班到十点好累啊', '我不喜欢香菜']) expect(worthExtracting(t)).toBe(true)
+  })
+
+  it('auto-pins identity-level facts', () => {
+    const store = new MemoryStore()
+    applyMemoryOps(store, [{ op: 'add', text: '用户的名字是小明', importance: 10 }, { op: 'add', text: '用户今天吃了面', importance: 3 }], new Set(), NOW)
+    expect(store.core().map((m) => m.text)).toEqual(['用户的名字是小明'])
   })
 })

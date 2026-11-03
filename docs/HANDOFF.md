@@ -55,6 +55,7 @@ npm run dist:win           # 打包
 - [x] 诊断信息（设置 → 关于 → 诊断信息；IPC `app:diagnostics`）
 - [x] 天气（可选，wttr.in，只发送城市名；`src/core/weather.ts`；写进提示词，早安问候在雨雪 / 极端温度时会提醒）
 - [x] 用户使用说明 / 常见问题：`docs/USER_GUIDE.md`
+- [x] 省钱：很短的闲聊（“嗯”“哈哈”“好的”）不再触发后台记忆整理（`worthExtracting`）；模型评为重要度 ≥ 9 的身份类事实自动置顶
 - [x] AI 生成形象（`src/core/pets/imagegen.ts`：OpenAI 兼容 `/images/generations`，预设硅基流动 Kolors / OpenAI gpt-image-1 透明背景 / 通义万相；渲染进程里从边缘做 flood fill 去背景，再按不透明区域裁切，存成一张图的宠物）
 - [x] “用一张图片做宠物”：manifest 里写 `animate: true`，静态图会自动套上呼吸 / 蹦跳 / 特效（`.proc` CSS + `Extras` SVG 叠加层）；`createFromImage` 会解析 PNG/GIF/WebP/JPEG 的尺寸
 - [x] 更新检查（GitHub Releases 里的 `soulpet-v*`，只提示不下载）、隐藏 / 显示快捷键 `Ctrl+Alt+H`，聊天快捷键默认改为 `Ctrl+Alt+P`
@@ -74,6 +75,10 @@ npm run dist:win           # 打包
 - [x] 鼠标穿透模式（托盘和设置里都能切换）、宠物透明度
 - [x] 从 .zip 或文件夹导入形象包（`src/main/packImport.ts` + 纯函数 `core/pets/importPlan.ts`，防 zip-slip，300MB 上限）
 - [ ] （以后）Live2D、语音输入、本地 Embedding、多宠物、MOD、自动更新、全屏检测
+
+## 资源占用（e2e 末尾会打印）
+
+Xvfb + 软件渲染下，只开宠物窗口、空闲 8 秒：约 1.7% CPU；内存（working set，会重复计算共享页）主进程约 160MB、GPU 约 126MB、网络服务约 74MB、宠物渲染进程约 113MB。真实 GPU 上 GPU 进程会小一些。想再降：关掉宠物闲逛（`walkEnabled`）、降低精灵图 fps。
 
 ## 设计约定
 

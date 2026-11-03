@@ -18,7 +18,7 @@ import type { ActionResult, GameAction, GameState } from '../core/game/types'
 import type { EventMap, MemoryItemPublic, PublicSettings, StoredMessage, TestResult } from '../core/ipc'
 import { applyMerges, buildConsolidationMessages, findClusters, forgettable, parseMerges } from '../core/memory/consolidate'
 import { buildDiaryMessages, parseDiary } from '../core/memory/diary'
-import { applyMemoryOps, buildExtractionMessages, detectExplicitRemember, parseMemoryOps, toThirdPerson } from '../core/memory/extract'
+import { applyMemoryOps, buildExtractionMessages, detectExplicitRemember, parseMemoryOps, toThirdPerson, worthExtracting } from '../core/memory/extract'
 import { MemoryStore } from '../core/memory/store'
 import type { DiaryEntry, MemoryItem } from '../core/memory/types'
 import { normalizePersona, type Persona } from '../core/persona/persona'
@@ -517,7 +517,7 @@ export class AppCore {
       this.chatLog.append(reply)
       this.opts.broadcast('chat:done', { id, message: reply })
 
-      if (s.memory.autoExtract) {
+      if (s.memory.autoExtract && (worthExtracting(text) || !!explicit)) {
         const turns: ChatMessage[] = [
           ...history.slice(-2).map((m) => ({ role: m.role, content: m.content })),
           { role: 'user', content: text },
