@@ -109,8 +109,11 @@ jobs:
     permissions:
       contents: write
     steps:
+      # only the installers: the e2e screenshot artifacts share file names across OSes,
+      # and duplicate names make the release upload fail
       - uses: actions/download-artifact@v4
         with:
+          pattern: SoulPet-*
           path: dist
       - uses: softprops/action-gh-release@v2
         with:
