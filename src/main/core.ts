@@ -13,6 +13,7 @@ import { applyAction, conditions, createGame, describeForPrompt, normalizeGame, 
 import { getItem } from '../core/game/items'
 import type { ActionResult, GameAction, GameState } from '../core/game/types'
 import type { EventMap, MemoryItemPublic, PublicSettings, StoredMessage, TestResult } from '../core/ipc'
+import { applyMerges, buildConsolidationMessages, findClusters, forgettable, parseMerges } from '../core/memory/consolidate'
 import { buildDiaryMessages, parseDiary } from '../core/memory/diary'
 import { applyMemoryOps, buildExtractionMessages, detectExplicitRemember, parseMemoryOps, toThirdPerson } from '../core/memory/extract'
 import { MemoryStore } from '../core/memory/store'
@@ -48,7 +49,7 @@ type Broadcast = <K extends keyof EventMap>(channel: K, payload: EventMap[K]) =>
 
 interface UsageDay { input: number; output: number; requests: number }
 interface Activity { ts: number; text: string }
-interface RuntimeState { proactive: ProactiveState; lastDiaryCheck: string | null }
+interface RuntimeState { proactive: ProactiveState; lastDiaryCheck: string | null; lastDreamAt: number }
 
 export interface CoreOptions {
   dataDir: string
@@ -104,7 +105,7 @@ export class AppCore {
     this.activity = new JsonFile(f('activity.json'), (raw) => (Array.isArray(raw) ? (raw as Activity[]) : []))
     this.runtime = new JsonFile(f('runtime.json'), (raw) => {
       const r = (raw ?? {}) as Partial<RuntimeState>
-      return { proactive: r.proactive ?? freshProactiveState(now), lastDiaryCheck: r.lastDiaryCheck ?? null }
+      return { proactive: r.proactive ?? freshProactiveState(now), lastDiaryCheck: r.lastDiaryCheck ?? null, lastDreamAt: r.lastDreamAt ?? 0 }
     })
     this.chatLog = new ChatLog(f('chat'))
     this.tasks = new JsonFile(f('tasks.json'), normalizeTasks)
@@ -607,6 +608,7 @@ export class AppCore {
       const entry: DiaryEntry = { date, text: parsed.diary, insights: parsed.insights, createdAt: Date.now() }
       this.diary.update((d) => [...d.filter((x) => x.date !== date), entry].sort((a, b) => b.date.localeCompare(a.date)))
       for (const ins of parsed.insights) this.memory.add({ text: ins, type: 'reflection', importance: 6, source: 'diary' }, Date.now())
+      if (parsed.summary) this.memory.add({ text: parsed.summary, type: 'episode', importance: 4, source: 'diary' }, Date.now())
       void this.embedPending()
       return { ok: true, entry }
     } catch (e) {
@@ -614,7 +616,36 @@ export class AppCore {
     }
   }
 
+  /** Merge similar memories and forget stale trivia. Runs at most daily, or on demand. */
+  async consolidateMemories(force = false): Promise<{ ok: boolean; merged: number; forgotten: number; error?: string }> {
+    const now = Date.now()
+    if (!force && now - this.runtime.data.lastDreamAt < 20 * 3_600_000) return { ok: true, merged: 0, forgotten: 0 }
+    this.runtime.update((r) => ({ ...r, lastDreamAt: now }))
+    let forgotten = 0
+    for (const m of forgettable(this.memory.all(), now)) if (this.memory.remove(m.id)) forgotten++
+    const clusters = findClusters(this.memory.all())
+    if (!clusters.length) return { ok: true, merged: 0, forgotten }
+    const p = this.memoryProvider()
+    if (!this.ready(p) || this.overBudget()) return { ok: false, merged: 0, forgotten, error: '需要先配置 AI 服务商' }
+    try {
+      const r = await chat(p, buildConsolidationMessages(this.persona.data.name, clusters), {
+        apiKey: this.keyFor(p),
+        fetch: this.opts.fetch,
+        maxTokens: p.kind === 'anthropic' ? 8000 : 1200,
+        signal: AbortSignal.timeout(90_000)
+      })
+      this.recordUsage(r.usage.inputTokens, r.usage.outputTokens)
+      const merged = applyMerges(this.memory, parseMerges(r.text), clusters, Date.now())
+      if (merged) void this.embedPending()
+      console.log(`[memory] dream: merged ${merged} groups, forgot ${forgotten}`)
+      return { ok: true, merged, forgotten }
+    } catch (e) {
+      return { ok: false, merged: 0, forgotten, error: (e as Error).message }
+    }
+  }
+
   private async diaryTick(): Promise<void> {
+    if (this.memory.size >= 15) await this.consolidateMemories()
     if (!this.settings.data.memory.dailyDiary) return
     const yesterday = previousDateKey(Date.now())
     if (this.runtime.data.lastDiaryCheck === yesterday) return

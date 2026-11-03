@@ -125,6 +125,18 @@ export function MemoryTab({ snap }: { snap: Snapshot }) {
           <>
             <button
               className="btn ghost"
+              title="合并相似的记忆，忘掉很久没想起的琐事"
+              onClick={async () => {
+                const r = await api.memoryConsolidate()
+                if (r.ok) toast(r.merged || r.forgotten ? `整理完成：合并 ${r.merged} 组，忘掉 ${r.forgotten} 条` : '记忆很整齐，不需要整理')
+                else toast(r.error ?? '整理失败', 'err')
+                reload()
+              }}
+            >
+              🌙 整理记忆
+            </button>
+            <button
+              className="btn ghost"
               onClick={async () => {
                 const p = await api.memoryExport()
                 if (p) toast(`已导出到 ${p}`)

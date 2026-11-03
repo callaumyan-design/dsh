@@ -18,6 +18,7 @@ const api: SoulPetAPI = {
   memoryDelete: (id) => invoke('memory:delete', id),
   memoryExport: () => invoke('memory:export'),
   memoryImport: () => invoke('memory:import'),
+  memoryConsolidate: () => invoke('memory:consolidate'),
 
   diaryList: () => invoke('diary:list'),
   diaryGenerate: (date) => invoke('diary:generate', date),

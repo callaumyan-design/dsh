@@ -54,7 +54,8 @@ npm run dist:win           # 打包
 - [x] 首次启动引导（`WelcomeTab`：起名、选服务商、填 Key 并测试、选形象；`settings.setupDone`）
 - [x] 提醒 / 待办 / 番茄钟（`src/core/tasks.ts`，`tasks.json`，每 15 秒检查一次；到点时冒泡并弹系统通知；专注期间宠物显示 work 动画和倒计时，主动搭话静音，完成后有奖励）
 - [x] AI 动作标签：`[[remind|时间|内容]]`、`[[todo|内容]]`，流式输出时就隐藏；时间格式见 `parseWhen`
-- [ ] 记忆整理（合并相似记忆）+ 旧对话摘要成情节记忆
+- [x] 记忆整理“做梦”（`src/core/memory/consolidate.ts`：并查集聚类相似记忆 → LLM 合并；忘掉 90 天没想起的重要度 ≤ 2 的记忆；每天最多一次，在记忆页可以手动触发）
+- [x] 每日日记同时生成一条 episode（情节）记忆，用来回忆“那天聊了什么”
 - [ ] 成就、随机事件、TTS 朗读（speechSynthesis）、鼠标穿透模式、zip 导入形象包
 - [ ] （以后）Live2D、语音输入、本地 Embedding、多宠物、MOD、自动更新、全屏检测
 

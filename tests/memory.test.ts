@@ -146,7 +146,11 @@ describe('extraction', () => {
   })
 
   it('parses diary JSON and plain text', () => {
-    expect(parseDiary('{"diary":"今天吃了饭团","insights":["用户最近很忙", 3]}')).toEqual({ diary: '今天吃了饭团', insights: ['用户最近很忙'] })
-    expect(parseDiary('今天主人陪我玩了')).toEqual({ diary: '今天主人陪我玩了', insights: [] })
+    expect(parseDiary('{"diary":"今天吃了饭团","insights":["用户最近很忙", 3],"summary":"2026-11-03 用户说工作忙"}')).toEqual({
+      diary: '今天吃了饭团',
+      insights: ['用户最近很忙'],
+      summary: '2026-11-03 用户说工作忙'
+    })
+    expect(parseDiary('今天主人陪我玩了')).toEqual({ diary: '今天主人陪我玩了', insights: [], summary: '' })
   })
 })

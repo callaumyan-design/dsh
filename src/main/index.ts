@@ -269,6 +269,7 @@ function registerIpc(): void {
     return res
   })
 
+  h('memory:consolidate', () => core.consolidateMemories(true))
   h('diary:list', () => core.diary.data)
   h('diary:generate', (_e, date?: string) => core.generateDiary(date))
   h('tasks:addReminder', (_e, input) => core.addReminder(input))

@@ -27,7 +27,10 @@ const server = http.createServer((req, res) => {
     const system = j.messages?.find((m) => m.role === 'system')?.content ?? ''
     const last = j.messages?.at(-1)?.content ?? ''
     let reply
-    if (system.includes('记忆管理员')) {
+    if (system.includes('整理它的长期记忆')) {
+      const ids = [...last.matchAll(/- (m_[a-z0-9]+)（/g)].map((m) => m[1])
+      reply = JSON.stringify({ merges: [{ ids, text: '用户非常喜欢吃草莓', importance: 8 }] })
+    } else if (system.includes('记忆管理员')) {
       reply = last.includes('草莓') ? '{"ops":[{"op":"add","text":"用户喜欢吃草莓","type":"preference","importance":7}]}' : '{"ops":[]}'
     } else if (system.includes('写一篇')) {
       reply = '{"diary":"今天主人告诉我他喜欢草莓，我也想尝尝！","insights":["用户喜欢甜甜的水果"]}'
@@ -180,6 +183,16 @@ step(`game actions work (${fed.message} / ${bought.message})`)
 const diary = await pet.evaluate(() => window.soulpet.diaryGenerate())
 assert.ok(diary.ok, diary.error)
 step('diary generated, insight added to memory')
+
+// memory consolidation ("dream")
+await pet.evaluate(() => window.soulpet.memoryAdd({ text: '用户超级喜欢吃草莓', type: 'preference', importance: 6 }))
+const beforeDream = await pet.evaluate(() => window.soulpet.memoryList())
+const dream = await pet.evaluate(() => window.soulpet.memoryConsolidate())
+assert.ok(dream.ok && dream.merged === 1, JSON.stringify(dream))
+const afterDream = await pet.evaluate(() => window.soulpet.memoryList())
+assert.equal(afterDream.length, beforeDream.length - 1)
+assert.ok(afterDream.some((m) => m.text === '用户非常喜欢吃草莓'))
+step('memory consolidation merged two similar memories')
 
 // panel
 const panel = wizard

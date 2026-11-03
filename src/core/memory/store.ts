@@ -184,6 +184,28 @@ export class MemoryStore {
       .slice(0, opts.k ?? 6)
   }
 
+  /** Replace several memories with one merged memory, keeping the strongest stats. */
+  mergeItems(ids: string[], text: string, importance: number | undefined, now: number): MemoryItem | undefined {
+    const parts = ids.map((id) => this.get(id)).filter((m): m is MemoryItem => !!m)
+    if (parts.length < 2 || !text.trim()) return undefined
+    const merged: MemoryItem = {
+      id: uid('m'),
+      text: text.trim(),
+      type: parts[0].type,
+      importance: clamp(Math.round(importance ?? Math.max(...parts.map((p) => p.importance))), 1, 10),
+      createdAt: Math.min(...parts.map((p) => p.createdAt)),
+      updatedAt: now,
+      lastAccessedAt: Math.max(...parts.map((p) => p.lastAccessedAt)),
+      accessCount: parts.reduce((s, p) => s + p.accessCount, 0),
+      pinned: parts.some((p) => p.pinned),
+      source: 'auto'
+    }
+    const drop = new Set(parts.map((p) => p.id))
+    this.items = [...this.items.filter((m) => !drop.has(m.id)), merged]
+    this.changed()
+    return merged
+  }
+
   replaceAll(items: MemoryItem[]): void {
     this.items = items.map(normalizeItem)
     this.changed()

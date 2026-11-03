@@ -99,6 +99,7 @@ export interface SoulPetAPI {
   memoryDelete(id: string): Promise<boolean>
   memoryExport(): Promise<string | null>
   memoryImport(): Promise<{ added: number; merged: number } | null>
+  memoryConsolidate(): Promise<{ ok: boolean; merged: number; forgotten: number; error?: string }>
 
   diaryList(): Promise<DiaryEntry[]>
   tasksAddReminder(input: { text: string; dueAt: number; repeat?: Repeat }): Promise<TasksState>
