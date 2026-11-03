@@ -379,6 +379,7 @@ function registerIpc(): void {
     if (s.app.clickThrough !== before.app.clickThrough) applyClickThrough()
     if (s.app.proxy !== before.app.proxy) void applyProxy()
     if (s.app.hideOnFullscreen !== before.app.hideOnFullscreen) applyFullscreenWatch()
+    if (s.weather.enabled !== before.weather.enabled || s.weather.city !== before.weather.city) void core.refreshWeather(true)
     return pub
   })
   h('provider:upsert', (_e, cfg: ProviderConfig) => {
@@ -463,6 +464,7 @@ function registerIpc(): void {
   })
   h('app:openPanel', (_e, tab?: string) => openPanel(tab))
   h('app:checkUpdate', () => runUpdateCheck(true))
+  h('weather:test', () => core.refreshWeather(true))
   h('app:diagnostics', () => ({
     version: app.getVersion(),
     electron: process.versions.electron,

@@ -42,6 +42,7 @@ import {
   type TasksState
 } from '../core/tasks'
 import { describeSpecialDays, specialGreeting } from '../core/calendar'
+import { describeWeather, parseWttr, weatherUrl, type Weather } from '../core/weather'
 import { dateKey, inTimeWindow, previousDateKey, uid } from '../core/util'
 import { Secrets } from './secrets'
 import { ChatLog, JsonFile } from './storage'
@@ -90,6 +91,7 @@ export class AppCore {
   lastPetInteractionAt = Date.now()
   /** set by the window layer while a fullscreen app hides the pet */
   fullscreenActive = false
+  weather: Weather | null = null
   /** Set by the window layer so a reply can pause/unpause walking. */
   onChatBusy: (busy: boolean) => void = () => {}
 
@@ -135,6 +137,8 @@ export class AppCore {
     this.timers.push(setInterval(() => void this.diaryTick(), 30 * 60_000))
     setTimeout(() => void this.diaryTick(), 15_000)
     setTimeout(() => void this.embedPending(), 5_000)
+    setTimeout(() => void this.refreshWeather(), 8_000)
+    this.timers.push(setInterval(() => void this.refreshWeather(), 90 * 60_000))
   }
 
   stop(): void {
@@ -305,6 +309,36 @@ export class AppCore {
     }
   }
 
+  // ---------------------------------------------------------------- weather
+
+  async refreshWeather(force = false): Promise<{ ok: boolean; text?: string; error?: string }> {
+    const w = this.settings.data.weather
+    if (!w.enabled || !w.city.trim()) {
+      this.weather = null
+      return { ok: false, error: '没有开启天气或没有填写城市' }
+    }
+    if (!force && this.weather && this.weather.city === w.city && Date.now() - this.weather.fetchedAt < 80 * 60_000) {
+      return { ok: true, text: describeWeather(this.weather) }
+    }
+    try {
+      const res = await this.opts.fetch(weatherUrl(w.city), { headers: { 'User-Agent': 'curl/8' }, signal: AbortSignal.timeout(15_000) })
+      if (!res.ok) throw new Error(`天气服务返回 ${res.status}`)
+      const parsed = parseWttr(await res.json(), w.city.trim(), Date.now())
+      if (!parsed) throw new Error('没有查到这个城市的天气')
+      this.weather = parsed
+      return { ok: true, text: describeWeather(parsed) }
+    } catch (e) {
+      console.warn('[weather]', (e as Error).message)
+      return { ok: false, error: (e as Error).message }
+    }
+  }
+
+  private situationLines(now: number): string[] {
+    const lines = describeSpecialDays(new Date(now), this.game.data.createdAt)
+    if (this.weather && now - this.weather.fetchedAt < 3 * 3_600_000) lines.push(`天气：${describeWeather(this.weather)}`)
+    return lines
+  }
+
   // ---------------------------------------------------------------- speech-to-text
 
   async transcribe(audio: Uint8Array, mime: string): Promise<{ ok: boolean; text?: string; error?: string }> {
@@ -433,7 +467,7 @@ export class AppCore {
         relevantMemories: relevant.map((r) => r.item),
         now: new Date(now),
         tasks: describeTasksForPrompt(this.tasks.data, now),
-        situation: describeSpecialDays(new Date(now), g.createdAt)
+        situation: this.situationLines(now)
       })
       const messages = buildChatMessages(
         system,
@@ -734,7 +768,10 @@ export class AppCore {
     })
     if (!kind || this.chatAbort) return
     this.runtime.update((r) => ({ ...r, proactive: recordProactive(r.proactive, kind, Date.now()) }))
-    const line = (s.proactive.useAI && (await this.aiProactiveLine(kind))) || proactiveLine(kind, this.persona.data.userCallName)
+    let line = (s.proactive.useAI && (await this.aiProactiveLine(kind))) || proactiveLine(kind, this.persona.data.userCallName)
+    if (kind === 'morning' && !s.proactive.useAI && this.weather && (this.weather.rainy || this.weather.snowy || this.weather.tempC <= 5 || this.weather.tempC >= 32)) {
+      line += ` ${describeWeather(this.weather)}`
+    }
     const { text, emotion } = stripEmotionTags(line)
     this.say(text, { emotion, proactive: true })
   }
@@ -754,7 +791,9 @@ export class AppCore {
         game: this.game.data,
         coreMemories: this.memory.core(this.settings.data.memory.maxCore),
         relevantMemories: this.memory.all().slice(0, 5),
-        now: new Date(now)
+        now: new Date(now),
+        situation: this.situationLines(now),
+        actions: false
       })
       const r = await chat(
         p,

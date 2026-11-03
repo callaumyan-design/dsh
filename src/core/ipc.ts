@@ -132,6 +132,7 @@ export interface SoulPetAPI {
 
   openPanel(tab?: string): Promise<void>
   completeSetup(): Promise<void>
+  weatherTest(): Promise<{ ok: boolean; text?: string; error?: string }>
   diagnostics(): Promise<Record<string, string | number | boolean>>
   checkUpdate(): Promise<{ ok: boolean; latest?: { version: string; url: string; name: string } | null; error?: string }>
   petDragStart(): void

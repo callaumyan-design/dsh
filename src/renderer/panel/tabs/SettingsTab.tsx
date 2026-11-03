@@ -393,6 +393,26 @@ export function SettingsTab({ snap, onRefresh }: { snap: Snapshot; onRefresh: ()
         )}
       </Section>
 
+      <Section title="天气" desc="开启后它会知道你那里的天气（下雨提醒带伞之类）。只会把你填的城市名发给 wttr.in。">
+        <Field label="开启">
+          <Toggle checked={s.weather.enabled} onChange={(v) => update({ weather: { ...s.weather, enabled: v } })} />
+        </Field>
+        <Field label="城市" hint="中文或拼音都可以，例如：北京、Shanghai">
+          <div className="row">
+            <input defaultValue={s.weather.city} placeholder="城市名" onBlur={(e) => e.target.value.trim() !== s.weather.city && update({ weather: { ...s.weather, city: e.target.value.trim() } })} />
+            <button
+              className="btn"
+              onClick={async () => {
+                const r = await api.weatherTest()
+                toast(r.ok ? r.text! : r.error ?? '查询失败', r.ok ? 'ok' : 'err')
+              }}
+            >
+              查一下
+            </button>
+          </div>
+        </Field>
+      </Section>
+
       <Section title="养成 & 费用">
         <Field label="难度" hint="影响数值下降速度。关掉程序时的变化总是更温和，而且最多只结算 12 小时。">
           <select value={s.game.difficulty} onChange={(e) => update({ game: { ...s.game, difficulty: e.target.value as Settings['game']['difficulty'] } })}>
