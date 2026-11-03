@@ -85,6 +85,7 @@ export interface EventMap {
   'pet:anim': { anim: PetAnimState; duration: number }
   'pet:openInput': Record<string, never>
   'tasks:update': TasksState
+  'live2d:core': { url: string | null }
   'panel:tab': { tab: string }
 }
 

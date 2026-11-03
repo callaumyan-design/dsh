@@ -29,8 +29,6 @@ export interface Live2DSpec {
   motions: Partial<Record<PetAnimState, string>>
   /** emotion or state -> expression name */
   expressions: Record<string, string>
-  /** a Cubism Core shipped inside the pack, if any */
-  core?: string
 }
 
 export interface ResolvedPack {
@@ -374,10 +372,14 @@ export interface Live2DManifest {
 
 export function normalizeLive2DPack(m: Live2DManifest, fallbackId: string, io: PackIO, source: ResolvedPack['source']): ResolvedPack {
   const warnings: string[] = []
-  if (!m.model || !io.exists(m.model)) warnings.push(`找不到 Live2D 模型文件：${m.model || '（未填写 model）'}`)
-  if (!/\.model3\.json$/i.test(m.model ?? '')) warnings.push('目前只支持 Cubism 3/4/5 模型（*.model3.json）')
-  const [w, h] = m.size ?? [240, 320]
-  const core = ['live2dcubismcore.min.js', 'live2dcubismcore.js', 'core/live2dcubismcore.min.js'].find((f) => io.exists(f))
+  const model = typeof m.model === 'string' ? m.model : ''
+  if (!model || !io.exists(model)) warnings.push(`找不到 Live2D 模型文件：${model || '（未填写 model）'}`)
+  if (!/\.model3\.json$/i.test(model)) warnings.push('目前只支持 Cubism 3/4/5 模型（*.model3.json）')
+  const num = (v: unknown, d: number) => (typeof v === 'number' && Number.isFinite(v) ? v : d)
+  const size = Array.isArray(m.size) ? m.size : []
+  const w = num(size[0], 240)
+  const h = num(size[1], 320)
+  const asMap = (v: unknown) => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, string>) : {})
   return {
     id: m.id || fallbackId,
     name: m.name || m.id || fallbackId,
@@ -390,12 +392,11 @@ export function normalizeLive2DPack(m: Live2DManifest, fallbackId: string, io: P
     facing: 'right',
     anims: {},
     live2d: {
-      model: io.url(m.model),
-      zoom: m.zoom ?? 1,
-      offsetY: m.offsetY ?? 0,
-      motions: m.motions ?? {},
-      expressions: m.expressions ?? {},
-      core: core ? io.url(core) : undefined
+      model: model ? io.url(model) : '',
+      zoom: Math.min(5, Math.max(0.1, num(m.zoom, 1))),
+      offsetY: Math.min(1, Math.max(-1, num(m.offsetY, 0))),
+      motions: asMap(m.motions),
+      expressions: asMap(m.expressions)
     },
     source,
     warnings
@@ -411,12 +412,15 @@ export const LIVE2D_REACTION_GROUPS = ['TapBody', 'Tap', 'Use', 'Flick', 'Shake'
  * then a generic reaction group for one-shot states, else Idle.
  */
 export function live2dMotionFor(state: PetAnimState, spec: Pick<Live2DSpec, 'motions'>, groups: string[]): { group: string; index?: number } | null {
+  // "Group" or "Group:3"; a non-numeric suffix is part of the group name
   const parse = (v: string) => {
-    const [g, i] = v.split(':')
-    return groups.includes(g) ? { group: g, index: i === undefined ? undefined : Number(i) } : null
+    const m = /^(.*):(\d+)$/.exec(v)
+    const group = m ? m[1] : v
+    return groups.includes(group) ? { group, index: m ? Number(m[2]) : undefined } : null
   }
   const explicit = spec.motions[state]
-  if (explicit) return parse(explicit)
+  const mapped = typeof explicit === 'string' ? parse(explicit) : null
+  if (mapped) return mapped
   const lower = new Map(groups.map((g) => [g.toLowerCase(), g]))
   const named = lower.get(state.toLowerCase())
   if (named) return { group: named }

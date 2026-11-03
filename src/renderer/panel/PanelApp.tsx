@@ -41,6 +41,7 @@ export function PanelApp() {
       api.on('packs:update', (packs) => setSnap((s) => (s ? { ...s, packs } : s))),
       api.on('memory:changed', ({ count }) => setSnap((s) => (s ? { ...s, memoryCount: count } : s))),
       api.on('tasks:update', (tasks) => setSnap((s) => (s ? { ...s, tasks } : s))),
+      api.on('live2d:core', ({ url }) => setSnap((s) => (s ? { ...s, live2dCore: url } : s))),
       api.on('panel:tab', ({ tab }) => TABS.some((t) => t.id === tab) && setTab(tab as TabId))
     ]
     return () => off.forEach((f) => f())

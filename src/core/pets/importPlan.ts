@@ -32,15 +32,17 @@ export function planImport(paths: string[], archiveName: string): ImportPlan {
       throw new Error(`压缩包里有不安全的路径：${p}`)
     }
   }
-  const isRootManifest = (list: string[]) =>
-    list.some((p) => p === 'pet.json' || p === 'manifest.json' || p === 'spritesheet.webp' || p === 'spritesheet.png' || (/\.model3\.json$/i.test(p) && p.split('/').length <= 2))
+  const MARKERS = ['pet.json', 'manifest.json', 'spritesheet.webp', 'spritesheet.png']
+  const isModel3 = (p: string, maxDepth: number) => /\.model3\.json$/i.test(p) && p.split('/').length <= maxDepth
+  // a pack root has a marker file directly in it (or a Live2D model at most one folder down)
+  const looksLikeRoot = (list: string[], modelDepth: number) => list.some((p) => MARKERS.includes(p) || isModel3(p, modelDepth))
   let prefix = ''
-  if (!isRootManifest(files)) {
+  if (!looksLikeRoot(files, 1)) {
     const tops = new Set(files.map((p) => p.split('/')[0]))
     if (tops.size === 1) {
       const top = [...tops][0]
       const inner = files.map((p) => p.slice(top.length + 1))
-      if (isRootManifest(inner)) prefix = top + '/'
+      if (looksLikeRoot(inner, 2)) prefix = top + '/'
     }
   }
   const rel = files.filter((p) => p.startsWith(prefix)).map((p) => ({ from: p, to: p.slice(prefix.length) }))

@@ -92,10 +92,8 @@ export function PetApp() {
         setConds(p.conditions)
       }),
       api.on('settings:update', setSettings),
-      api.on('packs:update', (p) => {
-        setPacks(p)
-        void api.getSnapshot().then((s) => setLive2dCore(s.live2dCore))
-      }),
+      api.on('packs:update', setPacks),
+      api.on('live2d:core', ({ url }) => setLive2dCore(url)),
       api.on('pet:motion', setMotion),
       api.on('pet:say', (p) => {
         showBubble({ text: p.text, emotion: p.emotion ?? null, streaming: false }, p.duration)

@@ -47,13 +47,15 @@ export class PackManager {
     fs.mkdirSync(userDir, { recursive: true })
   }
 
-  /** URL of the Live2D Cubism Core: user-installed first, else one bundled inside a pack. */
+  private coreInstalled = false
+
+  /**
+   * URL of the user-installed Live2D Cubism Core. Cores bundled inside downloaded packs are
+   * deliberately ignored: the core runs as script in the pet window, so only a file the user
+   * picked explicitly (and that passed the content check) may be executed.
+   */
   coreUrl(): string | null {
-    if (isFile(path.join(this.coreDir, LIVE2D_CORE_FILE))) {
-      this.roots.set('core', this.coreDir)
-      return `${ASSET_SCHEME}://pack/core/${LIVE2D_CORE_FILE}`
-    }
-    return this.packs.find((p) => p.live2d?.core)?.live2d?.core ?? null
+    return this.coreInstalled ? `${ASSET_SCHEME}://pack/core/${LIVE2D_CORE_FILE}` : null
   }
 
   installProtocol(): void {
@@ -123,7 +125,8 @@ export class PackManager {
 
   scan(): ResolvedPack[] {
     this.roots.clear()
-    if (isFile(path.join(this.coreDir, LIVE2D_CORE_FILE))) this.roots.set('core', this.coreDir)
+    this.coreInstalled = isFile(path.join(this.coreDir, LIVE2D_CORE_FILE))
+    if (this.coreInstalled) this.roots.set('core', this.coreDir)
     this.packs = []
     const builtin = this.scanDir(this.builtinDir, 'builtin')
     this.packs = [builtinPack(), ...builtin]

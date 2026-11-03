@@ -32,7 +32,7 @@ export function PetView({ pack, state, emotion, appearance, stage, width, height
     if (lite) return <div className="l2d-missing" style={{ width, height }}>🎎 Live2D</div>
     return (
       <Suspense fallback={<div style={{ width, height }} />}>
-        <Live2DView spec={pack.live2d} coreUrl={live2dCore ?? pack.live2d.core ?? null} state={state} emotion={emotion} width={width} height={height} talking={!!talking} />
+        <Live2DView spec={pack.live2d} coreUrl={live2dCore ?? null} state={state} emotion={emotion} width={width} height={height} talking={!!talking} />
       </Suspense>
     )
   }

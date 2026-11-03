@@ -471,12 +471,17 @@ function registerIpc(): void {
       target = r.filePaths[0]
     }
     try {
-      const head = fs.readFileSync(target, 'utf8').slice(0, 200_000)
-      if (!head.includes('Live2DCubismCore')) throw new Error('这不是 Live2D Cubism Core 文件')
+      if (fs.statSync(target).size > 20 * 1024 * 1024) throw new Error('文件太大了，这不像是 Cubism Core')
+      const fd = fs.openSync(target, 'r')
+      const buf = Buffer.alloc(256 * 1024)
+      const n = fs.readSync(fd, buf, 0, buf.length, 0)
+      fs.closeSync(fd)
+      if (!buf.subarray(0, n).toString('utf8').includes('Live2DCubismCore')) throw new Error('这不是 Live2D Cubism Core 文件')
       fs.mkdirSync(packs.coreDir, { recursive: true })
       fs.copyFileSync(target, path.join(packs.coreDir, LIVE2D_CORE_FILE))
       const list = packs.scan()
       broadcast('packs:update', list)
+      broadcast('live2d:core', { url: packs.coreUrl() })
       return { ok: true, url: packs.coreUrl() }
     } catch (e) {
       return { ok: false, error: (e as Error).message }
