@@ -93,7 +93,7 @@ export class PackManager {
           pack = { ...pack, id: `${key}` }
         }
         this.roots.set(key, root)
-        out.push(pack)
+        out.push({ ...pack, folder: name })
       } catch (e) {
         console.error('[packs] failed to load', root, e)
       }

@@ -44,6 +44,8 @@ export interface GameState {
   daily: { date: string; affectionFromChat: number; affectionFromPet: number }
   totals: { fed: number; played: number; worked: number; studied: number; chats: number; baths: number; pets: number; focusMinutes: number }
   lastPetAt: number
+  /** achievement id -> unlocked at (ms) */
+  achievements: Record<string, number>
 }
 
 export type GameAction =

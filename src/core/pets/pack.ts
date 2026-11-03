@@ -36,6 +36,8 @@ export interface ResolvedPack {
   stages?: Partial<Record<'baby' | 'child' | 'adult', Partial<Record<PetAnimState, AnimSpec>>>>
   preview?: AnimSpec
   source: 'builtin' | 'user'
+  /** folder name inside the pets directory (not for builtin) */
+  folder?: string
   warnings: string[]
 }
 

@@ -1,3 +1,4 @@
+import { ACHIEVEMENTS } from '../../../core/game/achievements'
 import { affectionTitle, CONDITION_LABEL, expToNext, MAX_AFFECTION, STAGE_LABEL, stageOf } from '../../../core/game/engine'
 import type { GameAction } from '../../../core/game/types'
 import type { Snapshot } from '../../../core/ipc'
@@ -98,6 +99,21 @@ export function StatusTab({ snap }: { snap: Snapshot }) {
         </div>
       </Section>
 
+      <Section title="成就" desc={`已解锁 ${Object.keys(g.achievements ?? {}).length} / ${ACHIEVEMENTS.length}`}>
+        <div className="ach-grid">
+          {ACHIEVEMENTS.map((a) => {
+            const at = g.achievements?.[a.id]
+            return (
+              <div key={a.id} className={`ach ${at ? 'got' : ''}`} title={at ? `解锁于 ${new Date(at).toLocaleDateString()}` : '未解锁'}>
+                <span className="ach-emoji">{at ? a.emoji : '🔒'}</span>
+                <b>{a.name}</b>
+                <span className="muted small">{a.desc}</span>
+              </div>
+            )
+          })}
+        </div>
+      </Section>
+
       <Section title="成长记录">
         <div className="totals">
           <span>喂食 {g.totals.fed} 次</span>
@@ -107,6 +123,7 @@ export function StatusTab({ snap }: { snap: Snapshot }) {
           <span>学习 {g.totals.studied} 次</span>
           <span>聊天 {g.totals.chats} 次</span>
           <span>摸摸 {g.totals.pets} 次</span>
+          <span>专注 {g.totals.focusMinutes ?? 0} 分钟</span>
         </div>
       </Section>
     </div>

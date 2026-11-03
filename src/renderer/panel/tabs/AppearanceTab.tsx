@@ -38,6 +38,26 @@ export function AppearanceTab({ snap }: { snap: Snapshot }) {
         }
         actions={
           <>
+            <button
+              className="btn"
+              onClick={async () => {
+                const r = await api.packImport('zip')
+                if (r.ok) toast(`已导入「${r.name}」${r.warnings?.length ? `（${r.warnings.length} 个提示）` : ''}`)
+                else if (r.error) toast(r.error, 'err')
+              }}
+            >
+              导入 .zip
+            </button>
+            <button
+              className="btn"
+              onClick={async () => {
+                const r = await api.packImport('folder')
+                if (r.ok) toast(`已导入「${r.name}」`)
+                else if (r.error) toast(r.error, 'err')
+              }}
+            >
+              导入文件夹
+            </button>
             <button className="btn ghost" onClick={() => void api.openPacksFolder()}>
               打开形象包目录
             </button>
@@ -88,6 +108,9 @@ export function AppearanceTab({ snap }: { snap: Snapshot }) {
       <Section title="外观设置">
         <Field label="大小" hint={`${Math.round(a.scale * 100)}%（幼年和少年阶段会再小一点）`}>
           <input type="range" min={0.5} max={2} step={0.05} value={a.scale} onChange={(e) => update({ scale: Number(e.target.value) })} />
+        </Field>
+        <Field label="透明度" hint={`${Math.round((a.opacity ?? 1) * 100)}%`}>
+          <input type="range" min={0.2} max={1} step={0.05} value={a.opacity ?? 1} onChange={(e) => update({ opacity: Number(e.target.value) })} />
         </Field>
         <Field label="自己到处走">
           <Toggle checked={a.walkEnabled} onChange={(v) => update({ walkEnabled: v })} />

@@ -230,3 +230,9 @@ input[type='number'] { width: 120px; }
 .task .pill { margin-left: 6px; }
 .focus-box { display: flex; flex-direction: column; gap: 10px; max-width: 420px; }
 .focus-time { font-size: 44px; font-weight: 700; font-variant-numeric: tabular-nums; color: #ff6f61; }
+
+/* achievements */
+.ach-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.ach { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 8px; border: 1px solid var(--border); border-radius: 10px; text-align: center; opacity: 0.55; }
+.ach.got { opacity: 1; border-color: #f5c24b; background: linear-gradient(180deg, rgba(255, 214, 102, 0.18), transparent); }
+.ach-emoji { font-size: 26px; }

@@ -177,7 +177,8 @@ assert.ok(fed.ok, fed.message)
 assert.equal(after.inventory.fish, before.inventory.fish - 1)
 const bought = await pet.evaluate(() => window.soulpet.gameAction({ type: 'buy', itemId: 'cake' }))
 assert.ok(bought.ok, bought.message)
-step(`game actions work (${fed.message} / ${bought.message})`)
+await waitFor(async () => (await pet.evaluate(() => window.soulpet.getSnapshot())).game.achievements?.first_meal, 5000, 'achievement unlocked')
+step(`game actions work (${fed.message} / ${bought.message}); achievement "第一口饭" unlocked`)
 
 // diary
 const diary = await pet.evaluate(() => window.soulpet.diaryGenerate())

@@ -7,6 +7,7 @@ import { builtinPack, type ResolvedPack } from '../../core/pets/pack'
 import type { FocusSession } from '../../core/tasks'
 import { api } from '../shared/api'
 import { PetView } from '../shared/PetView'
+import { speak } from '../shared/speech'
 
 const BUBBLE_SPACE = 150
 const MIN_W = 240
@@ -52,6 +53,8 @@ export function PetApp() {
   const [, force] = useState(0)
 
   const bubbleTimer = useRef<number | null>(null)
+  const voiceRef = useRef<PublicSettings['voice'] | null>(null)
+  voiceRef.current = settings?.voice ?? null
   const inputRef = useRef<HTMLInputElement>(null)
   const drag = useRef<{ x: number; y: number; dragging: boolean } | null>(null)
   const clickTimer = useRef<number | null>(null)
@@ -88,6 +91,7 @@ export function PetApp() {
       api.on('pet:motion', setMotion),
       api.on('pet:say', (p) => {
         showBubble({ text: p.text, emotion: p.emotion ?? null, streaming: false }, p.duration)
+        if (voiceRef.current) speak(p.text, voiceRef.current)
         const anim = p.anim ?? (p.emotion ? EMOTION_ANIM[p.emotion] : undefined)
         if (anim) playOnce(anim, 2800)
       }),
@@ -103,6 +107,7 @@ export function PetApp() {
         setThinking(false)
         showBubble({ text: p.message.content, emotion: p.message.emotion ?? null, streaming: false })
         if (p.message.emotion) playOnce(EMOTION_ANIM[p.message.emotion], 3200)
+        if (voiceRef.current && !p.message.error) speak(p.message.content, voiceRef.current)
       }),
       api.on('chat:error', (p) => {
         setThinking(false)
@@ -225,7 +230,7 @@ export function PetApp() {
   ]
 
   return (
-    <div className="pet-root" style={{ width: winW, height: winH }}>
+    <div className="pet-root" style={{ width: winW, height: winH, opacity: settings.appearance.opacity ?? 1 }}>
       <div className="top-area" style={{ height: BUBBLE_SPACE }}>
         {inputOpen ? (
           <div className="quick-input hit" onMouseEnter={enter} onMouseLeave={leave}>

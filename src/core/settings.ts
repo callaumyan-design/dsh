@@ -38,8 +38,10 @@ export interface Settings {
     walkEnabled: boolean
     blobColor: string
     blobAccessory: BlobAccessory
+    opacity: number
   }
-  app: { autoStart: boolean; dnd: boolean; hotkey: string; alwaysOnTop: boolean }
+  app: { autoStart: boolean; dnd: boolean; hotkey: string; alwaysOnTop: boolean; clickThrough: boolean }
+  voice: { enabled: boolean; voiceName: string; rate: number; pitch: number; volume: number }
   window: { x: number | null; y: number | null }
   /** greeting shown */
   onboarded: boolean
@@ -58,8 +60,9 @@ export function defaultSettings(): Settings {
     chat: { historyChars: 6000, dailyTokenLimit: 0 },
     proactive: { level: 'medium', quietEnabled: true, quietStart: '23:00', quietEnd: '08:00', useAI: false },
     game: { difficulty: 'normal', maxOfflineHours: 12 },
-    appearance: { packId: BUILTIN_PACK_ID, scale: 1, walkEnabled: true, blobColor: '#8fd3ff', blobAccessory: 'bow' },
-    app: { autoStart: false, dnd: false, hotkey: 'CommandOrControl+Shift+Space', alwaysOnTop: true },
+    appearance: { packId: BUILTIN_PACK_ID, scale: 1, walkEnabled: true, blobColor: '#8fd3ff', blobAccessory: 'bow', opacity: 1 },
+    app: { autoStart: false, dnd: false, hotkey: 'CommandOrControl+Shift+Space', alwaysOnTop: true, clickThrough: false },
+    voice: { enabled: false, voiceName: '', rate: 1.1, pitch: 1.3, volume: 0.9 },
     window: { x: null, y: null },
     onboarded: false,
     setupDone: false
@@ -89,6 +92,7 @@ export function normalizeSettings(raw: unknown): Settings {
   s.providers = [...userProviders, ...d.providers.filter((p) => !ids.has(p.id))]
   if (!s.providers.some((p) => p.id === s.activeProviderId)) s.activeProviderId = s.providers[0]?.id ?? 'deepseek'
   s.appearance.scale = Math.min(2, Math.max(0.5, Number(s.appearance.scale) || 1))
+  s.appearance.opacity = Math.min(1, Math.max(0.2, Number(s.appearance.opacity) || 1))
   s.version = 1
   return s
 }

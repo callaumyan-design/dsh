@@ -10,6 +10,7 @@ import { embedOpenAI } from '../core/ai/openai'
 import { buildChatMessages, buildSystemPrompt } from '../core/ai/prompt'
 import type { ChatMessage, FetchLike, ProviderConfig } from '../core/ai/types'
 import { applyAction, conditions, createGame, describeForPrompt, normalizeGame, tick } from '../core/game/engine'
+import { checkAchievements, rollRandomEvent } from '../core/game/achievements'
 import { getItem } from '../core/game/items'
 import type { ActionResult, GameAction, GameState } from '../core/game/types'
 import type { EventMap, MemoryItemPublic, PublicSettings, StoredMessage, TestResult } from '../core/ipc'
@@ -49,7 +50,7 @@ type Broadcast = <K extends keyof EventMap>(channel: K, payload: EventMap[K]) =>
 
 interface UsageDay { input: number; output: number; requests: number }
 interface Activity { ts: number; text: string }
-interface RuntimeState { proactive: ProactiveState; lastDiaryCheck: string | null; lastDreamAt: number }
+interface RuntimeState { proactive: ProactiveState; lastDiaryCheck: string | null; lastDreamAt: number; lastEventAt: number }
 
 export interface CoreOptions {
   dataDir: string
@@ -105,7 +106,7 @@ export class AppCore {
     this.activity = new JsonFile(f('activity.json'), (raw) => (Array.isArray(raw) ? (raw as Activity[]) : []))
     this.runtime = new JsonFile(f('runtime.json'), (raw) => {
       const r = (raw ?? {}) as Partial<RuntimeState>
-      return { proactive: r.proactive ?? freshProactiveState(now), lastDiaryCheck: r.lastDiaryCheck ?? null, lastDreamAt: r.lastDreamAt ?? 0 }
+      return { proactive: r.proactive ?? freshProactiveState(now), lastDiaryCheck: r.lastDiaryCheck ?? null, lastDreamAt: r.lastDreamAt ?? 0, lastEventAt: r.lastEventAt ?? 0 }
     })
     this.chatLog = new ChatLog(f('chat'))
     this.tasks = new JsonFile(f('tasks.json'), normalizeTasks)
@@ -149,11 +150,31 @@ export class AppCore {
     const idle = this.opts.systemIdleSeconds()
     if (!g.asleep && idle > 30 * 60 && g.stats.energy < 70) g = { ...g, asleep: true }
     this.setGame(g)
+    this.maybeRandomEvent(idle)
+  }
+
+  /** Small surprises every now and then (only while the user is at the computer). */
+  private maybeRandomEvent(idleSec: number): void {
+    const now = Date.now()
+    if (idleSec > 300 || this.focusActive() || this.settings.data.app.dnd || this.chatAbort) return
+    if (now - this.runtime.data.lastEventAt < 40 * 60_000) return
+    const ev = rollRandomEvent(this.game.data)
+    if (!ev) return
+    this.runtime.update((r) => ({ ...r, lastEventAt: now }))
+    this.setGame(ev.state)
+    this.logActivity(ev.text)
+    this.say(ev.text, { emotion: ev.id === 'dream' ? 'sleepy' : 'happy', proactive: true })
   }
 
   private setGame(g: GameState): void {
-    this.game.set(g)
-    this.opts.broadcast('game:update', { game: g, conditions: conditions(g) })
+    const { state, unlocked } = checkAchievements(g, { now: Date.now(), memoryCount: this.memory?.size ?? 0 })
+    this.game.set(state)
+    this.opts.broadcast('game:update', { game: state, conditions: conditions(state) })
+    for (const a of unlocked) {
+      const text = `🏆 解锁成就「${a.name}」：${a.desc}${a.reward ? `，奖励 ${a.reward} 金币` : ''}！`
+      this.logActivity(text)
+      this.say(text, { emotion: 'excited', proactive: true })
+    }
   }
 
   // ---------------------------------------------------------------- settings / providers

@@ -4,6 +4,7 @@ import type { ProviderConfig } from '../../../core/ai/types'
 import type { PublicProvider, Snapshot } from '../../../core/ipc'
 import type { Settings } from '../../../core/settings'
 import { api } from '../../shared/api'
+import { speak } from '../../shared/speech'
 import { Field, Section, Toggle, useToast } from '../ui'
 
 function ProviderEditor({ provider, isActive, onSaved }: { provider: PublicProvider; isActive: boolean; onSaved: () => void }) {
@@ -143,7 +144,20 @@ function ProviderEditor({ provider, isActive, onSaved }: { provider: PublicProvi
   )
 }
 
+function useVoices(): SpeechSynthesisVoice[] {
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([])
+  useEffect(() => {
+    if (!('speechSynthesis' in window)) return
+    const load = () => setVoices(speechSynthesis.getVoices())
+    load()
+    speechSynthesis.addEventListener('voiceschanged', load)
+    return () => speechSynthesis.removeEventListener('voiceschanged', load)
+  }, [])
+  return voices
+}
+
 export function SettingsTab({ snap, onRefresh }: { snap: Snapshot; onRefresh: () => void }) {
+  const voices = useVoices()
   const s = snap.settings
   const toast = useToast()
   const [editing, setEditing] = useState(s.activeProviderId)
@@ -287,6 +301,33 @@ export function SettingsTab({ snap, onRefresh }: { snap: Snapshot; onRefresh: ()
         </Field>
       </Section>
 
+      <Section title="语音朗读" desc="用系统自带的语音（Windows 上通常有“晓晓”“慧慧”等中文语音）读出它说的话，不花 token、不联网。">
+        <Field label="朗读回复">
+          <Toggle checked={s.voice.enabled} onChange={(v) => update({ voice: { ...s.voice, enabled: v } })} />
+        </Field>
+        <Field label="声音" hint={voices.length ? '' : '没有找到系统语音；Windows 可在“设置 → 时间和语言 → 语音”里添加中文语音'}>
+          <select value={s.voice.voiceName} onChange={(e) => update({ voice: { ...s.voice, voiceName: e.target.value } })}>
+            <option value="">自动选择中文语音</option>
+            {voices.map((v) => (
+              <option key={v.name} value={v.name}>
+                {v.name}（{v.lang}）
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="语速" hint={s.voice.rate.toFixed(1)}>
+          <input type="range" min={0.5} max={2} step={0.1} value={s.voice.rate} onChange={(e) => update({ voice: { ...s.voice, rate: Number(e.target.value) } })} />
+        </Field>
+        <Field label="音调" hint={s.voice.pitch.toFixed(1)}>
+          <input type="range" min={0.5} max={2} step={0.1} value={s.voice.pitch} onChange={(e) => update({ voice: { ...s.voice, pitch: Number(e.target.value) } })} />
+        </Field>
+        <div className="row">
+          <button className="btn" onClick={() => speak(`你好呀，我是${snap.persona.name}，今天也要开开心心的哦！`, s.voice, true)}>
+            试听
+          </button>
+        </div>
+      </Section>
+
       <Section title="养成 & 费用">
         <Field label="难度" hint="影响数值下降速度。关掉程序时的变化总是更温和，而且最多只结算 12 小时。">
           <select value={s.game.difficulty} onChange={(e) => update({ game: { ...s.game, difficulty: e.target.value as Settings['game']['difficulty'] } })}>
@@ -306,6 +347,9 @@ export function SettingsTab({ snap, onRefresh }: { snap: Snapshot; onRefresh: ()
       <Section title="通用">
         <Field label="免打扰">
           <Toggle checked={s.app.dnd} onChange={(v) => update({ app: { ...s.app, dnd: v } })} label="不主动说话" />
+        </Field>
+        <Field label="鼠标穿透" hint="打开后宠物不会挡住鼠标点击（无法拖动和右键它），通过托盘图标操作">
+          <Toggle checked={s.app.clickThrough} onChange={(v) => update({ app: { ...s.app, clickThrough: v } })} />
         </Field>
         <Field label="窗口置顶">
           <Toggle checked={s.app.alwaysOnTop} onChange={(v) => update({ app: { ...s.app, alwaysOnTop: v } })} />

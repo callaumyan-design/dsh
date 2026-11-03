@@ -56,7 +56,10 @@ npm run dist:win           # 打包
 - [x] AI 动作标签：`[[remind|时间|内容]]`、`[[todo|内容]]`，流式输出时就隐藏；时间格式见 `parseWhen`
 - [x] 记忆整理“做梦”（`src/core/memory/consolidate.ts`：并查集聚类相似记忆 → LLM 合并；忘掉 90 天没想起的重要度 ≤ 2 的记忆；每天最多一次，在记忆页可以手动触发）
 - [x] 每日日记同时生成一条 episode（情节）记忆，用来回忆“那天聊了什么”
-- [ ] 成就、随机事件、TTS 朗读（speechSynthesis）、鼠标穿透模式、zip 导入形象包
+- [x] 成就（18 个，`src/core/game/achievements.ts`，在 `AppCore.setGame` 里检查）和随机事件（捡金币、说梦话……，至少间隔 40 分钟，用户不在电脑前时不触发）
+- [x] TTS 朗读（渲染进程 `speechSynthesis`，`src/renderer/shared/speech.ts`；设置里选声音、语速、音调）
+- [x] 鼠标穿透模式（托盘和设置里都能切换）、宠物透明度
+- [x] 从 .zip 或文件夹导入形象包（`src/main/packImport.ts` + 纯函数 `core/pets/importPlan.ts`，防 zip-slip，300MB 上限）
 - [ ] （以后）Live2D、语音输入、本地 Embedding、多宠物、MOD、自动更新、全屏检测
 
 ## 设计约定

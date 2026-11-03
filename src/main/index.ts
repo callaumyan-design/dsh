@@ -23,6 +23,7 @@ import { DEFAULT_PERSONA, normalizePersona } from '../core/persona/persona'
 import type { ProviderConfig } from '../core/ai/types'
 import { AppCore, EMBEDDING_SECRET } from './core'
 import { PetMotion } from './motion'
+import { importFolder, importZip } from './packImport'
 import { PackManager, registerAssetScheme } from './packs'
 import { createPanelWindow, createPetWindow } from './windows'
 
@@ -100,6 +101,15 @@ function openPanel(tab?: string): void {
   }
 }
 
+/** Click-through mode: the pet never catches the mouse (use the tray to interact). */
+function applyClickThrough(): void {
+  if (!petWin) return
+  const on = core.settings.data.app.clickThrough
+  if (on) petWin.setIgnoreMouseEvents(true)
+  else if (process.platform !== 'linux') petWin.setIgnoreMouseEvents(true, { forward: true })
+  else petWin.setIgnoreMouseEvents(false)
+}
+
 function setPetVisible(visible: boolean): void {
   if (!petWin) return
   if (visible) petWin.showInactive()
@@ -118,7 +128,7 @@ function createPet(): void {
   )
   motion.placeInitial(s.window.x, s.window.y)
   motion.setPaused('disabled', !s.appearance.walkEnabled)
-  if (process.platform !== 'linux') petWin.setIgnoreMouseEvents(true, { forward: true })
+  applyClickThrough()
   petWin.once('ready-to-show', () => {
     petWin?.showInactive()
     motion?.start()
@@ -180,6 +190,16 @@ function rebuildTray(): void {
       { label: '聊天', click: () => (setPetVisible(true), broadcast('pet:openInput', {})) },
       { label: '打开面板', click: () => openPanel() },
       { type: 'separator' },
+      {
+        label: '鼠标穿透（宠物不挡点击）',
+        type: 'checkbox',
+        checked: s.app.clickThrough,
+        click: (item) => {
+          core.updateSettings({ app: { ...s.app, clickThrough: item.checked } })
+          applyClickThrough()
+          rebuildTray()
+        }
+      },
       {
         label: '免打扰',
         type: 'checkbox',
@@ -302,7 +322,8 @@ function registerIpc(): void {
     if (s.app.autoStart !== before.app.autoStart) applyAutoStart()
     if (s.app.alwaysOnTop !== before.app.alwaysOnTop) petWin?.setAlwaysOnTop(s.app.alwaysOnTop, 'floating')
     motion?.setPaused('disabled', !s.appearance.walkEnabled)
-    if (s.app.dnd !== before.app.dnd) rebuildTray()
+    if (s.app.dnd !== before.app.dnd || s.app.clickThrough !== before.app.clickThrough) rebuildTray()
+    if (s.app.clickThrough !== before.app.clickThrough) applyClickThrough()
     return pub
   })
   h('provider:upsert', (_e, cfg: ProviderConfig) => {
@@ -356,6 +377,24 @@ function registerIpc(): void {
     broadcast('packs:update', list)
     return list
   })
+  h('packs:import', async (_e, kind: 'zip' | 'folder') => {
+    const r = await dialog.showOpenDialog(
+      kind === 'zip'
+        ? { title: '导入形象包（.zip）', properties: ['openFile'], filters: [{ name: '形象包', extensions: ['zip'] }] }
+        : { title: '选择形象包文件夹', properties: ['openDirectory'] }
+    )
+    if (r.canceled || !r.filePaths[0]) return { ok: false }
+    try {
+      const folder = kind === 'zip' ? importZip(r.filePaths[0], packs.userDir) : importFolder(r.filePaths[0], packs.userDir)
+      const list = packs.scan()
+      broadcast('packs:update', list)
+      const pack = list.find((p) => p.source === 'user' && p.folder === folder)
+      if (pack) core.updateSettings({ appearance: { ...core.settings.data.appearance, packId: pack.id } })
+      return { ok: true, packId: pack?.id, name: pack?.name, warnings: pack?.warnings ?? [] }
+    } catch (e) {
+      return { ok: false, error: (e as Error).message }
+    }
+  })
   h('packs:select', (_e, id: string) => core.updateSettings({ appearance: { ...core.settings.data.appearance, packId: id } }))
   h('app:openPacks', () => void shell.openPath(packs.userDir))
   h('app:openData', () => void shell.openPath(core.dataDir))
@@ -368,7 +407,7 @@ function registerIpc(): void {
   ipcMain.on('pet:dragStart', () => motion?.dragStart())
   ipcMain.on('pet:dragEnd', () => motion?.dragEnd())
   ipcMain.on('pet:interactive', (_e, on: boolean) => {
-    if (process.platform === 'linux' || !petWin) return
+    if (process.platform === 'linux' || !petWin || core.settings.data.app.clickThrough) return
     petWin.setIgnoreMouseEvents(!on, { forward: true })
   })
   ipcMain.on('pet:contextMenu', () => {

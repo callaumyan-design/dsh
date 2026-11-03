@@ -55,7 +55,8 @@ export function createGame(now: number): GameState {
     cooldowns: {},
     daily: { date: dateKey(now), affectionFromChat: 0, affectionFromPet: 0 },
     totals: { fed: 0, played: 0, worked: 0, studied: 0, chats: 0, baths: 0, pets: 0, focusMinutes: 0 },
-    lastPetAt: 0
+    lastPetAt: 0,
+    achievements: {}
   }
 }
 
@@ -71,6 +72,7 @@ export function normalizeGame(raw: Partial<GameState> | null | undefined, now: n
     cooldowns: { ...(raw.cooldowns ?? {}) },
     daily: { ...base.daily, ...(raw.daily ?? {}) },
     totals: { ...base.totals, ...(raw.totals ?? {}) },
+    achievements: { ...(raw.achievements ?? {}) },
     version: 1
   }
 }
