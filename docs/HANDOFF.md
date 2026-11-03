@@ -6,6 +6,11 @@
 
 SoulPet 灵宠：Electron + TypeScript + React 的桌面电子宠物，有四大块功能：自定义形象、养成、接入大模型、长期记忆。用户（中文母语，Windows 用户，也是 DeepSeek Harness 爱好者）的原始需求和细化见 `docs/REQUIREMENTS.md`，选型理由见 `docs/RESEARCH.md`。
 
+## 发布
+
+- **v0.2.0**：Release **草稿**「SoulPet soulpet-v0.2.0」（基于 6f4c540，包含 Windows 安装包和 zip、macOS dmg、Linux AppImage）。草稿只有仓库成员能看到，用户确认后在 GitHub Releases 页面点 Publish。
+- 之后的开发版本号是 0.3.0；发布方式见下文“沙箱推不了 tag”。
+
 ## 代码在哪
 
 - 仓库 `callaumyan-design/dsh`，分支 **`desktop-pet`**。这是一个 orphan 分支，和 `main` 没有共同历史（`main` 是用户的 DeepSeek Harness 便携版分发仓库，不要动它）。
