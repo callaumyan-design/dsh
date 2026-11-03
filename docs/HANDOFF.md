@@ -50,7 +50,9 @@ npm run dist:win           # 打包
 
 ## 进行中 / 待办（按优先级）
 
-- [ ] CI 跑绿，拿到 Windows 安装包（第一次 CI 因为 Electron 二进制没下载而失败，已修复，等验证）
+- [x] CI 跑绿：单元测试 + Linux e2e + **真实 Windows e2e** + 三平台打包（Windows artifact 约 275MB：NSIS 安装包 + zip）
+- [x] 日志文件（`<数据目录>/logs/main.log`，API Key 会被打码）、代理设置（`settings.app.proxy`，`session.setProxy`）、后台 JSON 调用用 `response_format: json_object`（不支持就自动重试不带它）
+- [x] v0.2.0：版本号已更新，发布标签改为 `soulpet-v*`（避免和 DSH 的标签冲突），推送标签后生成 Release 草稿
 - [x] 首次启动引导（`WelcomeTab`：起名、选服务商、填 Key 并测试、选形象；`settings.setupDone`）
 - [x] 提醒 / 待办 / 番茄钟（`src/core/tasks.ts`，`tasks.json`，每 15 秒检查一次；到点时冒泡并弹系统通知；专注期间宠物显示 work 动画和倒计时，主动搭话静音，完成后有奖励）
 - [x] AI 动作标签：`[[remind|时间|内容]]`、`[[todo|内容]]`，流式输出时就隐藏；时间格式见 `parseWhen`
@@ -72,6 +74,7 @@ npm run dist:win           # 打包
 
 ## 已知问题 / 没有验证过的
 
-- 没有在真正的 Windows 桌面上手动测过：拖拽和抛出的手感、透明区域的鼠标穿透、托盘图标。
+- Windows e2e 在 GitHub 的 Windows runner 上通过，但还没有人手动试过：拖拽和抛出的手感、透明区域的鼠标穿透、托盘图标、系统通知。
+- 沙箱网络访问不了 GitHub artifact 的存储域名（blob.core.windows.net），所以没法直接看 Windows 上的截图。
 - 没有用真实 API Key 测过模型调用（只测过假服务器和带 mock fetch 的 SDK）。
 - 宠物窗口高度固定留了 150px 的气泡区，透明区域会挡住下方点击（Windows/macOS 上靠 `setIgnoreMouseEvents` 的 forward 解决，Linux 上会挡）。
