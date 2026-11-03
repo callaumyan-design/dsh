@@ -391,6 +391,7 @@ function registerIpc(): void {
 
 async function main(): Promise<void> {
   if (process.platform === 'darwin') app.dock?.hide()
+  if (process.platform === 'win32') app.setAppUserModelId('io.github.soulpet.app') // needed for toast notifications
   core = new AppCore({
     dataDir: resolveDataDir(),
     fetch: (url, init) => net.fetch(url, init as RequestInit),

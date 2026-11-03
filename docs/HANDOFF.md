@@ -29,6 +29,8 @@ npm run dist:win           # 打包
 - 在 root 下运行 Electron 必须加 `--no-sandbox`。
 - Playwright 是全局安装的，项目里**不要**把它加进依赖（版本不一致会找不到预装的 Chromium）。`scripts/gen-assets.mjs` 和 `tests/e2e/smoke.mjs` 都用 `createRequire` 加载它。
 - Linux 下 `setIgnoreMouseEvents(..., {forward})` 不支持，所以代码在 Linux 上跳过鼠标穿透。
+- `git push` 偶尔会卡住，用 `timeout 90 git push origin desktop-pet`，失败了重试。
+- CI 里有 `e2e-windows` 任务，会在真实的 Windows runner 上跑同一个 e2e 测试，截图在 artifact `e2e-screenshots-windows` 里。
 
 ## 已完成（v0.1，提交 a0f5570 起）
 
