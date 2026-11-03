@@ -16,7 +16,7 @@
 | **提醒 / 番茄钟** | **首次启动引导** |
 | ![提醒面板](docs/screenshots/panel-tasks.png) | ![首次启动引导](docs/screenshots/wizard-2.png) |
 
-> 📖 **[使用说明 / 常见问题](docs/USER_GUIDE.md)** · 需求整理见 [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) · 开源项目调研和选型理由见 [docs/RESEARCH.md](docs/RESEARCH.md)
+> 📖 **[使用说明 / 常见问题](docs/USER_GUIDE.md)** · [更新记录](CHANGELOG.md) · 需求整理见 [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) · 开源项目调研和选型理由见 [docs/RESEARCH.md](docs/RESEARCH.md)
 
 ## 功能
 
