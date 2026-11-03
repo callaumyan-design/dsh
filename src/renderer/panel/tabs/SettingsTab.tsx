@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { EMBEDDING_PRESETS, PROVIDER_PRESETS } from '../../../core/ai/providers'
+import { STT_PRESETS } from '../../../core/ai/stt'
 import type { ProviderConfig } from '../../../core/ai/types'
 import type { PublicProvider, Snapshot } from '../../../core/ipc'
 import type { Settings } from '../../../core/settings'
@@ -162,6 +163,7 @@ export function SettingsTab({ snap, onRefresh }: { snap: Snapshot; onRefresh: ()
   const toast = useToast()
   const [editing, setEditing] = useState(s.activeProviderId)
   const [embKey, setEmbKey] = useState('')
+  const [sttKey, setSttKey] = useState('')
   const provider = s.providers.find((p) => p.id === editing) ?? s.providers[0]
   const update = (patch: Partial<Settings>) => void api.settingsUpdate(patch)
 
@@ -326,6 +328,67 @@ export function SettingsTab({ snap, onRefresh }: { snap: Snapshot; onRefresh: ()
             试听
           </button>
         </div>
+      </Section>
+
+      <Section title="语音输入" desc="在聊天框里按住 🎤 说话，松开后转成文字发给它。需要一个语音识别接口，推荐硅基流动的 SenseVoice（免费）。">
+        <Field label="开启语音输入">
+          <Toggle checked={s.stt.enabled} onChange={(v) => update({ stt: { ...s.stt, enabled: v } })} />
+        </Field>
+        {s.stt.enabled && (
+          <>
+            <Field label="预设">
+              <select
+                value=""
+                onChange={(e) => {
+                  const p = STT_PRESETS.find((x) => x.name === e.target.value)
+                  if (p) update({ stt: { ...s.stt, baseURL: p.baseURL, model: p.model, keyFrom: p.keyFrom } })
+                }}
+              >
+                <option value="">选择一个预设…</option>
+                {STT_PRESETS.map((p) => (
+                  <option key={p.name}>{p.name}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="接口地址">
+              <input value={s.stt.baseURL} onChange={(e) => update({ stt: { ...s.stt, baseURL: e.target.value } })} />
+            </Field>
+            <Field label="模型">
+              <input value={s.stt.model} onChange={(e) => update({ stt: { ...s.stt, model: e.target.value } })} />
+            </Field>
+            <Field label="语言" hint="留空自动识别；Whisper 可以填 zh 提高中文准确率">
+              <input value={s.stt.language} placeholder="自动" onChange={(e) => update({ stt: { ...s.stt, language: e.target.value.trim() } })} />
+            </Field>
+            <Field label="API Key 来源">
+              <select value={s.stt.keyFrom} onChange={(e) => update({ stt: { ...s.stt, keyFrom: e.target.value } })}>
+                <option value="own">单独填写</option>
+                {s.providers.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    复用「{p.name}」的 Key{p.hasKey ? '' : '（还没填）'}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            {s.stt.keyFrom === 'own' && (
+              <Field label="语音识别 Key" hint={s.sttHasOwnKey ? '✅ 已保存' : '还没有填写'}>
+                <div className="row">
+                  <input type="password" value={sttKey} onChange={(e) => setSttKey(e.target.value)} placeholder="sk-..." />
+                  <button
+                    className="btn"
+                    onClick={async () => {
+                      await api.setApiKey('stt', sttKey)
+                      setSttKey('')
+                      toast('已保存')
+                      onRefresh()
+                    }}
+                  >
+                    保存
+                  </button>
+                </div>
+              </Field>
+            )}
+          </>
+        )}
       </Section>
 
       <Section title="养成 & 费用">

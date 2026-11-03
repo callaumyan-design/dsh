@@ -42,6 +42,8 @@ export interface Settings {
   }
   app: { autoStart: boolean; dnd: boolean; hotkey: string; alwaysOnTop: boolean; clickThrough: boolean; proxy: string }
   voice: { enabled: boolean; voiceName: string; rate: number; pitch: number; volume: number }
+  /** speech-to-text; keyFrom = provider id whose key to reuse, or 'own' */
+  stt: { enabled: boolean; baseURL: string; model: string; keyFrom: string; language: string }
   window: { x: number | null; y: number | null }
   /** greeting shown */
   onboarded: boolean
@@ -63,6 +65,7 @@ export function defaultSettings(): Settings {
     appearance: { packId: BUILTIN_PACK_ID, scale: 1, walkEnabled: true, blobColor: '#8fd3ff', blobAccessory: 'bow', opacity: 1 },
     app: { autoStart: false, dnd: false, hotkey: 'CommandOrControl+Alt+P', alwaysOnTop: true, clickThrough: false, proxy: '' },
     voice: { enabled: false, voiceName: '', rate: 1.1, pitch: 1.3, volume: 0.9 },
+    stt: { enabled: false, baseURL: 'https://api.siliconflow.cn/v1', model: 'FunAudioLLM/SenseVoiceSmall', keyFrom: 'siliconflow', language: '' },
     window: { x: null, y: null },
     onboarded: false,
     setupDone: false

@@ -8,6 +8,7 @@ import type { FocusSession } from '../../core/tasks'
 import { api } from '../shared/api'
 import { PetView } from '../shared/PetView'
 import { speak } from '../shared/speech'
+import { useRecorder } from '../shared/useRecorder'
 
 const BUBBLE_SPACE = 150
 const MIN_W = 240
@@ -50,6 +51,8 @@ export function PetApp() {
   const [hearts, setHearts] = useState<number[]>([])
   const [petName, setPetName] = useState('它')
   const [focus, setFocus] = useState<FocusSession | null>(null)
+  const [hearing, setHearing] = useState(false)
+  const recorder = useRecorder()
   const [, force] = useState(0)
 
   const bubbleTimer = useRef<number | null>(null)
@@ -210,6 +213,28 @@ export function PetApp() {
     })
   }
 
+  const startTalk = async () => {
+    try {
+      await recorder.start()
+    } catch (e) {
+      showBubble({ text: `打不开麦克风：${(e as Error).message}`, emotion: 'sad', streaming: false, error: true }, 5000)
+    }
+  }
+  const stopTalk = async () => {
+    const rec = await recorder.stop()
+    if (!rec) return
+    if (rec.ms < 500) return showBubble({ text: '按住 🎤 说话，说完再松开哦~', emotion: null, streaming: false }, 3000)
+    setHearing(true)
+    const r = await api.sttTranscribe(rec.data, rec.mime)
+    setHearing(false)
+    if (!r.ok || !r.text) return showBubble({ text: r.error ?? '没听清', emotion: 'sad', streaming: false, error: true }, 5000)
+    setDraft('')
+    setInputOpen(false)
+    void api.chatSend(r.text).then((res) => {
+      if (!res.ok && res.error) showBubble({ text: res.error, emotion: 'sad', streaming: false, error: true }, 4000)
+    })
+  }
+
   const enter = () => {
     setHover(true)
     api.petSetInteractive(true)
@@ -234,10 +259,21 @@ export function PetApp() {
       <div className="top-area" style={{ height: BUBBLE_SPACE }}>
         {inputOpen ? (
           <div className="quick-input hit" onMouseEnter={enter} onMouseLeave={leave}>
+            {settings.stt?.enabled && (
+              <button
+                className={`mic ${recorder.recording ? 'on' : ''}`}
+                title="按住说话，松开发送"
+                onMouseDown={(e) => (e.preventDefault(), void startTalk())}
+                onMouseUp={() => void stopTalk()}
+                onMouseLeave={() => recorder.recording && void stopTalk()}
+              >
+                {hearing ? '…' : '🎤'}
+              </button>
+            )}
             <input
               ref={inputRef}
               value={draft}
-              placeholder={`和${petName}说点什么…（Enter 发送）`}
+              placeholder={recorder.recording ? '正在听……松开就发送' : hearing ? '识别中…' : `和${petName}说点什么…（Enter 发送）`}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.nativeEvent.isComposing) send()

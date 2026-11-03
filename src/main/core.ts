@@ -7,6 +7,7 @@ import path from 'node:path'
 import { chat } from '../core/ai/client'
 import { EMOTION_ANIM, EmotionStreamParser, stripEmotionTags, type Emotion } from '../core/ai/emotion'
 import { embedOpenAI } from '../core/ai/openai'
+import { transcribe } from '../core/ai/stt'
 import { buildChatMessages, buildSystemPrompt } from '../core/ai/prompt'
 import type { ChatMessage, FetchLike, ProviderConfig } from '../core/ai/types'
 import { applyAction, conditions, createGame, describeForPrompt, normalizeGame, tick } from '../core/game/engine'
@@ -45,6 +46,7 @@ import { Secrets } from './secrets'
 import { ChatLog, JsonFile } from './storage'
 
 export const EMBEDDING_SECRET = '__embedding__'
+export const STT_SECRET = '__stt__'
 
 type Broadcast = <K extends keyof EventMap>(channel: K, payload: EventMap[K]) => void
 
@@ -184,7 +186,8 @@ export class AppCore {
     return {
       ...s,
       providers: s.providers.map((p) => ({ ...p, hasKey: this.secrets.has(p.id) })),
-      embeddingHasOwnKey: this.secrets.has(EMBEDDING_SECRET)
+      embeddingHasOwnKey: this.secrets.has(EMBEDDING_SECRET),
+      sttHasOwnKey: this.secrets.has(STT_SECRET)
     }
   }
 
@@ -296,6 +299,21 @@ export class AppCore {
       }
     } catch (err) {
       console.warn('[memory] embedding failed:', (err as Error).message)
+    }
+  }
+
+  // ---------------------------------------------------------------- speech-to-text
+
+  async transcribe(audio: Uint8Array, mime: string): Promise<{ ok: boolean; text?: string; error?: string }> {
+    const s = this.settings.data.stt
+    if (!s.enabled) return { ok: false, error: '语音输入没有开启（设置 → 语音输入）' }
+    const key = s.keyFrom === 'own' ? this.secrets.get(STT_SECRET) : this.secrets.get(s.keyFrom)
+    try {
+      const text = await transcribe({ baseURL: s.baseURL, model: s.model, language: s.language || undefined }, audio, mime, key, this.opts.fetch, AbortSignal.timeout(60_000))
+      return text ? { ok: true, text } : { ok: false, error: '没听清，再说一遍吧~' }
+    } catch (e) {
+      console.warn('[stt]', (e as Error).message)
+      return { ok: false, error: (e as Error).message }
     }
   }
 

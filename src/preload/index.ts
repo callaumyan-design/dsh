@@ -34,6 +34,7 @@ const api: SoulPetAPI = {
   setApiKey: (target, key) => invoke('secrets:set', target, key),
   testProvider: (id) => invoke('provider:test', id),
   testEmbedding: () => invoke('embedding:test'),
+  sttTranscribe: (audio, mime) => invoke('stt:transcribe', audio, mime),
 
   personaUpdate: (patch) => invoke('persona:update', patch),
   personaImportCard: () => invoke('persona:importCard'),

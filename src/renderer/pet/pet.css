@@ -156,3 +156,6 @@ html, body, #root {
   box-shadow: 0 3px 10px rgba(30, 35, 70, 0.15);
   pointer-events: none;
 }
+
+.quick-input .mic { padding: 0 9px; background: #eef0ff; color: #333; font-size: 15px; }
+.quick-input .mic.on { background: #ff6f61; color: #fff; animation: blink 1s ease-in-out infinite; }

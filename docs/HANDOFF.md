@@ -50,6 +50,8 @@ npm run dist:win           # 打包
 
 ## 进行中 / 待办（按优先级）
 
+- [x] 语音输入（按住 🎤 说话 → MediaRecorder → 主进程 → OpenAI 兼容 `/audio/transcriptions`；默认用硅基流动 SenseVoice；e2e 用 Chromium 的假麦克风测试）。媒体权限只开放给自己的页面（`setPermissionRequestHandler`）
+
 - [x] CI 跑绿：单元测试 + Linux e2e + **真实 Windows e2e** + 三平台打包（Windows artifact 约 275MB：NSIS 安装包 + zip）
 - [x] 日志文件（`<数据目录>/logs/main.log`，API Key 会被打码）、代理设置（`settings.app.proxy`，`session.setProxy`）、后台 JSON 调用用 `response_format: json_object`（不支持就自动重试不带它）
 - [x] v0.2.0：版本号已更新，发布标签改为 `soulpet-v*`（避免和 DSH 的标签冲突），推送标签后生成 Release 草稿

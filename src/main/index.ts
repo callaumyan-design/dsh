@@ -22,7 +22,7 @@ import type { EventMap, Snapshot } from '../core/ipc'
 import { personaFromCardFile } from '../core/persona/card'
 import { DEFAULT_PERSONA, normalizePersona } from '../core/persona/persona'
 import type { ProviderConfig } from '../core/ai/types'
-import { AppCore, EMBEDDING_SECRET } from './core'
+import { AppCore, EMBEDDING_SECRET, STT_SECRET } from './core'
 import { PetMotion } from './motion'
 import { installLogger } from './logger'
 import { importFolder, importZip } from './packImport'
@@ -347,13 +347,17 @@ function registerIpc(): void {
   })
   h('provider:remove', (_e, id: string) => core.updateSettings({ providers: core.settings.data.providers.filter((p) => p.id !== id) }))
   h('secrets:set', (_e, target: string, key: string) => {
-    core.secrets.set(target === 'embedding' ? EMBEDDING_SECRET : target, String(key ?? ''))
+    core.secrets.set(target === 'embedding' ? EMBEDDING_SECRET : target === 'stt' ? STT_SECRET : target, String(key ?? ''))
     const pub = core.publicSettings()
     broadcast('settings:update', pub)
     if (target === 'embedding' || target === core.settings.data.embedding.keyFrom) void core.embedPending()
     return pub
   })
   h('provider:test', (_e, id: string) => core.testProvider(id))
+  h('stt:transcribe', (_e, audio: Uint8Array, mime: string) => {
+    if (!(audio instanceof Uint8Array) || audio.length > 25 * 1024 * 1024) return { ok: false, error: '录音太长了' }
+    return core.transcribe(audio, String(mime ?? 'audio/webm'))
+  })
   h('embedding:test', async () => {
     const r = await core.testEmbedding()
     if (r.ok) void core.embedPending()
@@ -463,6 +467,9 @@ async function main(): Promise<void> {
       console.warn('[notify]', e)
     }
   }
+  const ownPage = (url: string) => url.startsWith('file:') || (!!process.env.ELECTRON_RENDERER_URL && url.startsWith(process.env.ELECTRON_RENDERER_URL))
+  session.defaultSession.setPermissionRequestHandler((wc, permission, cb) => cb(ownPage(wc.getURL()) && ['media', 'notifications', 'clipboard-sanitized-write'].includes(permission)))
+  session.defaultSession.setPermissionCheckHandler((wc, permission) => !!wc && ownPage(wc.getURL()) && ['media', 'notifications', 'clipboard-sanitized-write'].includes(permission))
   await applyProxy()
   packs = new PackManager(path.join(resourcesDir, 'pets'), path.join(core.dataDir, 'pets'))
   packs.installProtocol()

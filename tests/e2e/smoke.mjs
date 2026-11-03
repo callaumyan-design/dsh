@@ -18,10 +18,16 @@ fs.mkdirSync(shots, { recursive: true })
 
 // ---------------------------------------------------------------- fake LLM
 const requests = []
+const sttRequests = []
 const server = http.createServer((req, res) => {
   let body = ''
   req.on('data', (c) => (body += c))
   req.on('end', () => {
+    if (req.url.endsWith('/audio/transcriptions')) {
+      sttRequests.push({ type: req.headers['content-type'], size: body.length })
+      res.writeHead(200, { 'content-type': 'application/json' })
+      return res.end(JSON.stringify({ text: '<|zh|>我喜欢吃什么' }))
+    }
     const j = JSON.parse(body || '{}')
     requests.push(j)
     const system = j.messages?.find((m) => m.role === 'system')?.content ?? ''
@@ -65,14 +71,15 @@ fs.writeFileSync(
   JSON.stringify({
     providers: [{ id: 'fake', name: '测试模型', kind: 'openai', baseURL: `http://127.0.0.1:${port}/v1`, model: 'fake-1', noKey: true }],
     activeProviderId: 'fake',
-    proactive: { level: 'off' }
+    proactive: { level: 'off' },
+    stt: { enabled: true, baseURL: `http://127.0.0.1:${port}/v1`, model: 'sv', keyFrom: 'own' }
   })
 )
 
 async function launch(openPanel) {
   const app = await electron.launch({
     executablePath: require(path.join(root, 'node_modules/electron')), // resolves (and if needed downloads) the binary
-    args: ['--no-sandbox', root],
+    args: ['--no-sandbox', '--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream', root],
     env: { ...process.env, SOULPET_DATA_DIR: dataDir, ...(openPanel ? { SOULPET_OPEN_PANEL: openPanel } : {}) }
   })
   await app.firstWindow()
@@ -168,6 +175,27 @@ await pet.screenshot({ path: path.join(shots, 'pet-focus.png'), omitBackground: 
 await pet.evaluate(() => window.soulpet.focusStop())
 assert.equal((await pet.evaluate(() => window.soulpet.getSnapshot())).tasks.focus, null)
 step('focus mode: work animation + countdown badge, stop works')
+
+// voice input: hold the mic button (fake microphone), release -> transcribe -> chat
+const sttBefore = requests.length
+// open the quick input the same way the hotkey does
+await app.evaluate(({ BrowserWindow }) => {
+  for (const w of BrowserWindow.getAllWindows()) if (w.webContents.getURL().includes('/pet/')) w.webContents.send('pet:openInput', {})
+})
+await pet.waitForSelector('.quick-input .mic')
+const mic = await pet.$('.quick-input .mic')
+const box = await mic.boundingBox()
+await pet.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+await pet.mouse.down()
+await pet.waitForSelector('.quick-input .mic.on')
+await pet.waitForTimeout(1200)
+await pet.mouse.up()
+await waitFor(() => sttRequests.length > 0, 8000, 'transcription request')
+assert.match(sttRequests[0].type, /multipart\/form-data/)
+assert.ok(sttRequests[0].size > 1000, `recorded audio should not be empty (${sttRequests[0].size} bytes)`)
+await waitFor(() => requests.slice(sttBefore).some((r) => r.messages?.at(-1)?.content === '我喜欢吃什么'), 8000, 'transcript sent as chat')
+await waitFor(async () => (await pet.textContent('.bubble'))?.includes('草莓呀'), 8000, 'reply to voice message')
+step(`voice input: recorded ${sttRequests[0].size} bytes from the (fake) mic, transcribed and answered`)
 
 // game
 const before = (await pet.evaluate(() => window.soulpet.getSnapshot())).game

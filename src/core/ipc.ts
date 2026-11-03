@@ -25,6 +25,7 @@ export type PublicProvider = ProviderConfig & { hasKey: boolean }
 export interface PublicSettings extends Omit<Settings, 'providers'> {
   providers: PublicProvider[]
   embeddingHasOwnKey: boolean
+  sttHasOwnKey: boolean
 }
 
 export interface Snapshot {
@@ -115,6 +116,7 @@ export interface SoulPetAPI {
   setApiKey(target: string, key: string): Promise<PublicSettings>
   testProvider(id: string): Promise<TestResult>
   testEmbedding(): Promise<TestResult>
+  sttTranscribe(audio: Uint8Array, mime: string): Promise<{ ok: boolean; text?: string; error?: string }>
 
   personaUpdate(patch: Partial<Persona>): Promise<Persona>
   personaImportCard(): Promise<{ ok: boolean; persona?: Persona; error?: string }>
