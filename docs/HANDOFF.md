@@ -8,7 +8,7 @@ SoulPet 灵宠：Electron + TypeScript + React 的桌面电子宠物，有四大
 
 ## 发布
 
-- **v0.3.0（推荐）**：Release 草稿「SoulPet soulpet-v0.3.0」，基于 4257dd6，包含两轮审查修复。
+- **v0.3.0（推荐）**：Release 草稿「SoulPet soulpet-v0.3.0」，基于 desktop-pet 分支最新代码，包含三轮审查修复。
 - v0.2.0：较早的草稿，**有已知 bug**（gpt-5 调用失败、宠物被打断后不再走路）。可以删掉，或者只发布 v0.3.0。
 - 草稿只有仓库成员能看到，用户确认后在 GitHub Releases 页面点 Publish。发布方式见下文“沙箱推不了 tag”。
 
