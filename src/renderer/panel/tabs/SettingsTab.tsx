@@ -357,7 +357,7 @@ export function SettingsTab({ snap, onRefresh }: { snap: Snapshot; onRefresh: ()
         <Field label="开机自启">
           <Toggle checked={s.app.autoStart} onChange={(v) => update({ app: { ...s.app, autoStart: v } })} />
         </Field>
-        <Field label="聊天快捷键" hint="Electron 加速键格式，例如 CommandOrControl+Shift+Space">
+        <Field label="聊天快捷键" hint="Electron 加速键格式，例如 CommandOrControl+Alt+P（Ctrl+Alt+P）">
           <input defaultValue={s.app.hotkey} onBlur={(e) => e.target.value !== s.app.hotkey && update({ app: { ...s.app, hotkey: e.target.value } })} />
         </Field>
         <Field label="网络代理" hint="留空 = 跟随系统代理。例如 http://127.0.0.1:7890 或 socks5://127.0.0.1:1080（访问 OpenAI / Claude 时可能需要）">

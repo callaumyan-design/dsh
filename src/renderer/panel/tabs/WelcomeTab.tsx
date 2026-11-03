@@ -209,7 +209,7 @@ export function WelcomeTab({ snap, onDone }: { snap: Snapshot; onDone: () => voi
               <b>单击</b> {name}：摸摸它（加好感）
             </li>
             <li>
-              <b>双击</b>，或者按 <code>Ctrl+Shift+Space</code>：和它聊天
+              <b>双击</b>，或者按 <code>{s.app.hotkey.replace('CommandOrControl', snap.platform === 'darwin' ? 'Cmd' : 'Ctrl')}</code>：和它聊天
             </li>
             <li>
               <b>拖动</b>：把它拎起来，松手会掉下去
