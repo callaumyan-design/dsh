@@ -41,7 +41,10 @@ export interface Settings {
   }
   app: { autoStart: boolean; dnd: boolean; hotkey: string; alwaysOnTop: boolean }
   window: { x: number | null; y: number | null }
+  /** greeting shown */
   onboarded: boolean
+  /** first-run wizard finished */
+  setupDone: boolean
 }
 
 export function defaultSettings(): Settings {
@@ -58,7 +61,8 @@ export function defaultSettings(): Settings {
     appearance: { packId: BUILTIN_PACK_ID, scale: 1, walkEnabled: true, blobColor: '#8fd3ff', blobAccessory: 'bow' },
     app: { autoStart: false, dnd: false, hotkey: 'CommandOrControl+Shift+Space', alwaysOnTop: true },
     window: { x: null, y: null },
-    onboarded: false
+    onboarded: false,
+    setupDone: false
   }
 }
 

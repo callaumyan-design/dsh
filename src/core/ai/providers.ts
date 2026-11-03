@@ -33,7 +33,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     effort: 'low',
     useFallbacks: true,
     keyUrl: 'https://console.anthropic.com/settings/keys',
-    note: '使用官方 Anthropic SDK。effort 默认 low，适合闲聊；可在设置里调高。'
+    note: 'Claude 系列，理解力强。默认用低思考力度聊天，又快又省；可在设置里调高。'
   },
   {
     id: 'openai',

@@ -330,6 +330,7 @@ function registerIpc(): void {
     if (/^https?:\/\//.test(url)) void shell.openExternal(url)
   })
   h('app:openPanel', (_e, tab?: string) => openPanel(tab))
+  h('app:completeSetup', () => core.completeSetup())
 
   ipcMain.on('pet:dragStart', () => motion?.dragStart())
   ipcMain.on('pet:dragEnd', () => motion?.dragEnd())
@@ -374,6 +375,7 @@ async function main(): Promise<void> {
   applyAutoStart()
   core.start()
   if (process.env.SOULPET_OPEN_PANEL) openPanel(process.env.SOULPET_OPEN_PANEL)
+  else if (!core.settings.data.setupDone) openPanel('welcome')
 }
 
 app.on('before-quit', () => {

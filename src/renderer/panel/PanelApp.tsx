@@ -9,9 +9,11 @@ import { PersonaTab } from './tabs/PersonaTab'
 import { SettingsTab } from './tabs/SettingsTab'
 import { ShopTab } from './tabs/ShopTab'
 import { StatusTab } from './tabs/StatusTab'
+import { WelcomeTab } from './tabs/WelcomeTab'
 import { ToastProvider } from './ui'
 
 const TABS = [
+  { id: 'welcome', label: '开始设置', icon: '✨' },
   { id: 'chat', label: '聊天', icon: '💬' },
   { id: 'status', label: '状态', icon: '📊' },
   { id: 'shop', label: '商店', icon: '🛒' },
@@ -53,7 +55,7 @@ export function PanelApp() {
             <span className="brand-name">{snap.persona.name}</span>
             <span className="muted">SoulPet 灵宠 v{snap.version}</span>
           </div>
-          {TABS.map((t) => (
+          {TABS.filter((t) => t.id !== 'welcome' || !snap.settings.setupDone).map((t) => (
             <button key={t.id} className={`nav ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}>
               <span className="nav-icon">{t.icon}</span>
               {t.label}
@@ -67,6 +69,15 @@ export function PanelApp() {
           </div>
         </nav>
         <main className="content">
+          {tab === 'welcome' && (
+            <WelcomeTab
+              snap={snap}
+              onDone={() => {
+                setTab('chat')
+                refresh()
+              }}
+            />
+          )}
           {tab === 'chat' && <ChatTab snap={snap} />}
           {tab === 'status' && <StatusTab snap={snap} />}
           {tab === 'shop' && <ShopTab snap={snap} />}

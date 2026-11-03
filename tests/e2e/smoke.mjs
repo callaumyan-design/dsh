@@ -94,13 +94,29 @@ const waitFor = async (fn, ms = 8000, label = 'condition') => {
 const step = (name) => console.log(`✓ ${name}`)
 
 // ---------------------------------------------------------------- run 1
-let { app, pet } = await launch('chat')
+let { app, pet } = await launch()
 step('app launched, pet window rendered')
 
-// first-launch greeting bubble
-await pet.waitForSelector('.bubble', { timeout: 5000 })
-assert.match(await pet.textContent('.bubble'), /团子/)
-step('first-launch greeting shown')
+// first run: setup wizard opens in the panel
+const wizard = await waitFor(() => app.windows().find((w) => w.url().includes('panel')), 8000, 'setup wizard')
+await wizard.setViewportSize({ width: 1100, height: 760 })
+await wizard.waitForSelector('.welcome')
+await wizard.screenshot({ path: path.join(shots, 'wizard-1.png') })
+await wizard.fill('.welcome input >> nth=0', '小团')
+await wizard.fill('.welcome input >> nth=1', '小明')
+await wizard.click('button:has-text("下一步")')
+await wizard.waitForSelector('.provider-cards')
+await wizard.waitForSelector('text=已配置') // fake provider needs no key
+await wizard.screenshot({ path: path.join(shots, 'wizard-2.png') })
+await wizard.click('button:has-text("下一步")')
+await wizard.waitForSelector('.pack-grid')
+await wizard.click('button:has-text("下一步")')
+await wizard.click('button:has-text("开始陪伴")')
+await waitFor(async () => (await pet.textContent('.bubble'))?.includes('小团'), 8000, 'greeting with new name')
+const persona = (await pet.evaluate(() => window.soulpet.getSnapshot())).persona
+assert.equal(persona.name, '小团')
+assert.equal(persona.userCallName, '小明')
+step('setup wizard: pet named, provider confirmed, greeting uses the new name')
 await pet.screenshot({ path: path.join(shots, 'pet-greeting.png'), omitBackground: true })
 
 // chat with explicit "remember"
@@ -123,6 +139,7 @@ await pet.evaluate(() => window.soulpet.chatSend('我喜欢吃什么？'))
 await waitFor(async () => (await pet.textContent('.bubble'))?.includes('草莓呀'), 8000, 'recall reply')
 const recallReq = requests.filter((r) => !r.messages[0].content.includes('记忆管理员')).at(-1)
 assert.match(recallReq.messages[0].content, /用户喜欢吃草莓/, 'memory injected into system prompt')
+  assert.match(recallReq.messages[0].content, /小团/, 'persona name in system prompt')
 assert.ok(recallReq.messages.some((m) => m.role === 'assistant' && m.content.includes('记住啦')), 'chat history included')
 step('memory retrieved into the prompt and recalled')
 
@@ -142,8 +159,7 @@ assert.ok(diary.ok, diary.error)
 step('diary generated, insight added to memory')
 
 // panel
-const panel = await waitFor(() => app.windows().find((w) => w.url().includes('panel')), 8000, 'panel window')
-await panel.setViewportSize({ width: 1100, height: 760 })
+const panel = wizard
 await panel.waitForSelector('.chat-list .msg')
 await panel.screenshot({ path: path.join(shots, 'panel-chat.png') })
 for (const [label, file] of [

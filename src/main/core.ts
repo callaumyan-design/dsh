@@ -293,12 +293,22 @@ export class AppCore {
     return msg
   }
 
-  /** Greeting on first launch. */
+  /** Greeting on first launch (after the setup wizard). */
   greetIfNew(): void {
-    if (this.settings.data.onboarded) return
+    const s = this.settings.data
+    if (!s.setupDone) {
+      this.say('你好呀~ 先在弹出的窗口里给我起个名字、接上“大脑”吧！', { emotion: 'happy', save: false })
+      return
+    }
+    if (s.onboarded) return
     const { text, emotion } = stripEmotionTags(this.persona.data.greeting)
     this.say(text, { emotion })
     this.updateSettings({ onboarded: true })
+  }
+
+  completeSetup(): void {
+    this.updateSettings({ setupDone: true })
+    this.greetIfNew()
   }
 
   abortChat(): void {

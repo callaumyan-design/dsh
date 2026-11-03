@@ -118,6 +118,7 @@ export interface SoulPetAPI {
   openExternal(url: string): Promise<void>
 
   openPanel(tab?: string): Promise<void>
+  completeSetup(): Promise<void>
   petDragStart(): void
   petDragEnd(): void
   petSetInteractive(interactive: boolean): void
