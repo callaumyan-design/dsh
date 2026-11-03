@@ -185,7 +185,7 @@ export function WelcomeTab({ snap, onDone }: { snap: Snapshot; onDone: () => voi
                   className={`swatch ${a.blobColor === c ? 'active' : ''}`}
                   style={{ background: c }}
                   aria-label={c}
-                  onClick={() => void api.settingsUpdate({ appearance: { ...a, blobColor: c } })}
+                  onClick={() => void api.settingsUpdate({ appearance: { blobColor: c } })}
                 />
               ))}
             </div>

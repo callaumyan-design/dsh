@@ -4,6 +4,9 @@ import type { Difficulty } from './game/types'
 import { BUILTIN_PACK_ID } from './pets/pack'
 import type { ProactiveSettings } from './proactive'
 
+/** Recursive partial: settings updates only need the fields that changed. Arrays are replaced. */
+export type DeepPartial<T> = { [K in keyof T]?: T[K] extends Array<unknown> ? T[K] : T[K] extends object ? DeepPartial<T[K]> : T[K] }
+
 export type BlobAccessory = 'none' | 'bow' | 'leaf' | 'crown' | 'glasses' | 'cat-ears'
 
 export interface Settings {

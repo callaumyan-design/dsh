@@ -3,7 +3,7 @@ import { EMBEDDING_PRESETS, PROVIDER_PRESETS } from '../../../core/ai/providers'
 import { STT_PRESETS } from '../../../core/ai/stt'
 import type { ProviderConfig } from '../../../core/ai/types'
 import type { PublicProvider, Snapshot } from '../../../core/ipc'
-import type { Settings } from '../../../core/settings'
+import type { DeepPartial, Settings } from '../../../core/settings'
 import { api } from '../../shared/api'
 import { speak } from '../../shared/speech'
 import { Field, Section, Toggle, useToast } from '../ui'
@@ -167,7 +167,7 @@ export function SettingsTab({ snap, onRefresh }: { snap: Snapshot; onRefresh: ()
   const [update_, setUpdate] = useState<string>('')
   const [diag, setDiag] = useState('')
   const provider = s.providers.find((p) => p.id === editing) ?? s.providers[0]
-  const update = (patch: Partial<Settings>) => void api.settingsUpdate(patch)
+  const update = (patch: DeepPartial<Settings>) => void api.settingsUpdate(patch)
 
   return (
     <div className="stack">
@@ -207,16 +207,16 @@ export function SettingsTab({ snap, onRefresh }: { snap: Snapshot; onRefresh: ()
 
       <Section title="记忆" desc="向量记忆可以按“意思”而不只是关键词找回记忆。DeepSeek 没有向量接口，可以用硅基流动的免费 bge-m3。">
         <Field label="自动记住重要的事">
-          <Toggle checked={s.memory.autoExtract} onChange={(v) => update({ memory: { ...s.memory, autoExtract: v } })} label="每轮对话后让模型整理记忆（会多一次调用）" />
+          <Toggle checked={s.memory.autoExtract} onChange={(v) => update({ memory: { autoExtract: v } })} label="每轮对话后让模型整理记忆（会多一次调用）" />
         </Field>
         <Field label="每天写日记">
-          <Toggle checked={s.memory.dailyDiary} onChange={(v) => update({ memory: { ...s.memory, dailyDiary: v } })} />
+          <Toggle checked={s.memory.dailyDiary} onChange={(v) => update({ memory: { dailyDiary: v } })} />
         </Field>
         <Field label="每次带入的记忆数">
-          <input type="number" min={0} max={20} value={s.memory.maxRetrieved} onChange={(e) => update({ memory: { ...s.memory, maxRetrieved: Number(e.target.value) } })} />
+          <input type="number" min={0} max={20} value={s.memory.maxRetrieved} onChange={(e) => update({ memory: { maxRetrieved: Number(e.target.value) } })} />
         </Field>
         <Field label="向量记忆 (Embedding)">
-          <Toggle checked={s.embedding.enabled} onChange={(v) => update({ embedding: { ...s.embedding, enabled: v } })} />
+          <Toggle checked={s.embedding.enabled} onChange={(v) => update({ embedding: { enabled: v } })} />
         </Field>
         {s.embedding.enabled && (
           <>
@@ -225,7 +225,7 @@ export function SettingsTab({ snap, onRefresh }: { snap: Snapshot; onRefresh: ()
                 value=""
                 onChange={(e) => {
                   const p = EMBEDDING_PRESETS.find((x) => x.name === e.target.value)
-                  if (p) update({ embedding: { ...s.embedding, baseURL: p.baseURL, model: p.model } })
+                  if (p) update({ embedding: { baseURL: p.baseURL, model: p.model } })
                 }}
               >
                 <option value="">选择一个预设…</option>
@@ -235,13 +235,13 @@ export function SettingsTab({ snap, onRefresh }: { snap: Snapshot; onRefresh: ()
               </select>
             </Field>
             <Field label="接口地址">
-              <input value={s.embedding.baseURL} onChange={(e) => update({ embedding: { ...s.embedding, baseURL: e.target.value } })} />
+              <input value={s.embedding.baseURL} onChange={(e) => update({ embedding: { baseURL: e.target.value } })} />
             </Field>
             <Field label="模型">
-              <input value={s.embedding.model} onChange={(e) => update({ embedding: { ...s.embedding, model: e.target.value } })} />
+              <input value={s.embedding.model} onChange={(e) => update({ embedding: { model: e.target.value } })} />
             </Field>
             <Field label="API Key 来源">
-              <select value={s.embedding.keyFrom} onChange={(e) => update({ embedding: { ...s.embedding, keyFrom: e.target.value } })}>
+              <select value={s.embedding.keyFrom} onChange={(e) => update({ embedding: { keyFrom: e.target.value } })}>
                 <option value="own">单独填写</option>
                 {s.providers.map((p) => (
                   <option key={p.id} value={p.id}>
@@ -285,7 +285,7 @@ export function SettingsTab({ snap, onRefresh }: { snap: Snapshot; onRefresh: ()
 
       <Section title="主动搭话">
         <Field label="频率">
-          <select value={s.proactive.level} onChange={(e) => update({ proactive: { ...s.proactive, level: e.target.value as Settings['proactive']['level'] } })}>
+          <select value={s.proactive.level} onChange={(e) => update({ proactive: { level: e.target.value as Settings['proactive']['level'] } })}>
             <option value="off">关闭</option>
             <option value="low">偶尔（每天最多 3 次）</option>
             <option value="medium">适中（每天最多 6 次）</option>
@@ -294,23 +294,23 @@ export function SettingsTab({ snap, onRefresh }: { snap: Snapshot; onRefresh: ()
         </Field>
         <Field label="安静时段">
           <div className="row">
-            <Toggle checked={s.proactive.quietEnabled} onChange={(v) => update({ proactive: { ...s.proactive, quietEnabled: v } })} />
-            <input type="time" value={s.proactive.quietStart} onChange={(e) => update({ proactive: { ...s.proactive, quietStart: e.target.value } })} />
+            <Toggle checked={s.proactive.quietEnabled} onChange={(v) => update({ proactive: { quietEnabled: v } })} />
+            <input type="time" value={s.proactive.quietStart} onChange={(e) => update({ proactive: { quietStart: e.target.value } })} />
             <span>到</span>
-            <input type="time" value={s.proactive.quietEnd} onChange={(e) => update({ proactive: { ...s.proactive, quietEnd: e.target.value } })} />
+            <input type="time" value={s.proactive.quietEnd} onChange={(e) => update({ proactive: { quietEnd: e.target.value } })} />
           </div>
         </Field>
         <Field label="用 AI 生成台词" hint="关闭时使用内置台词，不花 token">
-          <Toggle checked={s.proactive.useAI} onChange={(v) => update({ proactive: { ...s.proactive, useAI: v } })} />
+          <Toggle checked={s.proactive.useAI} onChange={(v) => update({ proactive: { useAI: v } })} />
         </Field>
       </Section>
 
       <Section title="语音朗读" desc="用系统自带的语音（Windows 上通常有“晓晓”“慧慧”等中文语音）读出它说的话，不花 token、不联网。">
         <Field label="朗读回复">
-          <Toggle checked={s.voice.enabled} onChange={(v) => update({ voice: { ...s.voice, enabled: v } })} />
+          <Toggle checked={s.voice.enabled} onChange={(v) => update({ voice: { enabled: v } })} />
         </Field>
         <Field label="声音" hint={voices.length ? '' : '没有找到系统语音；Windows 可在“设置 → 时间和语言 → 语音”里添加中文语音'}>
-          <select value={s.voice.voiceName} onChange={(e) => update({ voice: { ...s.voice, voiceName: e.target.value } })}>
+          <select value={s.voice.voiceName} onChange={(e) => update({ voice: { voiceName: e.target.value } })}>
             <option value="">自动选择中文语音</option>
             {voices.map((v) => (
               <option key={v.name} value={v.name}>
@@ -320,10 +320,10 @@ export function SettingsTab({ snap, onRefresh }: { snap: Snapshot; onRefresh: ()
           </select>
         </Field>
         <Field label="语速" hint={s.voice.rate.toFixed(1)}>
-          <input type="range" min={0.5} max={2} step={0.1} value={s.voice.rate} onChange={(e) => update({ voice: { ...s.voice, rate: Number(e.target.value) } })} />
+          <input type="range" min={0.5} max={2} step={0.1} value={s.voice.rate} onChange={(e) => update({ voice: { rate: Number(e.target.value) } })} />
         </Field>
         <Field label="音调" hint={s.voice.pitch.toFixed(1)}>
-          <input type="range" min={0.5} max={2} step={0.1} value={s.voice.pitch} onChange={(e) => update({ voice: { ...s.voice, pitch: Number(e.target.value) } })} />
+          <input type="range" min={0.5} max={2} step={0.1} value={s.voice.pitch} onChange={(e) => update({ voice: { pitch: Number(e.target.value) } })} />
         </Field>
         <div className="row">
           <button className="btn" onClick={() => speak(`你好呀，我是${snap.persona.name}，今天也要开开心心的哦！`, s.voice, true)}>
@@ -334,7 +334,7 @@ export function SettingsTab({ snap, onRefresh }: { snap: Snapshot; onRefresh: ()
 
       <Section title="语音输入" desc="在聊天框里按住 🎤 说话，松开后转成文字发给它。需要一个语音识别接口，推荐硅基流动的 SenseVoice（免费）。">
         <Field label="开启语音输入">
-          <Toggle checked={s.stt.enabled} onChange={(v) => update({ stt: { ...s.stt, enabled: v } })} />
+          <Toggle checked={s.stt.enabled} onChange={(v) => update({ stt: { enabled: v } })} />
         </Field>
         {s.stt.enabled && (
           <>
@@ -343,7 +343,7 @@ export function SettingsTab({ snap, onRefresh }: { snap: Snapshot; onRefresh: ()
                 value=""
                 onChange={(e) => {
                   const p = STT_PRESETS.find((x) => x.name === e.target.value)
-                  if (p) update({ stt: { ...s.stt, baseURL: p.baseURL, model: p.model, keyFrom: p.keyFrom } })
+                  if (p) update({ stt: { baseURL: p.baseURL, model: p.model, keyFrom: p.keyFrom } })
                 }}
               >
                 <option value="">选择一个预设…</option>
@@ -353,16 +353,16 @@ export function SettingsTab({ snap, onRefresh }: { snap: Snapshot; onRefresh: ()
               </select>
             </Field>
             <Field label="接口地址">
-              <input value={s.stt.baseURL} onChange={(e) => update({ stt: { ...s.stt, baseURL: e.target.value } })} />
+              <input value={s.stt.baseURL} onChange={(e) => update({ stt: { baseURL: e.target.value } })} />
             </Field>
             <Field label="模型">
-              <input value={s.stt.model} onChange={(e) => update({ stt: { ...s.stt, model: e.target.value } })} />
+              <input value={s.stt.model} onChange={(e) => update({ stt: { model: e.target.value } })} />
             </Field>
             <Field label="语言" hint="留空自动识别；Whisper 可以填 zh 提高中文准确率">
-              <input value={s.stt.language} placeholder="自动" onChange={(e) => update({ stt: { ...s.stt, language: e.target.value.trim() } })} />
+              <input value={s.stt.language} placeholder="自动" onChange={(e) => update({ stt: { language: e.target.value.trim() } })} />
             </Field>
             <Field label="API Key 来源">
-              <select value={s.stt.keyFrom} onChange={(e) => update({ stt: { ...s.stt, keyFrom: e.target.value } })}>
+              <select value={s.stt.keyFrom} onChange={(e) => update({ stt: { keyFrom: e.target.value } })}>
                 <option value="own">单独填写</option>
                 {s.providers.map((p) => (
                   <option key={p.id} value={p.id}>
@@ -395,11 +395,11 @@ export function SettingsTab({ snap, onRefresh }: { snap: Snapshot; onRefresh: ()
 
       <Section title="天气" desc="开启后它会知道你那里的天气（下雨提醒带伞之类）。只会把你填的城市名发给 wttr.in。">
         <Field label="开启">
-          <Toggle checked={s.weather.enabled} onChange={(v) => update({ weather: { ...s.weather, enabled: v } })} />
+          <Toggle checked={s.weather.enabled} onChange={(v) => update({ weather: { enabled: v } })} />
         </Field>
         <Field label="城市" hint="中文或拼音都可以，例如：北京、Shanghai">
           <div className="row">
-            <input defaultValue={s.weather.city} placeholder="城市名" onBlur={(e) => e.target.value.trim() !== s.weather.city && update({ weather: { ...s.weather, city: e.target.value.trim() } })} />
+            <input defaultValue={s.weather.city} placeholder="城市名" onBlur={(e) => e.target.value.trim() !== s.weather.city && update({ weather: { city: e.target.value.trim() } })} />
             <button
               className="btn"
               onClick={async () => {
@@ -415,46 +415,46 @@ export function SettingsTab({ snap, onRefresh }: { snap: Snapshot; onRefresh: ()
 
       <Section title="养成 & 费用">
         <Field label="难度" hint="影响数值下降速度。关掉程序时的变化总是更温和，而且最多只结算 12 小时。">
-          <select value={s.game.difficulty} onChange={(e) => update({ game: { ...s.game, difficulty: e.target.value as Settings['game']['difficulty'] } })}>
+          <select value={s.game.difficulty} onChange={(e) => update({ game: { difficulty: e.target.value as Settings['game']['difficulty'] } })}>
             <option value="casual">休闲</option>
             <option value="normal">标准</option>
             <option value="hard">硬核</option>
           </select>
         </Field>
         <Field label="每日 token 上限" hint={`0 表示不限制。今天已用 ${(snap.usageToday.input + snap.usageToday.output).toLocaleString()}`}>
-          <input type="number" min={0} step={10000} value={s.chat.dailyTokenLimit} onChange={(e) => update({ chat: { ...s.chat, dailyTokenLimit: Number(e.target.value) } })} />
+          <input type="number" min={0} step={10000} value={s.chat.dailyTokenLimit} onChange={(e) => update({ chat: { dailyTokenLimit: Number(e.target.value) } })} />
         </Field>
         <Field label="聊天上下文长度" hint="带入最近多少字的聊天记录">
-          <input type="number" min={500} max={40000} step={500} value={s.chat.historyChars} onChange={(e) => update({ chat: { ...s.chat, historyChars: Number(e.target.value) } })} />
+          <input type="number" min={500} max={40000} step={500} value={s.chat.historyChars} onChange={(e) => update({ chat: { historyChars: Number(e.target.value) } })} />
         </Field>
       </Section>
 
       <Section title="通用">
         <Field label="免打扰">
-          <Toggle checked={s.app.dnd} onChange={(v) => update({ app: { ...s.app, dnd: v } })} label="不主动说话" />
+          <Toggle checked={s.app.dnd} onChange={(v) => update({ app: { dnd: v } })} label="不主动说话" />
         </Field>
         <Field label="鼠标穿透" hint="打开后宠物不会挡住鼠标点击（无法拖动和右键它），通过托盘图标操作">
-          <Toggle checked={s.app.clickThrough} onChange={(v) => update({ app: { ...s.app, clickThrough: v } })} />
+          <Toggle checked={s.app.clickThrough} onChange={(v) => update({ app: { clickThrough: v } })} />
         </Field>
         {snap.platform === 'win32' && (
           <Field label="全屏时自动躲起来" hint="看视频、玩游戏、放幻灯片时自动隐藏，退出全屏后回来">
-            <Toggle checked={s.app.hideOnFullscreen} onChange={(v) => update({ app: { ...s.app, hideOnFullscreen: v } })} />
+            <Toggle checked={s.app.hideOnFullscreen} onChange={(v) => update({ app: { hideOnFullscreen: v } })} />
           </Field>
         )}
         <Field label="窗口置顶">
-          <Toggle checked={s.app.alwaysOnTop} onChange={(v) => update({ app: { ...s.app, alwaysOnTop: v } })} />
+          <Toggle checked={s.app.alwaysOnTop} onChange={(v) => update({ app: { alwaysOnTop: v } })} />
         </Field>
         <Field label="开机自启">
-          <Toggle checked={s.app.autoStart} onChange={(v) => update({ app: { ...s.app, autoStart: v } })} />
+          <Toggle checked={s.app.autoStart} onChange={(v) => update({ app: { autoStart: v } })} />
         </Field>
         <Field label="聊天快捷键" hint="Electron 加速键格式，例如 CommandOrControl+Alt+P（Ctrl+Alt+P）">
-          <input defaultValue={s.app.hotkey} onBlur={(e) => e.target.value !== s.app.hotkey && update({ app: { ...s.app, hotkey: e.target.value } })} />
+          <input defaultValue={s.app.hotkey} onBlur={(e) => e.target.value !== s.app.hotkey && update({ app: { hotkey: e.target.value } })} />
         </Field>
         <Field label="隐藏 / 显示快捷键" hint="看视频、开会共享屏幕时一键藏起来">
-          <input defaultValue={s.app.hideHotkey} onBlur={(e) => e.target.value !== s.app.hideHotkey && update({ app: { ...s.app, hideHotkey: e.target.value } })} />
+          <input defaultValue={s.app.hideHotkey} onBlur={(e) => e.target.value !== s.app.hideHotkey && update({ app: { hideHotkey: e.target.value } })} />
         </Field>
         <Field label="网络代理" hint="留空 = 跟随系统代理。例如 http://127.0.0.1:7890 或 socks5://127.0.0.1:1080（访问 OpenAI / Claude 时可能需要）">
-          <input defaultValue={s.app.proxy} placeholder="跟随系统" onBlur={(e) => e.target.value.trim() !== s.app.proxy && update({ app: { ...s.app, proxy: e.target.value.trim() } })} />
+          <input defaultValue={s.app.proxy} placeholder="跟随系统" onBlur={(e) => e.target.value.trim() !== s.app.proxy && update({ app: { proxy: e.target.value.trim() } })} />
         </Field>
         <Field label="数据目录" hint="存档、聊天记录、记忆库都在这里，整个文件夹复制走就是完整备份">
           <div className="row">
@@ -470,7 +470,7 @@ export function SettingsTab({ snap, onRefresh }: { snap: Snapshot; onRefresh: ()
       </Section>
       <Section title="关于" desc={`SoulPet 灵宠 v${snap.version} · MIT 开源 · 数据只保存在本机`}>
         <Field label="自动检查更新" hint="启动时查询 GitHub Releases，只告诉你有新版本，不会自动下载">
-          <Toggle checked={s.app.checkUpdates} onChange={(v) => update({ app: { ...s.app, checkUpdates: v } })} />
+          <Toggle checked={s.app.checkUpdates} onChange={(v) => update({ app: { checkUpdates: v } })} />
         </Field>
         <div className="row">
           <button

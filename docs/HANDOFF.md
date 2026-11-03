@@ -106,7 +106,7 @@ Xvfb + 软件渲染下，只开宠物窗口、空闲 8 秒：约 1.1% CPU（修�
 1. **用真实 API Key 走一遍**（DeepSeek / Claude / gpt-5-mini），检查：情绪标签、`[[remind]]` 标签、记忆抽取 JSON、日记 JSON 在真实模型上是否稳定。如果不稳定，调整 `src/core/ai/prompt.ts` 和 `src/core/memory/extract.ts` 里的提示词。
 2. **在 Windows 实机上手动检查**：拖拽和抛出的手感、透明区域点击穿透、托盘、系统通知、全屏自动隐藏（用浏览器视频按 F11 试）、开机自启。
 3. **Live2D 用真实模型验证**（`tests/e2e/live2d-local.mjs`）。
-4. 设置项改用深层局部更新（`DeepPartial<Settings>`）：现在面板是 `{...s.app, x}` 整对象写回，快速连续切换两个开关时理论上会互相覆盖。
+4. ~~设置项改用深层局部更新~~（已完成：`settingsUpdate(DeepPartial<Settings>)`，面板只发送改动的字段）
 5. 新功能候选：多只宠物、本地 Embedding（transformers.js）、自动更新（electron-updater，需要单独的发布仓库）、插件 / MOD。
 
 ## 设计约定

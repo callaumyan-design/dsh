@@ -44,7 +44,7 @@ export function AvatarMaker({ snap }: { snap: Snapshot }) {
   const [key, setKey] = useState('')
   const keyProvider = snap.settings.providers.find((p) => p.id === g.keyFrom)
   const keyOk = g.keyFrom === 'own' ? snap.settings.imageHasOwnKey : !!keyProvider?.hasKey
-  const update = (patch: Partial<typeof g>) => void api.settingsUpdate({ imageGen: { ...g, ...patch } })
+  const update = (patch: Partial<typeof g>) => void api.settingsUpdate({ imageGen: patch })
 
   const generate = async () => {
     setBusy(true)

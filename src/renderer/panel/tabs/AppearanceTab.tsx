@@ -23,7 +23,7 @@ export function AppearanceTab({ snap }: { snap: Snapshot }) {
   const toast = useToast()
   const a = snap.settings.appearance
   const [preview, setPreview] = useState<PetAnimState>('idle')
-  const update = (patch: Partial<typeof a>) => void api.settingsUpdate({ appearance: { ...a, ...patch } })
+  const update = (patch: Partial<typeof a>) => void api.settingsUpdate({ appearance: patch })
   const current = snap.packs.find((p) => p.id === a.packId) ?? snap.packs[0]
   const stage = stageOf(snap.game.level)
 

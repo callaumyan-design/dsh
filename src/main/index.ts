@@ -221,7 +221,7 @@ function rebuildTray(): void {
         type: 'checkbox',
         checked: s.app.clickThrough,
         click: (item) => {
-          core.updateSettings({ app: { ...core.settings.data.app, clickThrough: item.checked } })
+          core.updateSettings({ app: { clickThrough: item.checked } })
           applyClickThrough()
           rebuildTray()
         }
@@ -231,7 +231,7 @@ function rebuildTray(): void {
         type: 'checkbox',
         checked: s.app.dnd,
         click: (item) => {
-          core.updateSettings({ app: { ...core.settings.data.app, dnd: item.checked } })
+          core.updateSettings({ app: { dnd: item.checked } })
           rebuildTray()
         }
       },
@@ -457,7 +457,7 @@ function registerIpc(): void {
       const list = packs.scan()
       broadcast('packs:update', list)
       const pack = list.find((p) => p.source === 'user' && p.folder === folder)
-      if (pack) core.updateSettings({ appearance: { ...core.settings.data.appearance, packId: pack.id } })
+      if (pack) core.updateSettings({ appearance: { packId: pack.id } })
       return { ok: true, packId: pack?.id, name: pack?.name, warnings: pack?.warnings ?? [] }
     } catch (e) {
       return { ok: false, error: (e as Error).message }
@@ -495,13 +495,13 @@ function registerIpc(): void {
       const list = packs.scan()
       broadcast('packs:update', list)
       const pack = list.find((p) => p.source === 'user' && p.folder === folder)
-      if (pack) core.updateSettings({ appearance: { ...core.settings.data.appearance, packId: pack.id } })
+      if (pack) core.updateSettings({ appearance: { packId: pack.id } })
       return { ok: true, packId: pack?.id, name: pack?.name }
     } catch (e) {
       return { ok: false, error: (e as Error).message }
     }
   })
-  h('packs:select', (_e, id: string) => core.updateSettings({ appearance: { ...core.settings.data.appearance, packId: id } }))
+  h('packs:select', (_e, id: string) => core.updateSettings({ appearance: { packId: id } }))
   h('app:openPacks', () => void shell.openPath(packs.userDir))
   h('app:openData', () => void shell.openPath(core.dataDir))
   h('app:openLogs', () => void shell.openPath(path.join(core.dataDir, 'logs')))

@@ -6,7 +6,7 @@ import type { ActionResult, Condition, GameAction, GameState, PetAnimState } fro
 import type { DiaryEntry, MemoryItem, MemoryType, ScoredMemory } from './memory/types'
 import type { Persona } from './persona/persona'
 import type { ResolvedPack } from './pets/pack'
-import type { Settings } from './settings'
+import type { DeepPartial, Settings } from './settings'
 import type { Repeat, TasksState } from './tasks'
 
 export interface StoredMessage {
@@ -114,7 +114,7 @@ export interface SoulPetAPI {
   focusStop(): Promise<TasksState>
   diaryGenerate(date?: string): Promise<{ ok: boolean; entry?: DiaryEntry; error?: string }>
 
-  settingsUpdate(patch: Partial<Settings>): Promise<PublicSettings>
+  settingsUpdate(patch: DeepPartial<Settings>): Promise<PublicSettings>
   providerUpsert(cfg: ProviderConfig): Promise<PublicSettings>
   providerRemove(id: string): Promise<PublicSettings>
   setApiKey(target: string, key: string): Promise<PublicSettings>

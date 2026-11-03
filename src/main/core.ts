@@ -30,7 +30,7 @@ import {
   type ProactiveKind,
   type ProactiveState
 } from '../core/proactive'
-import { deepMerge, normalizeSettings, type Settings } from '../core/settings'
+import { deepMerge, normalizeSettings, type DeepPartial, type Settings } from '../core/settings'
 import {
   addReminder,
   addTodo,
@@ -207,7 +207,7 @@ export class AppCore {
     this.settings.scheduleSave(2000)
   }
 
-  updateSettings(patch: Partial<Settings>): PublicSettings {
+  updateSettings(patch: DeepPartial<Settings>): PublicSettings {
     // Arrays (providers) are replaced wholesale by deepMerge; normalize re-adds any missing preset.
     const next = normalizeSettings(deepMerge(this.settings.data, patch))
     this.settings.set(next)

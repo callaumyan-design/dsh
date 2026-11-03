@@ -141,3 +141,14 @@ describe('settings', () => {
     expect(s.proactive.level).toBe(defaultSettings().proactive.level)
   })
 })
+
+describe('deep-partial settings updates', () => {
+  it('a one-field patch keeps every other nested field', async () => {
+    const { deepMerge } = await import('../src/core/settings')
+    const base = defaultSettings()
+    base.app.proxy = 'http://127.0.0.1:7890'
+    const next = normalizeSettings(deepMerge(base, { app: { dnd: true } }))
+    expect(next.app).toEqual({ ...base.app, dnd: true })
+    expect(next.providers.length).toBe(base.providers.length)
+  })
+})
