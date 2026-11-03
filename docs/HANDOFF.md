@@ -38,50 +38,39 @@ npm run dist:win           # 打包
 - `git push` 偶尔会卡住，用 `timeout 90 git push origin desktop-pet`，失败了重试。要杀卡住的进程请用 `pkill -f "^/usr/lib/git-core/git-remote-https"`（`pkill -f git-remote-https` 会把当前 shell 自己也杀掉）。
 - CI 里有 `e2e-windows` 任务，会在真实的 Windows runner 上跑同一个 e2e 测试，截图在 artifact `e2e-screenshots-windows` 里。
 
-## 已完成（v0.1，提交 a0f5570 起）
+## 功能清单（全部已完成，带测试）
 
-- [x] 需求文档、调研报告、架构文档、形象包格式文档
-- [x] 养成引擎（纯函数，带离线结算和保底）、物品与商店、签到、等级与成长阶段
-- [x] OpenAI 兼容流式客户端（fetch + SSE）；Anthropic 客户端（官方 SDK `@anthropic-ai/sdk`，默认 `claude-opus-5-5`、effort low、开启 `fallbacks: "default"`，beta 头 `server-side-fallback-2026-07-01`；SDK 1.4 发送 `authorization: Bearer` 和 `anthropic-version: 2026-10-21`，这个版本不能发 temperature）
-- [x] 情绪标签流式解析 → 动画
-- [x] 记忆：BM25（中文 uni+bigram）+ 向量 + 新近度 + 重要度；mem0 式抽取；“记住……”即时写入；去重；置顶核心记忆；日记 + 感悟
-- [x] 主动搭话（预算、安静时段、免打扰、离开检测）
-- [x] 形象包：Codex 格式（8×9，192×208）和逐状态素材；回退表；内置矢量史莱姆“团子”（可换色、换饰品）；示例 Codex 宠物“小灵”（`scripts/gen-assets.mjs` 生成）
-- [x] SillyTavern 角色卡导入（JSON / PNG tEXt `chara`/`ccv3`）
-- [x] 宠物窗口：透明置顶、闲逛、拖拽、抛出后重力下落、悬停显示状态、单击摸摸、双击聊天、右键菜单
-- [x] 面板：聊天 / 状态 / 商店 / 记忆 / 日记 / 形象 / 人设 / 设置
-- [x] 托盘、全局快捷键、开机自启、API Key 用 safeStorage 加密、每日 token 上限
-- [x] 52 个单元测试 + Electron e2e（假 LLM 服务器）；打包后的 Linux 程序已验证能启动
-- [x] CI：typecheck、单元测试、e2e、三平台打包；推送 `v*` 标签生成 Release 草稿
+**基础（v0.1）**
+- 养成引擎（纯函数，离线结算有封顶和保底）、物品与商店、签到、等级与成长阶段 — `src/core/game/`
+- OpenAI 兼容流式客户端（fetch + SSE；推理模型自动用 `max_completion_tokens`；JSON 模式不支持时自动回退）— `src/core/ai/openai.ts`
+- Anthropic 客户端（官方 SDK `@anthropic-ai/sdk`，默认 `claude-opus-5-5`、effort low、`fallbacks: "default"`，beta 头 `server-side-fallback-2026-07-01`；SDK 1.4 发送 `anthropic-version: 2026-10-21`，这个版本不能发 temperature）— `src/core/ai/anthropic.ts`
+- 情绪标签和动作标签的流式解析（`[happy]`、`[[remind|…]]`、`[[todo|…]]`）— `src/core/ai/emotion.ts`、`src/core/tasks.ts`
+- 记忆：BM25（中文单字 + 双字）+ 向量 + 新近度 + 重要度混合检索；mem0 式抽取；“记住……”即时写入；去重；置顶核心记忆 — `src/core/memory/`
+- 主动搭话（每日预算、安静时段、免打扰、离开检测）— `src/core/proactive.ts`
+- 形象包：Codex 格式、逐状态素材、回退表；内置矢量史莱姆“团子”；示例 Codex 宠物“小灵”（`scripts/gen-assets.mjs` 生成）
+- SillyTavern 角色卡导入（JSON / PNG tEXt `chara`/`ccv3`）
+- 宠物窗口（透明置顶、闲逛、拖拽、抛出、重力）+ 面板 + 托盘 + 快捷键 + 开机自启 + safeStorage 加密 Key
 
-## 进行中 / 待办（按优先级）
+**v0.2**
+- 首次启动引导（`WelcomeTab`，`settings.setupDone`）
+- 提醒 / 待办 / 番茄钟（`src/core/tasks.ts`，每 15 秒检查；系统通知；专注时静音主动搭话）
+- 记忆整理“做梦”（`src/core/memory/consolidate.ts`，在记忆队列里串行执行）、每日日记 + 情节摘要
+- 成就（18 个）+ 随机事件（`src/core/game/achievements.ts`）
+- TTS 朗读（`src/renderer/shared/speech.ts`）、鼠标穿透、透明度
+- 从 zip / 文件夹导入形象包（防 zip-slip，`src/main/packImport.ts` + `src/core/pets/importPlan.ts`）
+- 日志（`<数据目录>/logs/main.log`，Key 会打码）、代理、诊断信息、更新检查
 
-- [x] 节日 / 纪念日（`src/core/calendar.ts`，农历节日用 2026–2030 的查表，**过了 2030 要补表**；写进系统提示词，每天主动问候一次）
-- [x] 全屏自动躲起来（Windows：常驻一个 PowerShell 进程，每 3 秒通过 user32 查一次前台窗口，`src/core/fullscreen.ts` + `src/main/fullscreenWatch.ts`；窗口铺满整个显示器（物理像素）就隐藏，并静音主动搭话）。Windows e2e 会检查探针确实有输出
-- [x] 诊断信息（设置 → 关于 → 诊断信息；IPC `app:diagnostics`）
-- [x] 天气（可选，wttr.in，只发送城市名；`src/core/weather.ts`；写进提示词，早安问候在雨雪 / 极端温度时会提醒）
-- [x] 用户使用说明 / 常见问题：`docs/USER_GUIDE.md`
-- [x] 省钱：很短的闲聊（“嗯”“哈哈”“好的”）不再触发后台记忆整理（`worthExtracting`）；模型评为重要度 ≥ 9 的身份类事实自动置顶
-- [~] **Live2D（实验性，没有用真实模型验证渲染）**：`src/renderer/shared/Live2DView.tsx`（pixi.js 6 + pixi-live2d-display 0.4 + `@pixi/unsafe-eval`，懒加载）。识别 `*.model3.json`（根目录或两层以内）或 `format: "live2d"` 的 manifest；Cubism Core 由用户提供，复制到 `<数据目录>/live2d/`（专有许可，不能放进仓库）。自动化只测到了“识别包 + 缺少 Core 时显示提示”。在沙箱里用 npm 上的 `live2dcubismcore` 包测试渲染被安全策略拦下了（来源不明的第三方代码），**请有条件的人用 `tests/e2e/live2d-local.mjs` 配真实 Core 和模型验证一次**（命令写在文件头）
-- [x] AI 生成形象（`src/core/pets/imagegen.ts`：OpenAI 兼容 `/images/generations`，预设硅基流动 Kolors / OpenAI gpt-image-1 透明背景 / 通义万相；渲染进程里从边缘做 flood fill 去背景，再按不透明区域裁切，存成一张图的宠物）
-- [x] “用一张图片做宠物”：manifest 里写 `animate: true`，静态图会自动套上呼吸 / 蹦跳 / 特效（`.proc` CSS + `Extras` SVG 叠加层）；`createFromImage` 会解析 PNG/GIF/WebP/JPEG 的尺寸
-- [x] 更新检查（GitHub Releases 里的 `soulpet-v*`，只提示不下载）、隐藏 / 显示快捷键 `Ctrl+Alt+H`，聊天快捷键默认改为 `Ctrl+Alt+P`
+**v0.3**
+- 语音输入（MediaRecorder → OpenAI 兼容 `/audio/transcriptions`；媒体权限只给自己的页面）
+- 节日 / 纪念日（`src/core/calendar.ts`，**农历表只到 2030 年**）、天气（wttr.in，可选）
+- Windows 全屏自动躲起来（常驻 PowerShell 探针，`src/core/fullscreen.ts` + `src/main/fullscreenWatch.ts`；Windows e2e 会检查探针有输出）
+- 一张图做宠物（manifest 写 `animate: true` → `.proc` CSS + `Extras` 特效）、AI 生成形象（`src/core/pets/imagegen.ts`，flood fill 抠图）
+- **Live2D（实验性，没有用真实模型验证过渲染）**：`src/renderer/shared/Live2DView.tsx`（懒加载 pixi.js 6 + pixi-live2d-display 0.4 + `@pixi/unsafe-eval`）。Cubism Core 由用户手动安装到 `<数据目录>/live2d/`，**包里自带的 Core 一律不执行**（安全），CSP 只允许 `soulpet-asset://pack/core/` 下的脚本。在沙箱里用 npm 的 `live2dcubismcore` 包测试被安全策略拦下了，请用 `tests/e2e/live2d-local.mjs` 配真实素材验证
+- 设置改为深层局部更新（`DeepPartial<Settings>`）；面板输入框用 `CommitInput`，失焦时提交
 
-- [x] 语音输入（按住 🎤 说话 → MediaRecorder → 主进程 → OpenAI 兼容 `/audio/transcriptions`；默认用硅基流动 SenseVoice；e2e 用 Chromium 的假麦克风测试）。媒体权限只开放给自己的页面（`setPermissionRequestHandler`）
+**测试**：110 个单元测试（`npm test`）；Electron e2e（`tests/e2e/smoke.mjs`，覆盖引导、聊天、记忆、提醒、专注、语音、养成、日记、记忆整理、AI 头像、一张图宠物、Live2D 占位、Codex 渲染、重启持久化、空闲资源占用）。CI 会在 Linux 和真实 Windows 上都跑一遍，再打三平台安装包。
 
-- [x] CI 跑绿：单元测试 + Linux e2e + **真实 Windows e2e** + 三平台打包（Windows artifact 约 275MB：NSIS 安装包 + zip）
-- [x] 日志文件（`<数据目录>/logs/main.log`，API Key 会被打码）、代理设置（`settings.app.proxy`，`session.setProxy`）、后台 JSON 调用用 `response_format: json_object`（不支持就自动重试不带它）
-- [x] v0.2.0：版本号已更新，发布标签改为 `soulpet-v*`（避免和 DSH 的标签冲突）。**这个沙箱推不了 tag**（git 代理只放行分支），所以要手动触发 CI 的 workflow_dispatch，参数 `release=soulpet-vX.Y.Z`，由 workflow 用 GITHUB_TOKEN 创建 tag 和 Release 草稿（MCP 工具 `actions_run_trigger`）
-- [x] 首次启动引导（`WelcomeTab`：起名、选服务商、填 Key 并测试、选形象；`settings.setupDone`）
-- [x] 提醒 / 待办 / 番茄钟（`src/core/tasks.ts`，`tasks.json`，每 15 秒检查一次；到点时冒泡并弹系统通知；专注期间宠物显示 work 动画和倒计时，主动搭话静音，完成后有奖励）
-- [x] AI 动作标签：`[[remind|时间|内容]]`、`[[todo|内容]]`，流式输出时就隐藏；时间格式见 `parseWhen`
-- [x] 记忆整理“做梦”（`src/core/memory/consolidate.ts`：并查集聚类相似记忆 → LLM 合并；忘掉 90 天没想起的重要度 ≤ 2 的记忆；每天最多一次，在记忆页可以手动触发）
-- [x] 每日日记同时生成一条 episode（情节）记忆，用来回忆“那天聊了什么”
-- [x] 成就（18 个，`src/core/game/achievements.ts`，在 `AppCore.setGame` 里检查）和随机事件（捡金币、说梦话……，至少间隔 40 分钟，用户不在电脑前时不触发）
-- [x] TTS 朗读（渲染进程 `speechSynthesis`，`src/renderer/shared/speech.ts`；设置里选声音、语速、音调）
-- [x] 鼠标穿透模式（托盘和设置里都能切换）、宠物透明度
-- [x] 从 .zip 或文件夹导入形象包（`src/main/packImport.ts` + 纯函数 `core/pets/importPlan.ts`，防 zip-slip，300MB 上限）
-- [ ] （以后）Live2D、语音输入、本地 Embedding、多宠物、MOD、自动更新、全屏检测
+**发布**：推送 `soulpet-v*` 标签，或者（沙箱里推不了 tag）手动触发 workflow_dispatch，参数 `release=soulpet-vX.Y.Z`，由 workflow 创建 Release 草稿。
 
 ## 代码审查记录
 
