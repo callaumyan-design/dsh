@@ -66,7 +66,7 @@ fs.writeFileSync(
 
 async function launch(openPanel) {
   const app = await electron.launch({
-    executablePath: path.join(root, 'node_modules/electron/dist/electron'),
+    executablePath: require(path.join(root, 'node_modules/electron')), // resolves (and if needed downloads) the binary
     args: ['--no-sandbox', root],
     env: { ...process.env, SOULPET_DATA_DIR: dataDir, ...(openPanel ? { SOULPET_OPEN_PANEL: openPanel } : {}) }
   })

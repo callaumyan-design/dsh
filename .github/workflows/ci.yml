@@ -17,6 +17,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Download Electron binary (Electron 45 no longer does this on install)
+        run: npx install-electron
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
