@@ -4,29 +4,38 @@
 
 ```
 ┌────────────────────────── Electron 主进程 (src/main) ──────────────────────────┐
-│ index.ts   生命周期、托盘、右键菜单、全局快捷键、IPC 注册                        │
+│ index.ts   生命周期、托盘、右键菜单、全局快捷键、IPC 注册、媒体权限、代理            │
 │ core.ts    AppCore：所有状态 + 后台服务（聊天、记忆整理、向量、日记、主动搭话、游戏时钟）│
 │ motion.ts  宠物窗口移动：闲逛 / 拖拽 / 抛出后重力下落 / 多显示器                  │
 │ packs.ts   扫描形象包，通过 soulpet-asset:// 协议提供素材（防目录穿越）             │
 │ secrets.ts API Key 用 safeStorage（DPAPI / Keychain / libsecret）加密              │
 │ storage.ts JSON 原子写入 + 按天的 JSONL 聊天记录                                   │
+│ packImport.ts / model3.ts  zip / 文件夹 / 一张图 导入形象包，Live2D 模型查找          │
+│ fullscreenWatch.ts  Windows 前台窗口探针（PowerShell）→ 全屏时隐藏宠物              │
+│ logger.ts  console 同时写入 logs/main.log（Key 打码）                              │
 └─────────────▲──────────────────────────────────────────────▲─────────────────────┘
               │ contextBridge (src/preload) — 渲染进程拿不到 Key │
 ┌─────────────┴──────────────┐                 ┌─────────────┴────────────────────┐
 │ 宠物窗口 (renderer/pet)     │                 │ 面板窗口 (renderer/panel)          │
-│ 透明 · 无边框 · 置顶        │                 │ 聊天 / 状态 / 商店 / 记忆 / 日记 /  │
-│ 动画状态机、气泡、快速输入   │                 │ 形象 / 人设 / 设置                  │
+│ 透明 · 无边框 · 置顶        │                 │ 引导 / 聊天 / 状态 / 商店 / 提醒 /   │
+│ 动画状态机、气泡（排队）、   │                 │ 记忆 / 日记 / 形象（含 AI 头像、     │
+│ 快速输入、按住说话、TTS      │                 │ Live2D）/ 人设 / 设置               │
 └────────────────────────────┘                 └──────────────────────────────────┘
 
 src/core   纯 TypeScript，不依赖 Electron，全部有单元测试
-├── game/      养成引擎（tick / applyAction 都是纯函数）、物品表
-├── ai/        OpenAI 兼容客户端（fetch + SSE）、Anthropic 客户端（官方 SDK）、
-│              情绪标签流式解析、系统提示词构建
-├── memory/    分词 + BM25、记忆库（混合检索）、记忆抽取（ADD/UPDATE/DELETE）、日记
-├── pets/      形象包规范化（Codex / 逐状态）、状态回退
+├── game/      养成引擎（tick / applyAction 都是纯函数）、物品表、成就与随机事件
+├── ai/        OpenAI 兼容客户端（fetch + SSE）、Anthropic 客户端（官方 SDK）、语音识别（stt.ts）、
+│              情绪 / 动作标签流式解析、系统提示词构建、服务商预设
+├── memory/    分词 + BM25、记忆库（混合检索）、记忆抽取（ADD/UPDATE/DELETE）、记忆整理（consolidate.ts）、日记
+├── pets/      形象包规范化（Codex / 逐状态 / 一张图 / Live2D）、状态回退、zip 导入规划、图片尺寸解析、AI 头像（imagegen.ts）
 ├── persona/   人设、SillyTavern 角色卡导入（JSON / PNG tEXt）
-├── proactive.ts  主动搭话决策（纯函数）
-└── settings.ts   设置默认值与迁移
+├── tasks.ts       提醒 / 待办 / 番茄钟 + 自然时间解析
+├── calendar.ts    节日和纪念日
+├── weather.ts     天气（wttr.in）
+├── fullscreen.ts  全屏判断 + Windows 前台窗口探针脚本
+├── proactive.ts   主动搭话决策（纯函数）
+├── update.ts      GitHub Releases 版本检查
+└── settings.ts    设置默认值、迁移、DeepPartial
 ```
 
 ## 一次聊天的流程
@@ -46,7 +55,7 @@ src/core   纯 TypeScript，不依赖 Electron，全部有单元测试
      命中的记忆会被 `touch`（遗忘曲线重置）。置顶记忆作为“核心记忆”每次都带上。
    - **构建提示词**：人设 + 当前时间 + 宠物状态（饿/困/生病会影响语气）+ 核心记忆 + 相关记忆 + 回复规则（以情绪标签开头、简短口语）。
    - 历史消息按字符预算从新到旧截取。
-   - 流式调用模型；`EmotionStreamParser` 边收边剥掉 `[happy]` 标签（跨 chunk 也能识别），把情绪推给宠物窗口切换动画。
+   - 流式调用模型；`EmotionStreamParser` 边收边剥掉 `[happy]` 情绪标签和 `[[remind|…]]` 动作标签（跨 chunk 也能识别），把情绪推给宠物窗口切换动画。回复结束后解析动作标签，创建提醒或待办。
 3. 回复完成后，后台队列里执行**记忆抽取**：把最近几轮对话 + 最相关的 8 条已有记忆交给“记忆模型”，让它输出 `ADD / UPDATE / DELETE`。UPDATE/DELETE 只允许作用于展示给它的那几条，手动置顶的核心记忆不允许模型修改。新记忆会去重（规范化文本相同或字符二元组 Jaccard ≥ 0.8 视为同一条）。
 4. 开启向量记忆时，为新增/修改的记忆补算向量。
 
@@ -70,10 +79,21 @@ src/core   纯 TypeScript，不依赖 Electron，全部有单元测试
 | `chat/YYYY-MM-DD.jsonl` | 聊天记录 |
 | `activity.json` | 最近 300 条互动记录（写日记用） |
 | `usage.json` | 每日 token 统计 |
-| `runtime.json` | 主动搭话计数等 |
+| `runtime.json` | 主动搭话计数、整理 / 日记 / 节日问候的时间戳 |
+| `tasks.json` | 提醒、待办、正在进行的专注 |
+| `logs/main.log` | 日志（超过 2MB 自动轮换） |
+| `live2d/` | 用户安装的 Live2D Cubism Core |
 | `pets/` | 用户形象包 |
 
 数据目录：Windows `%APPDATA%/SoulPet/data`，macOS `~/Library/Application Support/SoulPet/data`，Linux `~/.config/SoulPet/data`。在程序旁边建一个 `SoulPetData` 文件夹即进入便携模式。环境变量 `SOULPET_DATA_DIR` 可覆盖。
+
+## Live2D 的安全模型
+
+Live2D 的 Cubism Core 是一段要在宠物窗口里执行的专有脚本。为了不让下载的形象包夹带脚本：
+
+- 只执行用户在 形象 → Live2D 里手动选择、并通过内容检查的 Core，它被复制到 `<数据目录>/live2d/`；
+- 形象包里自带的 `live2dcubismcore*.js` 一律忽略；
+- 页面 CSP 的 `script-src` 只放行 `soulpet-asset://pack/core/`。
 
 ## 安全
 
