@@ -33,10 +33,13 @@ export interface SearchOptions {
 
 export const DEDUPE_THRESHOLD = 0.8
 
+/** 'content' = something the user can see changed; 'meta' = recency counters or vectors only. */
+export type ChangeKind = 'content' | 'meta'
+
 export class MemoryStore {
   private items: MemoryItem[]
 
-  constructor(items: MemoryItem[] = [], private readonly onChange?: (items: MemoryItem[]) => void) {
+  constructor(items: MemoryItem[] = [], private readonly onChange?: (items: MemoryItem[], kind: ChangeKind) => void) {
     this.items = items.filter((i) => i && typeof i.text === 'string').map((i) => normalizeItem(i))
   }
 
@@ -52,8 +55,8 @@ export class MemoryStore {
     return this.items.find((i) => i.id === id)
   }
 
-  private changed(): void {
-    this.onChange?.(this.items)
+  private changed(kind: ChangeKind = 'content'): void {
+    this.onChange?.(this.items, kind)
   }
 
   /** Find an existing memory that says (almost) the same thing. */
@@ -76,6 +79,10 @@ export class MemoryStore {
     const text = input.text.trim()
     if (!text) throw new Error('记忆内容不能为空')
     const dup = this.findDuplicate(text)
+    // A memory the user pinned by hand is never rewritten by automatic sources.
+    if (dup && dup.pinned && dup.source === 'user' && input.source && input.source !== 'user') {
+      return { item: dup, merged: true }
+    }
     if (dup) {
       const updated = this.update(
         dup.id,
@@ -137,15 +144,25 @@ export class MemoryStore {
     if (!ids.length) return
     const set = new Set(ids)
     this.items = this.items.map((i) => (set.has(i.id) ? { ...i, lastAccessedAt: now, accessCount: i.accessCount + 1 } : i))
-    this.changed()
+    this.changed('meta')
   }
 
   setEmbedding(id: string, embedding: number[], model: string): void {
-    const it = this.items.find((i) => i.id === id)
-    if (!it) return
-    it.embedding = embedding
-    it.embeddingModel = model
-    this.changed()
+    this.setEmbeddings([{ id, embedding }], model)
+  }
+
+  /** Store several vectors at once (one save, no UI refresh). Rounded to keep memory.json small. */
+  setEmbeddings(rows: Array<{ id: string; embedding: number[] }>, model: string): void {
+    const byId = new Map(rows.map((r) => [r.id, r.embedding]))
+    let n = 0
+    for (const it of this.items) {
+      const v = byId.get(it.id)
+      if (!v) continue
+      it.embedding = v.map((x) => Math.round(x * 1e5) / 1e5)
+      it.embeddingModel = model
+      n++
+    }
+    if (n) this.changed('meta')
   }
 
   needingEmbedding(model: string): MemoryItem[] {

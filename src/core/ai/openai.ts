@@ -20,6 +20,11 @@ async function errorDetail(res: Response): Promise<string> {
   }
 }
 
+/** OpenAI reasoning models (o1/o3/o4, gpt-5…) take max_completion_tokens and spend tokens on hidden reasoning. */
+export function isReasoningModel(model: string): boolean {
+  return /^(o\d|gpt-5)/i.test(model.split('/').pop() ?? '')
+}
+
 export async function streamOpenAI(cfg: ProviderConfig, messages: ChatMessage[], opts: CallOptions): Promise<ChatResult> {
   const f = opts.fetch ?? fetch
   const headers: Record<string, string> = { 'Content-Type': 'application/json', Accept: 'text/event-stream' }
@@ -32,7 +37,11 @@ export async function streamOpenAI(cfg: ProviderConfig, messages: ChatMessage[],
   }
   if (typeof cfg.temperature === 'number') body.temperature = cfg.temperature
   const maxTokens = opts.maxTokens ?? cfg.maxTokens
-  if (maxTokens) body.max_tokens = maxTokens
+  const reasoning = isReasoningModel(cfg.model)
+  if (maxTokens) {
+    if (reasoning) body.max_completion_tokens = Math.max(maxTokens, 4000)
+    else body.max_tokens = maxTokens
+  }
   if (opts.json) body.response_format = { type: 'json_object' }
 
   const send = async (): Promise<Response> => {
@@ -49,10 +58,24 @@ export async function streamOpenAI(cfg: ProviderConfig, messages: ChatMessage[],
     }
   }
   let res = await send()
-  if (!res.ok && opts.json && (res.status === 400 || res.status === 422)) {
-    // Provider does not support response_format: retry once without it.
-    delete body.response_format
-    res = await send()
+  if (!res.ok && (res.status === 400 || res.status === 422)) {
+    const detail = String(await errorDetail(res.clone()))
+    let retry = false
+    if (/max_completion_tokens/.test(detail) && 'max_tokens' in body) {
+      // e.g. a reasoning model we did not recognise by name
+      body.max_completion_tokens = Math.max(Number(body.max_tokens), 4000)
+      delete body.max_tokens
+      retry = true
+    } else if (/max_tokens/.test(detail) && 'max_completion_tokens' in body) {
+      body.max_tokens = body.max_completion_tokens
+      delete body.max_completion_tokens
+      retry = true
+    } else if (opts.json && body.response_format) {
+      // Provider does not support response_format: retry once without it.
+      delete body.response_format
+      retry = true
+    }
+    if (retry) res = await send()
   }
   if (!res.ok) {
     const detail = await errorDetail(res)

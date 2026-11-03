@@ -82,9 +82,23 @@ npm run dist:win           # 打包
 - [x] 从 .zip 或文件夹导入形象包（`src/main/packImport.ts` + 纯函数 `core/pets/importPlan.ts`，防 zip-slip，300MB 上限）
 - [ ] （以后）Live2D、语音输入、本地 Embedding、多宠物、MOD、自动更新、全屏检测
 
+## 代码审查记录
+
+- 第 1 轮（Live2D）：修复了“下载的包自带的 Cubism Core 会被执行”的安全问题，以及 manifest 和导入的健壮性问题。
+- 第 2 轮（核心流程）：修复了 10 个问题。重要的几个：
+  - 宠物走路时一被暂停，就再也不走了（`motion.setPaused` 没有重新安排决策）
+  - OpenAI gpt-5 / o 系列模型要用 `max_completion_tokens`，并且要给推理留出 token 余量
+  - 回复流式输出时，成就或提醒的气泡会把回复冲掉（现在会排队）
+  - 托盘开关会写回过期的设置
+  - 记忆整理改为在记忆队列里串行执行，不再和抽取同时改记忆
+  - 日记失败每天最多重试 3 次
+  - 手动置顶的记忆不会被自动去重改写
+  - touch 和向量更新不再广播 UI 刷新
+  - 宠物位置静默保存
+
 ## 资源占用（e2e 末尾会打印）
 
-Xvfb + 软件渲染下，只开宠物窗口、空闲 8 秒：约 1.7% CPU；内存（working set，会重复计算共享页）主进程约 160MB、GPU 约 126MB、网络服务约 74MB、宠物渲染进程约 113MB。真实 GPU 上 GPU 进程会小一些。想再降：关掉宠物闲逛（`walkEnabled`）、降低精灵图 fps。
+Xvfb + 软件渲染下，只开宠物窗口、空闲 8 秒：约 1.1% CPU（修掉频繁的设置广播之后）；内存（working set，会重复计算共享页）主进程约 160MB、GPU 约 126MB、网络服务约 74MB、宠物渲染进程约 113MB。真实 GPU 上 GPU 进程会小一些。想再降：关掉宠物闲逛（`walkEnabled`）、降低精灵图 fps。
 
 ## 设计约定
 

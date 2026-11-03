@@ -30,3 +30,25 @@ describe('log redaction', () => {
     expect(redact('nothing secret here')).toBe('nothing secret here')
   })
 })
+
+describe('openai reasoning models', () => {
+  it('uses max_completion_tokens with headroom for gpt-5 / o-series and swaps on a param error', async () => {
+    const bodies: any[] = []
+    const ok = () => new Response(JSON.stringify({ choices: [{ message: { content: 'hi' } }] }), { status: 200, headers: { 'content-type': 'application/json' } })
+    const f = async (_u: string, init?: RequestInit) => (bodies.push(JSON.parse(String(init?.body))), ok())
+    await streamOpenAI({ ...cfg, model: 'gpt-5-mini' }, [], { apiKey: 'k', fetch: f, maxTokens: 20 })
+    expect(bodies[0].max_completion_tokens).toBe(4000)
+    expect(bodies[0].max_tokens).toBeUndefined()
+
+    const seen: any[] = []
+    const g = async (_u: string, init?: RequestInit) => {
+      const b = JSON.parse(String(init?.body))
+      seen.push(b)
+      if ('max_tokens' in b) return new Response(JSON.stringify({ error: { message: "Unsupported parameter: 'max_tokens'. Use 'max_completion_tokens' instead." } }), { status: 400 })
+      return ok()
+    }
+    const r = await streamOpenAI({ ...cfg, model: 'my-proxy/some-reasoner' }, [], { apiKey: 'k', fetch: g, maxTokens: 800 })
+    expect(r.text).toBe('hi')
+    expect(seen[1].max_completion_tokens).toBe(4000)
+  })
+})

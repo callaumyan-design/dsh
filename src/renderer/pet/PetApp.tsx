@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as R
 import { EMOTION_ANIM, type Emotion } from '../../core/ai/emotion'
 import { CONDITION_LABEL, expToNext, STAGE_SCALE, stageOf } from '../../core/game/engine'
 import type { Condition, GameState, PetAnimState } from '../../core/game/types'
-import type { MotionEvent, PublicSettings } from '../../core/ipc'
+import type { MotionEvent, PetSayEvent, PublicSettings } from '../../core/ipc'
 import { builtinPack, type ResolvedPack } from '../../core/pets/pack'
 import type { FocusSession } from '../../core/tasks'
 import { api } from '../shared/api'
@@ -63,16 +63,38 @@ export function PetApp() {
   const drag = useRef<{ x: number; y: number; dragging: boolean } | null>(null)
   const clickTimer = useRef<number | null>(null)
 
+  // While a reply streams, other lines (achievements, reminders...) wait in a queue so they
+  // never overwrite or truncate the reply.
+  const streaming = useRef(false)
+  const streamText = useRef('')
+  const sayQueue = useRef<PetSayEvent[]>([])
+  const presentSay = useRef<(p: PetSayEvent) => void>(() => {})
+
   const showBubble = useCallback((b: Bubble, duration?: number) => {
     if (bubbleTimer.current) window.clearTimeout(bubbleTimer.current)
+    bubbleTimer.current = null
     setBubble(b)
-    if (!b.streaming) bubbleTimer.current = window.setTimeout(() => setBubble(null), duration || bubbleDuration(b.text))
+    if (!b.streaming) {
+      bubbleTimer.current = window.setTimeout(() => {
+        bubbleTimer.current = null
+        const next = streaming.current ? undefined : sayQueue.current.shift()
+        if (next) presentSay.current(next)
+        else setBubble(null)
+      }, duration || bubbleDuration(b.text))
+    }
   }, [])
 
   const playOnce = useCallback((anim: PetAnimState, ms = 2600) => {
     setOneShot({ anim, until: Date.now() + ms })
     window.setTimeout(() => force((n) => n + 1), ms + 20)
   }, [])
+
+  presentSay.current = (p: PetSayEvent) => {
+    showBubble({ text: p.text, emotion: p.emotion ?? null, streaming: false }, p.duration)
+    if (voiceRef.current) speak(p.text, voiceRef.current)
+    const anim = p.anim ?? (p.emotion ? EMOTION_ANIM[p.emotion] : undefined)
+    if (anim) playOnce(anim, 2800)
+  }
 
   useEffect(() => {
     void api.getSnapshot().then((s) => {
@@ -96,26 +118,32 @@ export function PetApp() {
       api.on('live2d:core', ({ url }) => setLive2dCore(url)),
       api.on('pet:motion', setMotion),
       api.on('pet:say', (p) => {
-        showBubble({ text: p.text, emotion: p.emotion ?? null, streaming: false }, p.duration)
-        if (voiceRef.current) speak(p.text, voiceRef.current)
-        const anim = p.anim ?? (p.emotion ? EMOTION_ANIM[p.emotion] : undefined)
-        if (anim) playOnce(anim, 2800)
+        if (streaming.current || bubbleTimer.current) {
+          sayQueue.current.push(p)
+          if (sayQueue.current.length > 3) sayQueue.current.shift()
+        } else presentSay.current(p)
       }),
       api.on('pet:anim', (p) => playOnce(p.anim, p.duration)),
       api.on('chat:start', () => {
+        streaming.current = true
+        streamText.current = ''
         setThinking(true)
         showBubble({ text: '', emotion: null, streaming: true })
       }),
       api.on('chat:delta', (p) => {
-        setBubble((b) => ({ text: (b?.streaming ? b.text : '') + p.delta, emotion: p.emotion ?? b?.emotion ?? null, streaming: true }))
+        streamText.current += p.delta
+        const text = streamText.current
+        setBubble((b) => ({ text, emotion: p.emotion ?? b?.emotion ?? null, streaming: true }))
       }),
       api.on('chat:done', (p) => {
+        streaming.current = false
         setThinking(false)
         showBubble({ text: p.message.content, emotion: p.message.emotion ?? null, streaming: false })
         if (p.message.emotion) playOnce(EMOTION_ANIM[p.message.emotion], 3200)
         if (voiceRef.current && !p.message.error) speak(p.message.content, voiceRef.current)
       }),
       api.on('chat:error', (p) => {
+        streaming.current = false
         setThinking(false)
         showBubble({ text: p.message, emotion: 'sad', streaming: false, error: true }, 7000)
         playOnce('sad')

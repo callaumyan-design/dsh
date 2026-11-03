@@ -56,7 +56,7 @@ type Broadcast = <K extends keyof EventMap>(channel: K, payload: EventMap[K]) =>
 
 interface UsageDay { input: number; output: number; requests: number }
 interface Activity { ts: number; text: string }
-interface RuntimeState { proactive: ProactiveState; lastDiaryCheck: string | null; lastDreamAt: number; lastEventAt: number; lastSpecial: string }
+interface RuntimeState { proactive: ProactiveState; lastDiaryCheck: string | null; lastDreamAt: number; lastEventAt: number; lastSpecial: string; diaryTries: { date: string; n: number } }
 
 export interface CoreOptions {
   dataDir: string
@@ -106,16 +106,16 @@ export class AppCore {
     this.game = new JsonFile(f('game.json'), (raw) => (raw ? normalizeGame(raw as GameState, now) : createGame(now)))
     this.persona = new JsonFile(f('persona.json'), (raw) => normalizePersona(raw as Persona))
     this.memoryFile = new JsonFile(f('memory.json'), (raw) => (Array.isArray(raw) ? (raw as MemoryItem[]) : []))
-    this.memory = new MemoryStore(this.memoryFile.data, (items) => {
+    this.memory = new MemoryStore(this.memoryFile.data, (items, kind) => {
       this.memoryFile.set([...items])
-      this.opts.broadcast('memory:changed', { count: items.length })
+      if (kind === 'content') this.opts.broadcast('memory:changed', { count: items.length })
     })
     this.diary = new JsonFile(f('diary.json'), (raw) => (Array.isArray(raw) ? (raw as DiaryEntry[]) : []))
     this.usage = new JsonFile(f('usage.json'), (raw) => (raw && typeof raw === 'object' ? (raw as Record<string, UsageDay>) : {}))
     this.activity = new JsonFile(f('activity.json'), (raw) => (Array.isArray(raw) ? (raw as Activity[]) : []))
     this.runtime = new JsonFile(f('runtime.json'), (raw) => {
       const r = (raw ?? {}) as Partial<RuntimeState>
-      return { proactive: r.proactive ?? freshProactiveState(now), lastDiaryCheck: r.lastDiaryCheck ?? null, lastDreamAt: r.lastDreamAt ?? 0, lastEventAt: r.lastEventAt ?? 0, lastSpecial: r.lastSpecial ?? '' }
+      return { proactive: r.proactive ?? freshProactiveState(now), lastDiaryCheck: r.lastDiaryCheck ?? null, lastDreamAt: r.lastDreamAt ?? 0, lastEventAt: r.lastEventAt ?? 0, lastSpecial: r.lastSpecial ?? '', diaryTries: r.diaryTries ?? { date: '', n: 0 } }
     })
     this.chatLog = new ChatLog(f('chat'))
     this.tasks = new JsonFile(f('tasks.json'), normalizeTasks)
@@ -199,6 +199,12 @@ export class AppCore {
       sttHasOwnKey: this.secrets.has(STT_SECRET),
       imageHasOwnKey: this.secrets.has(IMAGE_SECRET)
     }
+  }
+
+  /** The pet moves often: persist its position without a settings broadcast. */
+  saveWindowPosition(x: number, y: number): void {
+    this.settings.data.window = { x: Math.round(x), y: Math.round(y) }
+    this.settings.scheduleSave(2000)
   }
 
   updateSettings(patch: Partial<Settings>): PublicSettings {
@@ -305,7 +311,10 @@ export class AppCore {
         if (!batch.length) return
         const vecs = await this.embed(batch.map((m) => m.text))
         if (!vecs) return
-        batch.forEach((m, i) => vecs[i] && this.memory.setEmbedding(m.id, vecs[i], e.model))
+        this.memory.setEmbeddings(
+          batch.map((m, i) => ({ id: m.id, embedding: vecs[i] })).filter((r) => Array.isArray(r.embedding)),
+          e.model
+        )
       }
     } catch (err) {
       console.warn('[memory] embedding failed:', (err as Error).message)
@@ -715,16 +724,33 @@ export class AppCore {
   }
 
   /** Merge similar memories and forget stale trivia. Runs at most daily, or on demand. */
-  async consolidateMemories(force = false): Promise<{ ok: boolean; merged: number; forgotten: number; error?: string }> {
+  /** Runs in the memory queue so it never interleaves with extraction (both rewrite memories). */
+  consolidateMemories(force = false): Promise<{ ok: boolean; merged: number; forgotten: number; error?: string }> {
+    return new Promise((resolve) =>
+      this.enqueueMemoryJob(async () => {
+        try {
+          resolve(await this.consolidateNow(force))
+        } catch (e) {
+          resolve({ ok: false, merged: 0, forgotten: 0, error: (e as Error).message })
+        }
+      })
+    )
+  }
+
+  private async consolidateNow(force: boolean): Promise<{ ok: boolean; merged: number; forgotten: number; error?: string }> {
     const now = Date.now()
     if (!force && now - this.runtime.data.lastDreamAt < 20 * 3_600_000) return { ok: true, merged: 0, forgotten: 0 }
-    this.runtime.update((r) => ({ ...r, lastDreamAt: now }))
     let forgotten = 0
     for (const m of forgettable(this.memory.all(), now)) if (this.memory.remove(m.id)) forgotten++
     const clusters = findClusters(this.memory.all())
-    if (!clusters.length) return { ok: true, merged: 0, forgotten }
+    if (!clusters.length) {
+      this.runtime.update((r) => ({ ...r, lastDreamAt: now }))
+      return { ok: true, merged: 0, forgotten }
+    }
     const p = this.memoryProvider()
-    if (!this.ready(p) || this.overBudget()) return { ok: false, merged: 0, forgotten, error: '需要先配置 AI 服务商' }
+    if (!this.ready(p)) return { ok: false, merged: 0, forgotten, error: '需要先配置 AI 服务商' }
+    if (this.overBudget()) return { ok: false, merged: 0, forgotten, error: '今天的 token 额度用完了' }
+    this.runtime.update((r) => ({ ...r, lastDreamAt: now }))
     try {
       const r = await chat(p, buildConsolidationMessages(this.persona.data.name, clusters), {
         apiKey: this.keyFor(p),
@@ -750,7 +776,10 @@ export class AppCore {
     if (this.runtime.data.lastDiaryCheck === yesterday) return
     if (this.diary.data.some((d) => d.date === yesterday)) return
     const hadDay = this.chatLog.readDay(yesterday).some((m) => m.role === 'user')
-    if (!hadDay || !this.ready(this.memoryProvider())) return
+    if (!hadDay || !this.ready(this.memoryProvider()) || this.overBudget()) return
+    const tries = this.runtime.data.diaryTries.date === yesterday ? this.runtime.data.diaryTries.n : 0
+    if (tries >= 3) return // give up for this day instead of retrying (and paying) every 30 minutes
+    this.runtime.update((s) => ({ ...s, diaryTries: { date: yesterday, n: tries + 1 } }))
     const r = await this.generateDiary(yesterday)
     if (r.ok) {
       this.runtime.update((s) => ({ ...s, lastDiaryCheck: yesterday }))

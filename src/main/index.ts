@@ -150,7 +150,7 @@ function createPet(): void {
   motion = new PetMotion(
     petWin,
     (e) => broadcast('pet:motion', e),
-    (x, y) => core.updateSettings({ window: { x, y } })
+    (x, y) => core.saveWindowPosition(x, y)
   )
   motion.placeInitial(s.window.x, s.window.y)
   motion.setPaused('disabled', !s.appearance.walkEnabled)
@@ -221,7 +221,7 @@ function rebuildTray(): void {
         type: 'checkbox',
         checked: s.app.clickThrough,
         click: (item) => {
-          core.updateSettings({ app: { ...s.app, clickThrough: item.checked } })
+          core.updateSettings({ app: { ...core.settings.data.app, clickThrough: item.checked } })
           applyClickThrough()
           rebuildTray()
         }
@@ -231,7 +231,7 @@ function rebuildTray(): void {
         type: 'checkbox',
         checked: s.app.dnd,
         click: (item) => {
-          core.updateSettings({ app: { ...s.app, dnd: item.checked } })
+          core.updateSettings({ app: { ...core.settings.data.app, dnd: item.checked } })
           rebuildTray()
         }
       },

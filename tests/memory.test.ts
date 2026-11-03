@@ -167,3 +167,18 @@ describe('extraction gating and auto-pin', () => {
     expect(store.core().map((m) => m.text)).toEqual(['用户的名字是小明'])
   })
 })
+
+describe('store change kinds and pinned protection', () => {
+  it('touch and embeddings are meta changes; hand-pinned memories are not rewritten by auto adds', () => {
+    const kinds: string[] = []
+    const store = new MemoryStore([], (_i, k) => kinds.push(k))
+    const pinned = store.add({ text: '用户生日是3月5号', pinned: true, source: 'user' }, NOW).item
+    store.touch([pinned.id], NOW)
+    store.setEmbeddings([{ id: pinned.id, embedding: [0.123456789, 1] }], 'm')
+    expect(kinds).toEqual(['content', 'meta', 'meta'])
+    expect(store.get(pinned.id)?.embedding).toEqual([0.12346, 1])
+    const r = store.add({ text: '用户生日是3月5号。', source: 'auto' }, NOW)
+    expect(r.item.id).toBe(pinned.id)
+    expect(store.get(pinned.id)?.text).toBe('用户生日是3月5号')
+  })
+})

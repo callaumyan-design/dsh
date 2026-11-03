@@ -76,10 +76,13 @@ export class PetMotion {
       if (this.mode === 'walk') {
         this.stopLoop()
         this.setMode('idle')
+        this.onSettled(this.x, this.y)
       }
     } else {
       this.pauses.delete(reason)
     }
+    // walkTo() does not keep a decision pending, so make sure one is queued again
+    if (this.mode === 'idle' && !this.decideTimer) this.scheduleDecision()
   }
 
   /** Put the window at a remembered position (clamped on screen) or bottom-right by default. */
@@ -202,6 +205,7 @@ export class PetMotion {
   }
 
   private decide(): void {
+    this.decideTimer = null
     if (this.pauses.size || this.mode !== 'idle' || this.win.isDestroyed() || !this.win.isVisible()) return this.scheduleDecision()
     const area = this.area()
     const b = this.win.getBounds()
