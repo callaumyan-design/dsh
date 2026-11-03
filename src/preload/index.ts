@@ -50,6 +50,7 @@ const api: SoulPetAPI = {
 
   openPanel: (tab) => invoke('app:openPanel', tab),
   completeSetup: () => invoke('app:completeSetup'),
+  diagnostics: () => invoke('app:diagnostics'),
   checkUpdate: () => invoke('app:checkUpdate'),
   petDragStart: () => ipcRenderer.send('pet:dragStart'),
   petDragEnd: () => ipcRenderer.send('pet:dragEnd'),

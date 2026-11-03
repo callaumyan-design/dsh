@@ -40,7 +40,7 @@ export interface Settings {
     blobAccessory: BlobAccessory
     opacity: number
   }
-  app: { autoStart: boolean; dnd: boolean; hotkey: string; hideHotkey: string; alwaysOnTop: boolean; clickThrough: boolean; proxy: string; checkUpdates: boolean }
+  app: { autoStart: boolean; dnd: boolean; hotkey: string; hideHotkey: string; alwaysOnTop: boolean; clickThrough: boolean; proxy: string; checkUpdates: boolean; hideOnFullscreen: boolean }
   voice: { enabled: boolean; voiceName: string; rate: number; pitch: number; volume: number }
   /** speech-to-text; keyFrom = provider id whose key to reuse, or 'own' */
   stt: { enabled: boolean; baseURL: string; model: string; keyFrom: string; language: string }
@@ -63,7 +63,7 @@ export function defaultSettings(): Settings {
     proactive: { level: 'medium', quietEnabled: true, quietStart: '23:00', quietEnd: '08:00', useAI: false },
     game: { difficulty: 'normal', maxOfflineHours: 12 },
     appearance: { packId: BUILTIN_PACK_ID, scale: 1, walkEnabled: true, blobColor: '#8fd3ff', blobAccessory: 'bow', opacity: 1 },
-    app: { autoStart: false, dnd: false, hotkey: 'CommandOrControl+Alt+P', hideHotkey: 'CommandOrControl+Alt+H', alwaysOnTop: true, clickThrough: false, proxy: '', checkUpdates: true },
+    app: { autoStart: false, dnd: false, hotkey: 'CommandOrControl+Alt+P', hideHotkey: 'CommandOrControl+Alt+H', alwaysOnTop: true, clickThrough: false, proxy: '', checkUpdates: true, hideOnFullscreen: true },
     voice: { enabled: false, voiceName: '', rate: 1.1, pitch: 1.3, volume: 0.9 },
     stt: { enabled: false, baseURL: 'https://api.siliconflow.cn/v1', model: 'FunAudioLLM/SenseVoiceSmall', keyFrom: 'siliconflow', language: '' },
     window: { x: null, y: null },

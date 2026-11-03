@@ -29,7 +29,7 @@ npm run dist:win           # 打包
 - 在 root 下运行 Electron 必须加 `--no-sandbox`。
 - Playwright 是全局安装的，项目里**不要**把它加进依赖（版本不一致会找不到预装的 Chromium）。`scripts/gen-assets.mjs` 和 `tests/e2e/smoke.mjs` 都用 `createRequire` 加载它。
 - Linux 下 `setIgnoreMouseEvents(..., {forward})` 不支持，所以代码在 Linux 上跳过鼠标穿透。
-- `git push` 偶尔会卡住，用 `timeout 90 git push origin desktop-pet`，失败了重试。
+- `git push` 偶尔会卡住，用 `timeout 90 git push origin desktop-pet`，失败了重试。要杀卡住的进程请用 `pkill -f "^/usr/lib/git-core/git-remote-https"`（`pkill -f git-remote-https` 会把当前 shell 自己也杀掉）。
 - CI 里有 `e2e-windows` 任务，会在真实的 Windows runner 上跑同一个 e2e 测试，截图在 artifact `e2e-screenshots-windows` 里。
 
 ## 已完成（v0.1，提交 a0f5570 起）
@@ -49,6 +49,11 @@ npm run dist:win           # 打包
 - [x] CI：typecheck、单元测试、e2e、三平台打包；推送 `v*` 标签生成 Release 草稿
 
 ## 进行中 / 待办（按优先级）
+
+- [x] 节日 / 纪念日（`src/core/calendar.ts`，农历节日用 2026–2030 的查表，**过了 2030 要补表**；写进系统提示词，每天主动问候一次）
+- [x] 全屏自动躲起来（Windows：常驻一个 PowerShell 进程，每 3 秒通过 user32 查一次前台窗口，`src/core/fullscreen.ts` + `src/main/fullscreenWatch.ts`；窗口铺满整个显示器（物理像素）就隐藏，并静音主动搭话）。Windows e2e 会检查探针确实有输出
+- [x] 诊断信息（设置 → 关于 → 诊断信息；IPC `app:diagnostics`）
+- [x] 更新检查（GitHub Releases 里的 `soulpet-v*`，只提示不下载）、隐藏 / 显示快捷键 `Ctrl+Alt+H`，聊天快捷键默认改为 `Ctrl+Alt+P`
 
 - [x] 语音输入（按住 🎤 说话 → MediaRecorder → 主进程 → OpenAI 兼容 `/audio/transcriptions`；默认用硅基流动 SenseVoice；e2e 用 Chromium 的假麦克风测试）。媒体权限只开放给自己的页面（`setPermissionRequestHandler`）
 

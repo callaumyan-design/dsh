@@ -165,6 +165,7 @@ export function SettingsTab({ snap, onRefresh }: { snap: Snapshot; onRefresh: ()
   const [embKey, setEmbKey] = useState('')
   const [sttKey, setSttKey] = useState('')
   const [update_, setUpdate] = useState<string>('')
+  const [diag, setDiag] = useState('')
   const provider = s.providers.find((p) => p.id === editing) ?? s.providers[0]
   const update = (patch: Partial<Settings>) => void api.settingsUpdate(patch)
 
@@ -415,6 +416,11 @@ export function SettingsTab({ snap, onRefresh }: { snap: Snapshot; onRefresh: ()
         <Field label="鼠标穿透" hint="打开后宠物不会挡住鼠标点击（无法拖动和右键它），通过托盘图标操作">
           <Toggle checked={s.app.clickThrough} onChange={(v) => update({ app: { ...s.app, clickThrough: v } })} />
         </Field>
+        {snap.platform === 'win32' && (
+          <Field label="全屏时自动躲起来" hint="看视频、玩游戏、放幻灯片时自动隐藏，退出全屏后回来">
+            <Toggle checked={s.app.hideOnFullscreen} onChange={(v) => update({ app: { ...s.app, hideOnFullscreen: v } })} />
+          </Field>
+        )}
         <Field label="窗口置顶">
           <Toggle checked={s.app.alwaysOnTop} onChange={(v) => update({ app: { ...s.app, alwaysOnTop: v } })} />
         </Field>
@@ -465,7 +471,20 @@ export function SettingsTab({ snap, onRefresh }: { snap: Snapshot; onRefresh: ()
             项目主页
           </button>
           {update_ && <span className="muted">{update_}</span>}
+          <button
+            className="btn ghost"
+            onClick={async () => {
+              const d = await api.diagnostics()
+              const text = Object.entries(d)
+                .map(([k, v]) => `${k}: ${v}`)
+                .join('\n')
+              setDiag(text)
+            }}
+          >
+            诊断信息
+          </button>
         </div>
+        {diag && <pre className="diag">{diag}</pre>}
       </Section>
     </div>
   )

@@ -108,6 +108,16 @@ const step = (name) => console.log(`✓ ${name}`)
 // ---------------------------------------------------------------- run 1
 let { app, pet } = await launch()
 step('app launched, pet window rendered')
+if (process.platform === 'win32') {
+  // the PowerShell foreground-window probe must compile and report within a few seconds
+  const d = await waitFor(async () => {
+    const x = await pet.evaluate(() => window.soulpet.diagnostics())
+    return x.fullscreenLastProbeAt ? x : null
+  }, 30000, 'fullscreen probe output')
+  assert.equal(d.fullscreenWatcher, 'running')
+  assert.match(String(d.fullscreenLastProbe), /-?\d+,-?\d+,-?\d+,-?\d+,/)
+  step(`fullscreen watcher running on Windows (${d.fullscreenLastProbe})`)
+}
 
 // first run: setup wizard opens in the panel
 const wizard = await waitFor(() => app.windows().find((w) => w.url().includes('panel')), 8000, 'setup wizard')

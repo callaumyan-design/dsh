@@ -26,6 +26,7 @@ import { AppCore, EMBEDDING_SECRET, STT_SECRET } from './core'
 import { PetMotion } from './motion'
 import { checkForUpdate, type ReleaseInfo } from '../core/update'
 import { installLogger } from './logger'
+import { FullscreenWatcher } from './fullscreenWatch'
 import { importFolder, importZip } from './packImport'
 import { PackManager, registerAssetScheme } from './packs'
 import { createPanelWindow, createPetWindow } from './windows'
@@ -62,6 +63,26 @@ let panelWin: BrowserWindow | null = null
 let motion: PetMotion | null = null
 let tray: Tray | null = null
 let quitting = false
+let hiddenByFullscreen = false
+const fullscreen = new FullscreenWatcher((on) => {
+  core.fullscreenActive = on
+  if (!petWin) return
+  if (on && petWin.isVisible()) {
+    hiddenByFullscreen = true
+    petWin.hide()
+    motion?.setPaused('hidden', true)
+  } else if (!on && hiddenByFullscreen) {
+    hiddenByFullscreen = false
+    petWin.showInactive()
+    motion?.setPaused('hidden', false)
+  }
+  console.log('[fullscreen]', on ? 'hide' : 'show')
+})
+
+function applyFullscreenWatch(): void {
+  if (core.settings.data.app.hideOnFullscreen) fullscreen.start()
+  else fullscreen.stop()
+}
 
 function broadcast<K extends keyof EventMap>(channel: K, payload: EventMap[K]): void {
   for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send(channel, payload)
@@ -115,6 +136,7 @@ function applyClickThrough(): void {
 
 function setPetVisible(visible: boolean): void {
   if (!petWin) return
+  hiddenByFullscreen = false
   if (visible) petWin.showInactive()
   else petWin.hide()
   motion?.setPaused('hidden', !visible)
@@ -356,6 +378,7 @@ function registerIpc(): void {
     if (s.app.dnd !== before.app.dnd || s.app.clickThrough !== before.app.clickThrough) rebuildTray()
     if (s.app.clickThrough !== before.app.clickThrough) applyClickThrough()
     if (s.app.proxy !== before.app.proxy) void applyProxy()
+    if (s.app.hideOnFullscreen !== before.app.hideOnFullscreen) applyFullscreenWatch()
     return pub
   })
   h('provider:upsert', (_e, cfg: ProviderConfig) => {
@@ -440,6 +463,22 @@ function registerIpc(): void {
   })
   h('app:openPanel', (_e, tab?: string) => openPanel(tab))
   h('app:checkUpdate', () => runUpdateCheck(true))
+  h('app:diagnostics', () => ({
+    version: app.getVersion(),
+    electron: process.versions.electron,
+    platform: `${process.platform} ${process.arch}`,
+    dataDir: core.dataDir,
+    keysEncrypted: core.secrets.encrypted,
+    proxy: core.settings.data.app.proxy || 'system',
+    fullscreenWatcher: fullscreen.supported ? (fullscreen.running ? 'running' : 'stopped') : 'unsupported',
+    fullscreenLastProbe: fullscreen.lastProbeAt ? `${Math.round((Date.now() - fullscreen.lastProbeAt) / 1000)}s ago: ${fullscreen.lastLine}` : '',
+    fullscreenLastProbeAt: fullscreen.lastProbeAt,
+    memoryCount: core.memory.size,
+    provider: (() => {
+      const p = core.provider()
+      return p ? `${p.name} · ${p.model} · ${p.noKey || core.secrets.has(p.id) ? 'key ok' : 'no key'}` : 'none'
+    })()
+  }))
   h('app:completeSetup', () => core.completeSetup())
 
   ipcMain.on('pet:dragStart', () => motion?.dragStart())
@@ -499,6 +538,7 @@ async function main(): Promise<void> {
   applyHotkey()
   applyAutoStart()
   core.start()
+  applyFullscreenWatch()
   if (core.settings.data.app.checkUpdates && app.isPackaged) setTimeout(() => void runUpdateCheck(false), 30_000)
   if (process.env.SOULPET_OPEN_PANEL) openPanel(process.env.SOULPET_OPEN_PANEL)
   else if (!core.settings.data.setupDone) openPanel('welcome')
@@ -506,6 +546,7 @@ async function main(): Promise<void> {
 
 app.on('before-quit', () => {
   quitting = true
+  fullscreen.stop()
   motion?.stop()
   core?.stop()
 })

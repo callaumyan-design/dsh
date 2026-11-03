@@ -41,7 +41,8 @@ import {
   type Repeat,
   type TasksState
 } from '../core/tasks'
-import { dateKey, previousDateKey, uid } from '../core/util'
+import { describeSpecialDays, specialGreeting } from '../core/calendar'
+import { dateKey, inTimeWindow, previousDateKey, uid } from '../core/util'
 import { Secrets } from './secrets'
 import { ChatLog, JsonFile } from './storage'
 
@@ -52,7 +53,7 @@ type Broadcast = <K extends keyof EventMap>(channel: K, payload: EventMap[K]) =>
 
 interface UsageDay { input: number; output: number; requests: number }
 interface Activity { ts: number; text: string }
-interface RuntimeState { proactive: ProactiveState; lastDiaryCheck: string | null; lastDreamAt: number; lastEventAt: number }
+interface RuntimeState { proactive: ProactiveState; lastDiaryCheck: string | null; lastDreamAt: number; lastEventAt: number; lastSpecial: string }
 
 export interface CoreOptions {
   dataDir: string
@@ -87,6 +88,8 @@ export class AppCore {
   private timers: NodeJS.Timeout[] = []
   private lastIdleSec = 0
   lastPetInteractionAt = Date.now()
+  /** set by the window layer while a fullscreen app hides the pet */
+  fullscreenActive = false
   /** Set by the window layer so a reply can pause/unpause walking. */
   onChatBusy: (busy: boolean) => void = () => {}
 
@@ -108,7 +111,7 @@ export class AppCore {
     this.activity = new JsonFile(f('activity.json'), (raw) => (Array.isArray(raw) ? (raw as Activity[]) : []))
     this.runtime = new JsonFile(f('runtime.json'), (raw) => {
       const r = (raw ?? {}) as Partial<RuntimeState>
-      return { proactive: r.proactive ?? freshProactiveState(now), lastDiaryCheck: r.lastDiaryCheck ?? null, lastDreamAt: r.lastDreamAt ?? 0, lastEventAt: r.lastEventAt ?? 0 }
+      return { proactive: r.proactive ?? freshProactiveState(now), lastDiaryCheck: r.lastDiaryCheck ?? null, lastDreamAt: r.lastDreamAt ?? 0, lastEventAt: r.lastEventAt ?? 0, lastSpecial: r.lastSpecial ?? '' }
     })
     this.chatLog = new ChatLog(f('chat'))
     this.tasks = new JsonFile(f('tasks.json'), normalizeTasks)
@@ -158,7 +161,7 @@ export class AppCore {
   /** Small surprises every now and then (only while the user is at the computer). */
   private maybeRandomEvent(idleSec: number): void {
     const now = Date.now()
-    if (idleSec > 300 || this.focusActive() || this.settings.data.app.dnd || this.chatAbort) return
+    if (idleSec > 300 || this.focusActive() || this.fullscreenActive || this.settings.data.app.dnd || this.chatAbort) return
     if (now - this.runtime.data.lastEventAt < 40 * 60_000) return
     const ev = rollRandomEvent(this.game.data)
     if (!ev) return
@@ -429,7 +432,8 @@ export class AppCore {
         coreMemories: this.memory.core(s.memory.maxCore),
         relevantMemories: relevant.map((r) => r.item),
         now: new Date(now),
-        tasks: describeTasksForPrompt(this.tasks.data, now)
+        tasks: describeTasksForPrompt(this.tasks.data, now),
+        situation: describeSpecialDays(new Date(now), g.createdAt)
       })
       const messages = buildChatMessages(
         system,
@@ -710,10 +714,18 @@ export class AppCore {
     if (returnedAfterSec && this.game.data.asleep && this.game.data.stats.energy >= 60) {
       this.setGame({ ...this.game.data, asleep: false })
     }
+    // Festivals / anniversaries: one greeting per day, same politeness rules as other proactive talk.
+    const special = specialGreeting(new Date(), this.game.data.createdAt)
+    const quiet = s.proactive.quietEnabled && inTimeWindow(new Date(), s.proactive.quietStart, s.proactive.quietEnd)
+    if (special && special.key !== this.runtime.data.lastSpecial && !s.app.dnd && !this.fullscreenActive && !quiet && idle < 300 && s.proactive.level !== 'off' && !this.chatAbort) {
+      this.runtime.update((r) => ({ ...r, lastSpecial: special.key }))
+      this.say(special.text, { emotion: 'excited', proactive: true })
+      return
+    }
     const kind = decideProactive({
       now: new Date(),
       settings: s.proactive,
-      dnd: s.app.dnd || this.focusActive(),
+      dnd: s.app.dnd || this.focusActive() || this.fullscreenActive,
       game: this.game.data,
       state: this.runtime.data.proactive,
       systemIdleSec: idle,
