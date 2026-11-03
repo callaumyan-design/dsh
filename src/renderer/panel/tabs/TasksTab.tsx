@@ -26,7 +26,6 @@ export function TasksTab({ snap }: { snap: Snapshot }) {
   const [todo, setTodo] = useState('')
   const toast = useToast()
   const now = useNow()
-  useEffect(() => api.on('tasks:update', setTasks), [])
   useEffect(() => setTasks(snap.tasks), [snap.tasks])
 
   const focus = tasks.focus && tasks.focus.endsAt > now ? tasks.focus : null

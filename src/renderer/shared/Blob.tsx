@@ -3,6 +3,7 @@
  * semantic animation state + the emotion from the last reply, so it reacts like a sprite pet
  * without any image assets. Colour and accessory are user-customisable.
  */
+import { useId } from 'react'
 import type { Emotion } from '../../core/ai/emotion'
 import type { PetAnimState } from '../../core/game/types'
 import type { BlobAccessory } from '../../core/settings'
@@ -207,7 +208,7 @@ export interface BlobProps {
 export function Blob({ state, emotion, color, accessory, sleepy, sick, width, height, flip }: BlobProps) {
   const { face, mouth } = expression(state, emotion, !!sleepy)
   const body = sick ? shade(color, -0.08) : color
-  const id = `g${color.replace('#', '')}`
+  const id = `g${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`
   const blush = state === 'shy' || emotion === 'shy' || emotion === 'love' ? 0.75 : 0.4
   return (
     <svg

@@ -6,7 +6,7 @@ import type { PublicProvider, Snapshot } from '../../../core/ipc'
 import type { DeepPartial, Settings } from '../../../core/settings'
 import { api } from '../../shared/api'
 import { speak } from '../../shared/speech'
-import { Field, Section, Toggle, useToast } from '../ui'
+import { CommitInput, Field, Section, Toggle, useToast } from '../ui'
 
 function ProviderEditor({ provider, isActive, onSaved }: { provider: PublicProvider; isActive: boolean; onSaved: () => void }) {
   const [cfg, setCfg] = useState<ProviderConfig>(provider)
@@ -14,11 +14,11 @@ function ProviderEditor({ provider, isActive, onSaved }: { provider: PublicProvi
   const [testing, setTesting] = useState(false)
   const toast = useToast()
   const preset = PROVIDER_PRESETS.find((p) => p.id === provider.id)
+  const stored = JSON.stringify((({ hasKey: _h, ...r }) => r)(provider))
   useEffect(() => {
-    const { hasKey: _h, ...rest } = provider
-    setCfg(rest)
-    setKey('')
-  }, [provider])
+    setCfg(JSON.parse(stored) as ProviderConfig)
+  }, [stored])
+  useEffect(() => setKey(''), [provider.id])
   const dirty = JSON.stringify(cfg) !== JSON.stringify((({ hasKey: _h, ...r }) => r)(provider))
 
   const save = async () => {
@@ -213,7 +213,7 @@ export function SettingsTab({ snap, onRefresh }: { snap: Snapshot; onRefresh: ()
           <Toggle checked={s.memory.dailyDiary} onChange={(v) => update({ memory: { dailyDiary: v } })} />
         </Field>
         <Field label="每次带入的记忆数">
-          <input type="number" min={0} max={20} value={s.memory.maxRetrieved} onChange={(e) => update({ memory: { maxRetrieved: Number(e.target.value) } })} />
+          <CommitInput type="number" min={0} max={20} value={s.memory.maxRetrieved} onCommit={(v) => update({ memory: { maxRetrieved: Number(v) } })} />
         </Field>
         <Field label="向量记忆 (Embedding)">
           <Toggle checked={s.embedding.enabled} onChange={(v) => update({ embedding: { enabled: v } })} />
@@ -235,10 +235,10 @@ export function SettingsTab({ snap, onRefresh }: { snap: Snapshot; onRefresh: ()
               </select>
             </Field>
             <Field label="接口地址">
-              <input value={s.embedding.baseURL} onChange={(e) => update({ embedding: { baseURL: e.target.value } })} />
+              <CommitInput value={s.embedding.baseURL} onCommit={(v) => update({ embedding: { baseURL: v } })} />
             </Field>
             <Field label="模型">
-              <input value={s.embedding.model} onChange={(e) => update({ embedding: { model: e.target.value } })} />
+              <CommitInput value={s.embedding.model} onCommit={(v) => update({ embedding: { model: v } })} />
             </Field>
             <Field label="API Key 来源">
               <select value={s.embedding.keyFrom} onChange={(e) => update({ embedding: { keyFrom: e.target.value } })}>
@@ -256,6 +256,7 @@ export function SettingsTab({ snap, onRefresh }: { snap: Snapshot; onRefresh: ()
                   <input type="password" value={embKey} onChange={(e) => setEmbKey(e.target.value)} placeholder="sk-..." />
                   <button
                     className="btn"
+                    disabled={!embKey.trim()}
                     onClick={async () => {
                       await api.setApiKey('embedding', embKey)
                       setEmbKey('')
@@ -353,13 +354,13 @@ export function SettingsTab({ snap, onRefresh }: { snap: Snapshot; onRefresh: ()
               </select>
             </Field>
             <Field label="接口地址">
-              <input value={s.stt.baseURL} onChange={(e) => update({ stt: { baseURL: e.target.value } })} />
+              <CommitInput value={s.stt.baseURL} onCommit={(v) => update({ stt: { baseURL: v } })} />
             </Field>
             <Field label="模型">
-              <input value={s.stt.model} onChange={(e) => update({ stt: { model: e.target.value } })} />
+              <CommitInput value={s.stt.model} onCommit={(v) => update({ stt: { model: v } })} />
             </Field>
             <Field label="语言" hint="留空自动识别；Whisper 可以填 zh 提高中文准确率">
-              <input value={s.stt.language} placeholder="自动" onChange={(e) => update({ stt: { language: e.target.value.trim() } })} />
+              <CommitInput value={s.stt.language} placeholder="自动" onCommit={(v) => update({ stt: { language: v } })} />
             </Field>
             <Field label="API Key 来源">
               <select value={s.stt.keyFrom} onChange={(e) => update({ stt: { keyFrom: e.target.value } })}>
@@ -377,6 +378,7 @@ export function SettingsTab({ snap, onRefresh }: { snap: Snapshot; onRefresh: ()
                   <input type="password" value={sttKey} onChange={(e) => setSttKey(e.target.value)} placeholder="sk-..." />
                   <button
                     className="btn"
+                    disabled={!sttKey.trim()}
                     onClick={async () => {
                       await api.setApiKey('stt', sttKey)
                       setSttKey('')
@@ -422,10 +424,10 @@ export function SettingsTab({ snap, onRefresh }: { snap: Snapshot; onRefresh: ()
           </select>
         </Field>
         <Field label="每日 token 上限" hint={`0 表示不限制。今天已用 ${(snap.usageToday.input + snap.usageToday.output).toLocaleString()}`}>
-          <input type="number" min={0} step={10000} value={s.chat.dailyTokenLimit} onChange={(e) => update({ chat: { dailyTokenLimit: Number(e.target.value) } })} />
+          <CommitInput type="number" min={0} step={10000} value={s.chat.dailyTokenLimit} onCommit={(v) => update({ chat: { dailyTokenLimit: Number(v) } })} />
         </Field>
         <Field label="聊天上下文长度" hint="带入最近多少字的聊天记录">
-          <input type="number" min={500} max={40000} step={500} value={s.chat.historyChars} onChange={(e) => update({ chat: { historyChars: Number(e.target.value) } })} />
+          <CommitInput type="number" min={500} max={40000} step={500} value={s.chat.historyChars} onCommit={(v) => update({ chat: { historyChars: Number(v) } })} />
         </Field>
       </Section>
 

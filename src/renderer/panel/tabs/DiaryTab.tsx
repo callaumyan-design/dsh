@@ -20,12 +20,15 @@ export function DiaryTab({ snap }: { snap: Snapshot }) {
           disabled={busy}
           onClick={async () => {
             setBusy(true)
-            const r = await api.diaryGenerate()
-            setBusy(false)
-            if (r.ok) {
-              toast('写好啦')
-              setEntries(await api.diaryList())
-            } else toast(r.error ?? '写日记失败', 'err')
+            try {
+              const r = await api.diaryGenerate()
+              if (r.ok) {
+                toast('写好啦')
+                setEntries(await api.diaryList())
+              } else toast(r.error ?? '写日记失败', 'err')
+            } finally {
+              setBusy(false)
+            }
           }}
         >
           {busy ? '正在写…' : '写今天的日记'}

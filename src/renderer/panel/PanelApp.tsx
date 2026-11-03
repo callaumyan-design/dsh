@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Snapshot } from '../../core/ipc'
 import { api } from '../shared/api'
 import { AppearanceTab } from './tabs/AppearanceTab'
@@ -33,7 +33,6 @@ export function PanelApp() {
   const [snap, setSnap] = useState<Snapshot | null>(null)
 
   useEffect(() => {
-    void api.getSnapshot().then(setSnap)
     const off = [
       api.on('game:update', (p) => setSnap((s) => (s ? { ...s, game: p.game, conditions: p.conditions } : s))),
       api.on('settings:update', (settings) => setSnap((s) => (s ? { ...s, settings } : s))),
@@ -47,7 +46,12 @@ export function PanelApp() {
     return () => off.forEach((f) => f())
   }, [])
 
-  const refresh = () => void api.getSnapshot().then(setSnap)
+  // one snapshot per tab switch; a response older than a later request is ignored
+  const fetchSeq = useRef(0)
+  const refresh = () => {
+    const seq = ++fetchSeq.current
+    void api.getSnapshot().then((s) => seq === fetchSeq.current && setSnap(s))
+  }
   useEffect(refresh, [tab])
 
   if (!snap) return <div className="loading">加载中…</div>

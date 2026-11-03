@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { MemoryItemPublic, ScoredMemoryPublic, Snapshot } from '../../../core/ipc'
 import { MEMORY_TYPE_LABEL, type MemoryType } from '../../../core/memory/types'
 import { api } from '../../shared/api'
@@ -9,6 +9,9 @@ const TYPES = Object.keys(MEMORY_TYPE_LABEL) as MemoryType[]
 function MemoryRow({ m, onChange, score }: { m: MemoryItemPublic; onChange: () => void; score?: number }) {
   const [editing, setEditing] = useState(false)
   const [text, setText] = useState(m.text)
+  useEffect(() => {
+    if (!editing) setText(m.text) // follow changes made elsewhere (consolidation, extraction)
+  }, [m.text, editing])
   const toast = useToast()
   const save = async () => {
     await api.memoryUpdate(m.id, { text })
@@ -100,9 +103,11 @@ export function MemoryTab({ snap }: { snap: Snapshot }) {
     return api.on('memory:changed', reload)
   }, [])
 
+  const searchSeq = useRef(0)
   useEffect(() => {
+    const seq = ++searchSeq.current
     if (!query.trim()) return setResults(null)
-    const t = setTimeout(() => void api.memorySearch(query).then(setResults), 200)
+    const t = setTimeout(() => void api.memorySearch(query).then((r) => seq === searchSeq.current && setResults(r)), 200)
     return () => clearTimeout(t)
   }, [query, items])
 

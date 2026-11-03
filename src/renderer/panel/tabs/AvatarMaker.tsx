@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { Snapshot } from '../../../core/ipc'
 import { alphaBounds, IMAGE_PRESETS, removeBackground } from '../../../core/pets/imagegen'
 import { api } from '../../shared/api'
-import { Field, Section, Toggle, useToast } from '../ui'
+import { CommitInput, Field, Section, Toggle, useToast } from '../ui'
 
 /** Draw, optionally cut out the background, crop to the character and return PNG bytes. */
 async function processImage(dataUrl: string, cutout: boolean): Promise<{ preview: string; bytes: Uint8Array }> {
@@ -49,16 +49,18 @@ export function AvatarMaker({ snap }: { snap: Snapshot }) {
   const generate = async () => {
     setBusy(true)
     setResult(null)
-    const r = await api.avatarGenerate(desc)
-    if (!r.ok || !r.dataUrl) {
+    try {
+      const r = await api.avatarGenerate(desc)
+      if (!r.ok || !r.dataUrl) return toast(r.error ?? '生成失败', 'err')
+      setRaw(r.dataUrl)
+      const cut = !r.transparent
+      setCutout(cut)
+      setResult(await processImage(r.dataUrl, cut))
+    } catch (e) {
+      toast(`图片处理失败：${(e as Error).message}`, 'err')
+    } finally {
       setBusy(false)
-      return toast(r.error ?? '生成失败', 'err')
     }
-    setRaw(r.dataUrl)
-    const cut = !r.transparent
-    setCutout(cut)
-    setResult(await processImage(r.dataUrl, cut))
-    setBusy(false)
   }
 
   return (
@@ -89,10 +91,10 @@ export function AvatarMaker({ snap }: { snap: Snapshot }) {
             </select>
           </Field>
           <Field label="接口地址">
-            <input value={g.baseURL} onChange={(e) => update({ baseURL: e.target.value })} />
+            <CommitInput value={g.baseURL} onCommit={(v) => update({ baseURL: v })} />
           </Field>
           <Field label="模型">
-            <input value={g.model} onChange={(e) => update({ model: e.target.value })} />
+            <CommitInput value={g.model} onCommit={(v) => update({ model: v })} />
           </Field>
           <Field label="API Key 来源">
             <select value={g.keyFrom} onChange={(e) => update({ keyFrom: e.target.value })}>
@@ -110,6 +112,7 @@ export function AvatarMaker({ snap }: { snap: Snapshot }) {
                 <input type="password" value={key} onChange={(e) => setKey(e.target.value)} placeholder="sk-..." />
                 <button
                   className="btn"
+                  disabled={!key.trim()}
                   onClick={async () => {
                     await api.setApiKey('image', key)
                     setKey('')
@@ -139,8 +142,13 @@ export function AvatarMaker({ snap }: { snap: Snapshot }) {
                   type="checkbox"
                   checked={cutout}
                   onChange={async (e) => {
-                    setCutout(e.target.checked)
-                    setResult(await processImage(raw, e.target.checked))
+                    const on = e.target.checked
+                    setCutout(on)
+                    try {
+                      setResult(await processImage(raw, on))
+                    } catch (err) {
+                      toast(`图片处理失败：${(err as Error).message}`, 'err')
+                    }
                   }}
                 />
                 去掉背景

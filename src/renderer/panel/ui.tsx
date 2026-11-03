@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
 
 export function Section({ title, desc, children, actions }: { title: string; desc?: ReactNode; children: ReactNode; actions?: ReactNode }) {
   return (
@@ -76,4 +76,64 @@ export function fmtTime(ts: number): string {
   const today = new Date()
   const hm = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
   return d.toDateString() === today.toDateString() ? hm : `${d.getMonth() + 1}/${d.getDate()} ${hm}`
+}
+
+/**
+ * Text / number input that edits locally and commits on blur or Enter, so typing never
+ * round-trips through the main process (no lost characters or caret jumps).
+ */
+export function CommitInput({
+  value,
+  onCommit,
+  type = 'text',
+  placeholder,
+  min,
+  max,
+  step,
+  className
+}: {
+  value: string | number
+  onCommit: (v: string) => void
+  type?: 'text' | 'number'
+  placeholder?: string
+  min?: number
+  max?: number
+  step?: number
+  className?: string
+}) {
+  const [draft, setDraft] = useState(String(value))
+  const [focused, setFocused] = useState(false)
+  useEffect(() => {
+    if (!focused) setDraft(String(value))
+  }, [value, focused])
+  const commit = () => {
+    const v = draft.trim()
+    if (type === 'number') {
+      const n = Number(v)
+      if (v === '' || !Number.isFinite(n)) return setDraft(String(value)) // ignore empty / invalid
+      const clamped = Math.min(max ?? Infinity, Math.max(min ?? -Infinity, n))
+      if (clamped !== Number(value)) onCommit(String(clamped))
+      setDraft(String(clamped))
+      return
+    }
+    if (v !== String(value)) onCommit(v)
+  }
+  return (
+    <input
+      className={className}
+      type={type}
+      value={draft}
+      placeholder={placeholder}
+      min={min}
+      max={max}
+      step={step}
+      onFocus={() => setFocused(true)}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => {
+        setFocused(false)
+        commit()
+      }}
+      onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+    />
+  )
 }

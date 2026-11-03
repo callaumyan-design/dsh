@@ -38,10 +38,13 @@ export function ChatTab({ snap }: { snap: Snapshot }) {
 
   const send = async () => {
     const text = draft.trim()
-    if (!text) return
+    if (!text || streaming) return
     setDraft('')
     const r = await api.chatSend(text)
-    if (!r.ok && r.error) toast(r.error, 'err')
+    if (!r.ok && r.error) {
+      setDraft((d) => d || text) // give the text back so it is not lost
+      toast(r.error, 'err')
+    }
   }
 
   return (
