@@ -42,6 +42,7 @@ const api: SoulPetAPI = {
 
   packsReload: () => invoke('packs:reload'),
   packSelect: (id) => invoke('packs:select', id),
+  live2dInstallCore: (file) => invoke('live2d:installCore', file),
   packImport: (kind, file) => invoke('packs:import', kind, file),
   avatarGenerate: (desc) => invoke('avatar:generate', desc),
   packFromImageData: (data, name) => invoke('packs:fromImageData', data, name),

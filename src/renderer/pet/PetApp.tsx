@@ -51,6 +51,7 @@ export function PetApp() {
   const [hearts, setHearts] = useState<number[]>([])
   const [petName, setPetName] = useState('它')
   const [focus, setFocus] = useState<FocusSession | null>(null)
+  const [live2dCore, setLive2dCore] = useState<string | null>(null)
   const [hearing, setHearing] = useState(false)
   const recorder = useRecorder()
   const [, force] = useState(0)
@@ -81,6 +82,7 @@ export function PetApp() {
       setPacks(s.packs)
       setPetName(s.persona.name)
       setFocus(s.tasks.focus)
+      setLive2dCore(s.live2dCore)
     })
     const off = [
       api.on('persona:update', (p) => setPetName(p.name)),
@@ -90,7 +92,10 @@ export function PetApp() {
         setConds(p.conditions)
       }),
       api.on('settings:update', setSettings),
-      api.on('packs:update', setPacks),
+      api.on('packs:update', (p) => {
+        setPacks(p)
+        void api.getSnapshot().then((s) => setLive2dCore(s.live2dCore))
+      }),
       api.on('pet:motion', setMotion),
       api.on('pet:say', (p) => {
         showBubble({ text: p.text, emotion: p.emotion ?? null, streaming: false }, p.duration)
@@ -344,6 +349,8 @@ export function PetApp() {
           height={petH}
           sleepy={conds.includes('tired') || conds.includes('exhausted')}
           sick={conds.includes('sick')}
+          live2dCore={live2dCore}
+          talking={!!bubble?.streaming && !!bubble.text}
         />
         {hearts.map((id) => (
           <span key={id} className="heart">

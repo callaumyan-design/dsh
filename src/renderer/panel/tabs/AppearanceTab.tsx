@@ -89,7 +89,7 @@ export function AppearanceTab({ snap }: { snap: Snapshot }) {
           {snap.packs.map((p) => (
             <button key={p.id} className={`pack ${p.id === a.packId ? 'active' : ''}`} onClick={() => void api.packSelect(p.id)}>
               <div className="pack-preview">
-                <PetView pack={p} state="idle" emotion={null} appearance={a} stage={stage} width={110} height={110 * (p.height / p.width)} />
+                <PetView pack={p} state="idle" emotion={null} appearance={a} stage={stage} width={110} height={110 * (p.height / p.width)} lite />
               </div>
               <div className="pack-name">{p.name}</div>
               <div className="muted small">
@@ -104,10 +104,37 @@ export function AppearanceTab({ snap }: { snap: Snapshot }) {
 
       <AvatarMaker snap={snap} />
 
+      <Section
+        title="🎎 Live2D 模型（实验性）"
+        desc={
+          <>
+            把包含 <code>*.model3.json</code> 的 Live2D 模型文件夹（或 zip）导入即可（Cubism 3/4/5）。Live2D 的运行库 Cubism Core 有专有许可证，SoulPet 不能自带，需要你从
+            <a href="#" onClick={(e) => (e.preventDefault(), void api.openExternal('https://www.live2d.com/sdk/download/web/'))}> Live2D 官网 </a>
+            下载 Cubism SDK for Web，在 <code>Core/</code> 文件夹里找到 <code>live2dcubismcore.min.js</code>，然后点下面的按钮选择它。这个功能还没有用大量真实模型测试过，遇到问题请看日志。
+          </>
+        }
+        actions={
+          <button
+            className="btn"
+            onClick={async () => {
+              const r = await api.live2dInstallCore()
+              if (r.ok) toast('Live2D 运行库已安装')
+              else if (r.error) toast(r.error, 'err')
+            }}
+          >
+            {snap.live2dCore ? '重新选择运行库' : '安装 Live2D 运行库'}
+          </button>
+        }
+      >
+        <p className="muted small">{snap.live2dCore ? '✅ 运行库已就绪' : '⚠ 还没有安装运行库，Live2D 形象会显示提示框'}</p>
+      </Section>
+
       <Section title="预览动作" desc="看看当前形象在各种状态下的样子（缺少的动作会自动用相近的代替）。">
         <div className="preview-row">
           <div className="preview-stage">
-            {current && <PetView pack={current} state={preview} emotion={null} appearance={a} stage={stage} width={current.width} height={current.height} />}
+            {current && (
+              <PetView pack={current} state={preview} emotion={null} appearance={a} stage={stage} width={Math.min(220, current.width)} height={Math.min(220, current.width) * (current.height / current.width)} live2dCore={snap.live2dCore} talking={preview === 'talk'} />
+            )}
           </div>
           <div className="chips">
             {PREVIEW_STATES.map((s) => (

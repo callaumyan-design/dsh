@@ -39,6 +39,8 @@ export interface Snapshot {
   usageToday: { input: number; output: number; requests: number }
   memoryCount: number
   tasks: TasksState
+  /** URL of the Live2D Cubism Core if available */
+  live2dCore: string | null
   platform: string
   dataDir: string
   version: string
@@ -125,6 +127,7 @@ export interface SoulPetAPI {
 
   packsReload(): Promise<ResolvedPack[]>
   packSelect(id: string): Promise<PublicSettings>
+  live2dInstallCore(file?: string): Promise<{ ok: boolean; url?: string | null; error?: string }>
   avatarGenerate(desc: string): Promise<{ ok: boolean; dataUrl?: string; transparent?: boolean; error?: string }>
   packFromImageData(data: Uint8Array, name: string): Promise<{ ok: boolean; packId?: string; name?: string; error?: string }>
   packImport(kind: 'zip' | 'folder' | 'image', file?: string): Promise<{ ok: boolean; packId?: string; name?: string; warnings?: string[]; error?: string }>

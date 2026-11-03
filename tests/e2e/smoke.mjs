@@ -280,6 +280,16 @@ await pet.waitForTimeout(700)
 await pet.screenshot({ path: path.join(shots, 'pet-image.png'), omitBackground: true })
 step(`one-image pet "${img.name}" created and animated procedurally`)
 
+// Live2D pack without the (proprietary, user-supplied) Cubism Core: detected + friendly placeholder
+fs.mkdirSync(path.join(dataDir, 'pets', 'l2d-test', 'runtime'), { recursive: true })
+fs.writeFileSync(path.join(dataDir, 'pets', 'l2d-test', 'runtime', 'test.model3.json'), JSON.stringify({ Version: 3, FileReferences: { Moc: 'test.moc3', Textures: [] } }))
+const l2dPacks = await pet.evaluate(() => window.soulpet.packsReload())
+const l2d = l2dPacks.find((p) => p.kind === 'live2d')
+assert.ok(l2d, 'live2d pack auto-detected')
+await pet.evaluate((id) => window.soulpet.packSelect(id), l2d.id)
+await pet.waitForSelector('.pet .l2d-missing')
+step('Live2D pack auto-detected; placeholder asks for the Cubism Core')
+
 // switch to the Codex-format sample pet
 const packs = await pet.evaluate(() => window.soulpet.packsReload())
 assert.ok(packs.some((p) => p.id === 'xiaoling' && p.kind === 'codex'), 'codex sample pack found')

@@ -2,12 +2,15 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { net, protocol } from 'electron'
+import { findModel3 } from './model3'
 import {
   builtinPack,
   normalizeCodexPack,
   normalizeFramesPack,
+  normalizeLive2DPack,
   type CodexPetJson,
   type FramesManifest,
+  type Live2DManifest,
   type PackIO,
   type ResolvedPack
 } from '../core/pets/pack'
@@ -29,15 +32,28 @@ function isFile(p: string): boolean {
 }
 
 /** Scans built-in and user pack folders and serves their files over soulpet-asset://. */
+export const LIVE2D_CORE_FILE = 'live2dcubismcore.min.js'
+
 export class PackManager {
   private roots = new Map<string, string>()
   packs: ResolvedPack[] = []
 
   constructor(
     private readonly builtinDir: string,
-    readonly userDir: string
+    readonly userDir: string,
+    /** where a user-supplied Live2D Cubism Core is kept */
+    readonly coreDir: string
   ) {
     fs.mkdirSync(userDir, { recursive: true })
+  }
+
+  /** URL of the Live2D Cubism Core: user-installed first, else one bundled inside a pack. */
+  coreUrl(): string | null {
+    if (isFile(path.join(this.coreDir, LIVE2D_CORE_FILE))) {
+      this.roots.set('core', this.coreDir)
+      return `${ASSET_SCHEME}://pack/core/${LIVE2D_CORE_FILE}`
+    }
+    return this.packs.find((p) => p.live2d?.core)?.live2d?.core ?? null
   }
 
   installProtocol(): void {
@@ -81,11 +97,15 @@ export class PackManager {
         const manifest = path.join(root, 'manifest.json')
         const petJson = path.join(root, 'pet.json')
         if (isFile(manifest)) {
-          pack = normalizeFramesPack(JSON.parse(fs.readFileSync(manifest, 'utf8')) as FramesManifest, name, io, source)
+          const m = JSON.parse(fs.readFileSync(manifest, 'utf8'))
+          pack = m?.format === 'live2d' ? normalizeLive2DPack(m as Live2DManifest, name, io, source) : normalizeFramesPack(m as FramesManifest, name, io, source)
         } else if (isFile(petJson)) {
           pack = normalizeCodexPack(JSON.parse(fs.readFileSync(petJson, 'utf8')) as CodexPetJson, name, io, source)
         } else if (isFile(path.join(root, 'spritesheet.webp')) || isFile(path.join(root, 'spritesheet.png'))) {
           pack = normalizeCodexPack({}, name, io, source)
+        } else {
+          const model = findModel3(root)
+          if (model) pack = normalizeLive2DPack({ format: 'live2d', name, model }, name, io, source)
         }
         if (!pack) continue
         // Ids must be unique across folders; prefix user packs that collide.
@@ -103,6 +123,7 @@ export class PackManager {
 
   scan(): ResolvedPack[] {
     this.roots.clear()
+    if (isFile(path.join(this.coreDir, LIVE2D_CORE_FILE))) this.roots.set('core', this.coreDir)
     this.packs = []
     const builtin = this.scanDir(this.builtinDir, 'builtin')
     this.packs = [builtinPack(), ...builtin]

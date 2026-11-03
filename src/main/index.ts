@@ -28,7 +28,7 @@ import { checkForUpdate, type ReleaseInfo } from '../core/update'
 import { installLogger } from './logger'
 import { FullscreenWatcher } from './fullscreenWatch'
 import { createFromImage, createFromImageData, importFolder, importZip } from './packImport'
-import { PackManager, registerAssetScheme } from './packs'
+import { LIVE2D_CORE_FILE, PackManager, registerAssetScheme } from './packs'
 import { createPanelWindow, createPetWindow } from './windows'
 
 // ------------------------------------------------------------------ paths
@@ -100,6 +100,7 @@ function snapshot(): Snapshot {
     usageToday: core.usageToday(),
     memoryCount: core.memory.size,
     tasks: core.tasks.data,
+    live2dCore: packs.coreUrl(),
     platform: process.platform,
     dataDir: core.dataDir,
     version: app.getVersion()
@@ -462,6 +463,25 @@ function registerIpc(): void {
       return { ok: false, error: (e as Error).message }
     }
   })
+  h('live2d:installCore', async (_e, file?: string) => {
+    let target = file && !app.isPackaged ? file : undefined
+    if (!target) {
+      const r = await dialog.showOpenDialog({ title: '选择 live2dcubismcore.min.js（从 Live2D 官网下载 Cubism SDK for Web）', properties: ['openFile'], filters: [{ name: 'JavaScript', extensions: ['js'] }] })
+      if (r.canceled || !r.filePaths[0]) return { ok: false }
+      target = r.filePaths[0]
+    }
+    try {
+      const head = fs.readFileSync(target, 'utf8').slice(0, 200_000)
+      if (!head.includes('Live2DCubismCore')) throw new Error('这不是 Live2D Cubism Core 文件')
+      fs.mkdirSync(packs.coreDir, { recursive: true })
+      fs.copyFileSync(target, path.join(packs.coreDir, LIVE2D_CORE_FILE))
+      const list = packs.scan()
+      broadcast('packs:update', list)
+      return { ok: true, url: packs.coreUrl() }
+    } catch (e) {
+      return { ok: false, error: (e as Error).message }
+    }
+  })
   h('avatar:generate', (_e, desc: string) => core.generateAvatar(String(desc ?? '')))
   h('packs:fromImageData', (_e, data: Uint8Array, name: string) => {
     try {
@@ -552,7 +572,7 @@ async function main(): Promise<void> {
   session.defaultSession.setPermissionRequestHandler((wc, permission, cb) => cb(ownPage(wc.getURL()) && ['media', 'notifications', 'clipboard-sanitized-write'].includes(permission)))
   session.defaultSession.setPermissionCheckHandler((wc, permission) => !!wc && ownPage(wc.getURL()) && ['media', 'notifications', 'clipboard-sanitized-write'].includes(permission))
   await applyProxy()
-  packs = new PackManager(path.join(resourcesDir, 'pets'), path.join(core.dataDir, 'pets'))
+  packs = new PackManager(path.join(resourcesDir, 'pets'), path.join(core.dataDir, 'pets'), path.join(core.dataDir, 'live2d'))
   packs.installProtocol()
   packs.scan()
   registerIpc()

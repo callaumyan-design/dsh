@@ -7,7 +7,7 @@ export interface ImportPlan {
   name: string
   /** archive path -> relative output path */
   files: Array<{ from: string; to: string }>
-  kind: 'codex' | 'frames'
+  kind: 'codex' | 'frames' | 'live2d'
 }
 
 const JUNK = /(^|\/)(__MACOSX|\.DS_Store|Thumbs\.db|desktop\.ini)(\/|$)/i
@@ -32,7 +32,8 @@ export function planImport(paths: string[], archiveName: string): ImportPlan {
       throw new Error(`压缩包里有不安全的路径：${p}`)
     }
   }
-  const isRootManifest = (list: string[]) => list.some((p) => p === 'pet.json' || p === 'manifest.json' || p === 'spritesheet.webp' || p === 'spritesheet.png')
+  const isRootManifest = (list: string[]) =>
+    list.some((p) => p === 'pet.json' || p === 'manifest.json' || p === 'spritesheet.webp' || p === 'spritesheet.png' || (/\.model3\.json$/i.test(p) && p.split('/').length <= 2))
   let prefix = ''
   if (!isRootManifest(files)) {
     const tops = new Set(files.map((p) => p.split('/')[0]))
@@ -44,8 +45,15 @@ export function planImport(paths: string[], archiveName: string): ImportPlan {
   }
   const rel = files.filter((p) => p.startsWith(prefix)).map((p) => ({ from: p, to: p.slice(prefix.length) }))
   const names = new Set(rel.map((f) => f.to))
-  const kind: ImportPlan['kind'] | null = names.has('manifest.json') ? 'frames' : names.has('pet.json') || names.has('spritesheet.webp') || names.has('spritesheet.png') ? 'codex' : null
-  if (!kind) throw new Error('没有找到 pet.json 或 manifest.json，这可能不是形象包')
+  const hasModel3 = [...names].some((n) => /\.model3\.json$/i.test(n) && n.split('/').length <= 3)
+  const kind: ImportPlan['kind'] | null = names.has('manifest.json')
+    ? 'frames'
+    : names.has('pet.json') || names.has('spritesheet.webp') || names.has('spritesheet.png')
+      ? 'codex'
+      : hasModel3
+        ? 'live2d'
+        : null
+  if (!kind) throw new Error('没有找到 pet.json、manifest.json 或 Live2D 模型（*.model3.json），这可能不是形象包')
   return { name: sanitizeFolderName(prefix ? prefix.slice(0, -1) : archiveName), files: rel, kind }
 }
 

@@ -170,7 +170,7 @@ export function WelcomeTab({ snap, onDone }: { snap: Snapshot; onDone: () => voi
             {snap.packs.map((p) => (
               <button key={p.id} className={`pack ${p.id === a.packId ? 'active' : ''}`} onClick={() => void api.packSelect(p.id)}>
                 <div className="pack-preview">
-                  <PetView pack={p} state="idle" emotion={null} appearance={a} stage={stageOf(snap.game.level)} width={110} height={110 * (p.height / p.width)} />
+                  <PetView pack={p} state="idle" emotion={null} appearance={a} stage={stageOf(snap.game.level)} width={110} height={110 * (p.height / p.width)} lite />
                 </div>
                 <div className="pack-name">{p.name}</div>
               </button>

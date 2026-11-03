@@ -3,6 +3,7 @@ import path from 'node:path'
 import { unzipSync } from 'fflate'
 import { fitSize, imageSize } from '../core/pets/imageSize'
 import { planImport, sanitizeFolderName, uniqueName } from '../core/pets/importPlan'
+import { findModel3 } from './model3'
 
 const MAX_BYTES = 300 * 1024 * 1024
 
@@ -28,8 +29,8 @@ export function importZip(zipFile: string, userDir: string): string {
 /** Copy a pet pack folder into `userDir`. Returns the created folder name. */
 export function importFolder(dir: string, userDir: string): string {
   const has = (f: string) => fs.existsSync(path.join(dir, f))
-  if (!has('pet.json') && !has('manifest.json') && !has('spritesheet.webp') && !has('spritesheet.png')) {
-    throw new Error('这个文件夹里没有 pet.json 或 manifest.json')
+  if (!has('pet.json') && !has('manifest.json') && !has('spritesheet.webp') && !has('spritesheet.png') && !findModel3(dir)) {
+    throw new Error('这个文件夹里没有 pet.json、manifest.json 或 Live2D 模型')
   }
   if (path.resolve(dir).startsWith(path.resolve(userDir) + path.sep)) throw new Error('它已经在形象包目录里了，点“重新扫描”即可')
   const name = uniqueName(sanitizeFolderName(path.basename(dir)), (n) => fs.existsSync(path.join(userDir, n)))

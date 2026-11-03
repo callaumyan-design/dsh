@@ -38,6 +38,7 @@ export function StatusTab({ snap }: { snap: Snapshot }) {
             stage={stage}
             width={pack.width * 0.9}
             height={pack.height * 0.9}
+            live2dCore={snap.live2dCore}
           />
         </div>
         <div className="hero-info">

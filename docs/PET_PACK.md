@@ -124,6 +124,31 @@ my-pet/
 
 `animate: true` 也可以和多状态素材一起用：有图的状态用你的图，再叠加上动作和特效。
 
+## 格式三：Live2D 模型（实验性）
+
+把 Live2D 模型文件夹（里面有 `*.model3.json`，Cubism 3/4/5）放进形象包目录，或者从 zip 导入，SoulPet 会自动识别。第一次使用需要在 形象 → Live2D 里安装 Cubism Core 运行库（`live2dcubismcore.min.js`，从 Live2D 官网的 Cubism SDK for Web 获取；它是专有许可，所以 SoulPet 不自带）。
+
+默认行为：待机播放 `Idle` 动作组；开心、打招呼、被摸等反应会播放 `TapBody` / `Tap` / `Use` / `Flick` 组里的动作；说话时自动张嘴（`ParamMouthOpenY`）；眼睛会跟随鼠标。表情会按情绪名匹配同名表情（如 `happy`）。
+
+想精确控制，在模型文件夹里加一个 `manifest.json`：
+
+```json
+{
+  "format": "live2d",
+  "name": "我的 Live2D 角色",
+  "model": "runtime/hiyori.model3.json",
+  "size": [260, 380],
+  "zoom": 1.1,
+  "offsetY": 0.02,
+  "motions": { "idle": "Idle", "happy": "TapBody:0", "sleep": "Idle:2", "talk": "Talk" },
+  "expressions": { "happy": "f01", "sad": "f03", "angry": "f02" }
+}
+```
+
+`motions` 的值是“动作组名”或“动作组名:序号”；`expressions` 的键可以是情绪名（happy / sad / angry / surprised / shy / love …）或状态名。
+
+> 请遵守模型作者的许可。Live2D 官方示例模型适用“免费素材使用许可”。
+
 ## 状态名与回退规则
 
 缺少的状态会按下表依次尝试，最后回退到 `idle`。所以**最少只需要一个 `idle`**。

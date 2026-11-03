@@ -17,7 +17,21 @@ export type AnimSpec =
   | { type: 'image'; src: string }
   | { type: 'video'; src: string; loop: boolean }
 
-export type PackKind = 'builtin' | 'codex' | 'frames'
+export type PackKind = 'builtin' | 'codex' | 'frames' | 'live2d'
+
+/** Live2D Cubism 4 model. Motions/expressions map our states/emotions to the model's names. */
+export interface Live2DSpec {
+  model: string
+  zoom: number
+  /** vertical offset as a fraction of the box height (positive = down) */
+  offsetY: number
+  /** state -> motion group, optionally "Group:index" */
+  motions: Partial<Record<PetAnimState, string>>
+  /** emotion or state -> expression name */
+  expressions: Record<string, string>
+  /** a Cubism Core shipped inside the pack, if any */
+  core?: string
+}
 
 export interface ResolvedPack {
   id: string
@@ -40,6 +54,7 @@ export interface ResolvedPack {
   folder?: string
   /** Animate the (static) art procedurally: breathing, hopping, effects. */
   procedural?: boolean
+  live2d?: Live2DSpec
   warnings: string[]
 }
 
@@ -335,4 +350,80 @@ export function builtinPack(): ResolvedPack {
     source: 'builtin',
     warnings: []
   }
+}
+
+// ---------------------------------------------------------------------------
+// Live2D (Cubism 4)
+// ---------------------------------------------------------------------------
+
+export interface Live2DManifest {
+  format: 'live2d'
+  id?: string
+  name?: string
+  description?: string
+  author?: string
+  license?: string
+  /** path to *.model3.json inside the pack */
+  model: string
+  size?: [number, number]
+  zoom?: number
+  offsetY?: number
+  motions?: Partial<Record<PetAnimState, string>>
+  expressions?: Record<string, string>
+}
+
+export function normalizeLive2DPack(m: Live2DManifest, fallbackId: string, io: PackIO, source: ResolvedPack['source']): ResolvedPack {
+  const warnings: string[] = []
+  if (!m.model || !io.exists(m.model)) warnings.push(`找不到 Live2D 模型文件：${m.model || '（未填写 model）'}`)
+  if (!/\.model3\.json$/i.test(m.model ?? '')) warnings.push('目前只支持 Cubism 3/4/5 模型（*.model3.json）')
+  const [w, h] = m.size ?? [240, 320]
+  const core = ['live2dcubismcore.min.js', 'live2dcubismcore.js', 'core/live2dcubismcore.min.js'].find((f) => io.exists(f))
+  return {
+    id: m.id || fallbackId,
+    name: m.name || m.id || fallbackId,
+    kind: 'live2d',
+    description: m.description,
+    author: m.author,
+    license: m.license,
+    width: Math.max(80, Math.min(1024, w)),
+    height: Math.max(80, Math.min(1024, h)),
+    facing: 'right',
+    anims: {},
+    live2d: {
+      model: io.url(m.model),
+      zoom: m.zoom ?? 1,
+      offsetY: m.offsetY ?? 0,
+      motions: m.motions ?? {},
+      expressions: m.expressions ?? {},
+      core: core ? io.url(core) : undefined
+    },
+    source,
+    warnings
+  }
+}
+
+/** One-shot states that should play a "reaction" motion when the model has no exact match. */
+export const LIVE2D_REACTION_STATES: PetAnimState[] = ['happy', 'wave', 'jump', 'surprised', 'angry', 'sad', 'shy', 'eat', 'play', 'bath']
+export const LIVE2D_REACTION_GROUPS = ['TapBody', 'Tap', 'Use', 'Flick', 'Shake', 'Tap@Body', 'FlickHead']
+
+/**
+ * Pick a motion for a state: explicit mapping first, then a group named like the state,
+ * then a generic reaction group for one-shot states, else Idle.
+ */
+export function live2dMotionFor(state: PetAnimState, spec: Pick<Live2DSpec, 'motions'>, groups: string[]): { group: string; index?: number } | null {
+  const parse = (v: string) => {
+    const [g, i] = v.split(':')
+    return groups.includes(g) ? { group: g, index: i === undefined ? undefined : Number(i) } : null
+  }
+  const explicit = spec.motions[state]
+  if (explicit) return parse(explicit)
+  const lower = new Map(groups.map((g) => [g.toLowerCase(), g]))
+  const named = lower.get(state.toLowerCase())
+  if (named) return { group: named }
+  if (LIVE2D_REACTION_STATES.includes(state)) {
+    const g = LIVE2D_REACTION_GROUPS.find((x) => groups.includes(x))
+    if (g) return { group: g }
+  }
+  const idle = groups.find((g) => g.toLowerCase() === 'idle')
+  return idle ? { group: idle } : null
 }
