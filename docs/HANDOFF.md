@@ -8,8 +8,9 @@ SoulPet 灵宠：Electron + TypeScript + React 的桌面电子宠物，有四大
 
 ## 发布
 
-- **v0.2.0**：Release **草稿**「SoulPet soulpet-v0.2.0」（基于 6f4c540，包含 Windows 安装包和 zip、macOS dmg、Linux AppImage）。草稿只有仓库成员能看到，用户确认后在 GitHub Releases 页面点 Publish。
-- 之后的开发版本号是 0.3.0；发布方式见下文“沙箱推不了 tag”。
+- **v0.3.0（推荐）**：Release 草稿「SoulPet soulpet-v0.3.0」，基于 4257dd6，包含两轮审查修复。
+- v0.2.0：较早的草稿，**有已知 bug**（gpt-5 调用失败、宠物被打断后不再走路）。可以删掉，或者只发布 v0.3.0。
+- 草稿只有仓库成员能看到，用户确认后在 GitHub Releases 页面点 Publish。发布方式见下文“沙箱推不了 tag”。
 
 ## 代码在哪
 
@@ -99,6 +100,14 @@ npm run dist:win           # 打包
 ## 资源占用（e2e 末尾会打印）
 
 Xvfb + 软件渲染下，只开宠物窗口、空闲 8 秒：约 1.1% CPU（修掉频繁的设置广播之后）；内存（working set，会重复计算共享页）主进程约 160MB、GPU 约 126MB、网络服务约 74MB、宠物渲染进程约 113MB。真实 GPU 上 GPU 进程会小一些。想再降：关掉宠物闲逛（`walkEnabled`）、降低精灵图 fps。
+
+## 接下来可以做什么（建议顺序）
+
+1. **用真实 API Key 走一遍**（DeepSeek / Claude / gpt-5-mini），检查：情绪标签、`[[remind]]` 标签、记忆抽取 JSON、日记 JSON 在真实模型上是否稳定。如果不稳定，调整 `src/core/ai/prompt.ts` 和 `src/core/memory/extract.ts` 里的提示词。
+2. **在 Windows 实机上手动检查**：拖拽和抛出的手感、透明区域点击穿透、托盘、系统通知、全屏自动隐藏（用浏览器视频按 F11 试）、开机自启。
+3. **Live2D 用真实模型验证**（`tests/e2e/live2d-local.mjs`）。
+4. 设置项改用深层局部更新（`DeepPartial<Settings>`）：现在面板是 `{...s.app, x}` 整对象写回，快速连续切换两个开关时理论上会互相覆盖。
+5. 新功能候选：多只宠物、本地 Embedding（transformers.js）、自动更新（electron-updater，需要单独的发布仓库）、插件 / MOD。
 
 ## 设计约定
 
