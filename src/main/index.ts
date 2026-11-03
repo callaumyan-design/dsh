@@ -22,12 +22,12 @@ import type { EventMap, Snapshot } from '../core/ipc'
 import { personaFromCardFile } from '../core/persona/card'
 import { DEFAULT_PERSONA, normalizePersona } from '../core/persona/persona'
 import type { ProviderConfig } from '../core/ai/types'
-import { AppCore, EMBEDDING_SECRET, STT_SECRET } from './core'
+import { AppCore, EMBEDDING_SECRET, IMAGE_SECRET, STT_SECRET } from './core'
 import { PetMotion } from './motion'
 import { checkForUpdate, type ReleaseInfo } from '../core/update'
 import { installLogger } from './logger'
 import { FullscreenWatcher } from './fullscreenWatch'
-import { createFromImage, importFolder, importZip } from './packImport'
+import { createFromImage, createFromImageData, importFolder, importZip } from './packImport'
 import { PackManager, registerAssetScheme } from './packs'
 import { createPanelWindow, createPetWindow } from './windows'
 
@@ -389,7 +389,7 @@ function registerIpc(): void {
   })
   h('provider:remove', (_e, id: string) => core.updateSettings({ providers: core.settings.data.providers.filter((p) => p.id !== id) }))
   h('secrets:set', (_e, target: string, key: string) => {
-    core.secrets.set(target === 'embedding' ? EMBEDDING_SECRET : target === 'stt' ? STT_SECRET : target, String(key ?? ''))
+    core.secrets.set(target === 'embedding' ? EMBEDDING_SECRET : target === 'stt' ? STT_SECRET : target === 'image' ? IMAGE_SECRET : target, String(key ?? ''))
     const pub = core.publicSettings()
     broadcast('settings:update', pub)
     if (target === 'embedding' || target === core.settings.data.embedding.keyFrom) void core.embedPending()
@@ -458,6 +458,20 @@ function registerIpc(): void {
       const pack = list.find((p) => p.source === 'user' && p.folder === folder)
       if (pack) core.updateSettings({ appearance: { ...core.settings.data.appearance, packId: pack.id } })
       return { ok: true, packId: pack?.id, name: pack?.name, warnings: pack?.warnings ?? [] }
+    } catch (e) {
+      return { ok: false, error: (e as Error).message }
+    }
+  })
+  h('avatar:generate', (_e, desc: string) => core.generateAvatar(String(desc ?? '')))
+  h('packs:fromImageData', (_e, data: Uint8Array, name: string) => {
+    try {
+      if (!(data instanceof Uint8Array)) throw new Error('图片数据不对')
+      const folder = createFromImageData(data, name || 'AI 宠物', packs.userDir, name || 'AI 宠物')
+      const list = packs.scan()
+      broadcast('packs:update', list)
+      const pack = list.find((p) => p.source === 'user' && p.folder === folder)
+      if (pack) core.updateSettings({ appearance: { ...core.settings.data.appearance, packId: pack.id } })
+      return { ok: true, packId: pack?.id, name: pack?.name }
     } catch (e) {
       return { ok: false, error: (e as Error).message }
     }

@@ -6,6 +6,7 @@ import type { BlobAccessory } from '../../../core/settings'
 import { api } from '../../shared/api'
 import { PetView } from '../../shared/PetView'
 import { Field, Section, Toggle, useToast } from '../ui'
+import { AvatarMaker } from './AvatarMaker'
 
 const ACCESSORIES: Array<[BlobAccessory, string]> = [
   ['none', '无'],
@@ -100,6 +101,8 @@ export function AppearanceTab({ snap }: { snap: Snapshot }) {
           ))}
         </div>
       </Section>
+
+      <AvatarMaker snap={snap} />
 
       <Section title="预览动作" desc="看看当前形象在各种状态下的样子（缺少的动作会自动用相近的代替）。">
         <div className="preview-row">

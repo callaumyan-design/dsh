@@ -55,6 +55,7 @@ npm run dist:win           # 打包
 - [x] 诊断信息（设置 → 关于 → 诊断信息；IPC `app:diagnostics`）
 - [x] 天气（可选，wttr.in，只发送城市名；`src/core/weather.ts`；写进提示词，早安问候在雨雪 / 极端温度时会提醒）
 - [x] 用户使用说明 / 常见问题：`docs/USER_GUIDE.md`
+- [x] AI 生成形象（`src/core/pets/imagegen.ts`：OpenAI 兼容 `/images/generations`，预设硅基流动 Kolors / OpenAI gpt-image-1 透明背景 / 通义万相；渲染进程里从边缘做 flood fill 去背景，再按不透明区域裁切，存成一张图的宠物）
 - [x] “用一张图片做宠物”：manifest 里写 `animate: true`，静态图会自动套上呼吸 / 蹦跳 / 特效（`.proc` CSS + `Extras` SVG 叠加层）；`createFromImage` 会解析 PNG/GIF/WebP/JPEG 的尺寸
 - [x] 更新检查（GitHub Releases 里的 `soulpet-v*`，只提示不下载）、隐藏 / 显示快捷键 `Ctrl+Alt+H`，聊天快捷键默认改为 `Ctrl+Alt+P`
 

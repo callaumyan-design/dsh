@@ -238,3 +238,10 @@ input[type='number'] { width: 120px; }
 .ach-emoji { font-size: 26px; }
 
 .diag { font-size: 12px; background: var(--surface-2); padding: 10px 12px; border-radius: 8px; white-space: pre-wrap; word-break: break-all; user-select: text; }
+
+/* AI avatar maker */
+.avatar-maker { display: flex; gap: 16px; align-items: stretch; }
+.avatar-form { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+.avatar-preview { width: 200px; height: 200px; border-radius: 12px; display: grid; place-items: center; flex-shrink: 0; border: 1px solid var(--border); }
+.avatar-preview img { max-width: 190px; max-height: 190px; }
+.checker { background-color: #fff; background-image: linear-gradient(45deg, #e6e6ee 25%, transparent 25%), linear-gradient(-45deg, #e6e6ee 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e6e6ee 75%), linear-gradient(-45deg, transparent 75%, #e6e6ee 75%); background-size: 16px 16px; background-position: 0 0, 0 8px, 8px -8px, -8px 0; }

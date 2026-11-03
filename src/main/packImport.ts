@@ -39,12 +39,15 @@ export function importFolder(dir: string, userDir: string): string {
 
 /** Turn a single picture into a procedurally animated pet pack. Returns the folder name. */
 export function createFromImage(imageFile: string, userDir: string, displayName?: string): string {
-  const data = fs.readFileSync(imageFile)
+  return createFromImageData(fs.readFileSync(imageFile), displayName || path.basename(imageFile, path.extname(imageFile)), userDir, displayName)
+}
+
+export function createFromImageData(data: Uint8Array, baseName: string, userDir: string, displayName?: string): string {
   if (data.length > 30 * 1024 * 1024) throw new Error('图片太大了（超过 30MB）')
   const size = imageSize(new Uint8Array(data))
   if (!size) throw new Error('不支持的图片格式，请用 PNG / GIF / WebP / JPEG')
   const ext = size.type === 'jpeg' ? 'jpg' : size.type
-  const base = sanitizeFolderName(displayName || path.basename(imageFile, path.extname(imageFile)))
+  const base = sanitizeFolderName(baseName)
   const name = uniqueName(base, (n) => fs.existsSync(path.join(userDir, n)))
   const root = path.join(userDir, name)
   fs.mkdirSync(root, { recursive: true })

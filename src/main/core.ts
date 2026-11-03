@@ -8,6 +8,7 @@ import { chat } from '../core/ai/client'
 import { EMOTION_ANIM, EmotionStreamParser, stripEmotionTags, type Emotion } from '../core/ai/emotion'
 import { embedOpenAI } from '../core/ai/openai'
 import { transcribe } from '../core/ai/stt'
+import { buildAvatarPrompt, generateImage } from '../core/pets/imagegen'
 import { buildChatMessages, buildSystemPrompt } from '../core/ai/prompt'
 import type { ChatMessage, FetchLike, ProviderConfig } from '../core/ai/types'
 import { applyAction, conditions, createGame, describeForPrompt, normalizeGame, tick } from '../core/game/engine'
@@ -49,6 +50,7 @@ import { ChatLog, JsonFile } from './storage'
 
 export const EMBEDDING_SECRET = '__embedding__'
 export const STT_SECRET = '__stt__'
+export const IMAGE_SECRET = '__image__'
 
 type Broadcast = <K extends keyof EventMap>(channel: K, payload: EventMap[K]) => void
 
@@ -194,7 +196,8 @@ export class AppCore {
       ...s,
       providers: s.providers.map((p) => ({ ...p, hasKey: this.secrets.has(p.id) })),
       embeddingHasOwnKey: this.secrets.has(EMBEDDING_SECRET),
-      sttHasOwnKey: this.secrets.has(STT_SECRET)
+      sttHasOwnKey: this.secrets.has(STT_SECRET),
+      imageHasOwnKey: this.secrets.has(IMAGE_SECRET)
     }
   }
 
@@ -337,6 +340,23 @@ export class AppCore {
     const lines = describeSpecialDays(new Date(now), this.game.data.createdAt)
     if (this.weather && now - this.weather.fetchedAt < 3 * 3_600_000) lines.push(`天气：${describeWeather(this.weather)}`)
     return lines
+  }
+
+  // ---------------------------------------------------------------- AI avatar
+
+  async generateAvatar(desc: string): Promise<{ ok: boolean; dataUrl?: string; transparent?: boolean; error?: string }> {
+    const g = this.settings.data.imageGen
+    if (!desc.trim()) return { ok: false, error: '先描述一下想要的样子吧' }
+    const key = g.keyFrom === 'own' ? this.secrets.get(IMAGE_SECRET) : this.secrets.get(g.keyFrom)
+    try {
+      const bytes = await generateImage(g, buildAvatarPrompt(desc), key, this.opts.fetch, AbortSignal.timeout(180_000))
+      const b64 = Buffer.from(bytes).toString('base64')
+      const mime = bytes[0] === 0xff && bytes[1] === 0xd8 ? 'image/jpeg' : bytes[0] === 0x52 ? 'image/webp' : 'image/png'
+      return { ok: true, dataUrl: `data:${mime};base64,${b64}`, transparent: g.transparent }
+    } catch (e) {
+      console.warn('[avatar]', (e as Error).message)
+      return { ok: false, error: (e as Error).message }
+    }
   }
 
   // ---------------------------------------------------------------- speech-to-text

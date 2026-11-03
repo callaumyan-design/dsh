@@ -26,6 +26,7 @@ export interface PublicSettings extends Omit<Settings, 'providers'> {
   providers: PublicProvider[]
   embeddingHasOwnKey: boolean
   sttHasOwnKey: boolean
+  imageHasOwnKey: boolean
 }
 
 export interface Snapshot {
@@ -124,6 +125,8 @@ export interface SoulPetAPI {
 
   packsReload(): Promise<ResolvedPack[]>
   packSelect(id: string): Promise<PublicSettings>
+  avatarGenerate(desc: string): Promise<{ ok: boolean; dataUrl?: string; transparent?: boolean; error?: string }>
+  packFromImageData(data: Uint8Array, name: string): Promise<{ ok: boolean; packId?: string; name?: string; error?: string }>
   packImport(kind: 'zip' | 'folder' | 'image', file?: string): Promise<{ ok: boolean; packId?: string; name?: string; warnings?: string[]; error?: string }>
   openPacksFolder(): Promise<void>
   openDataFolder(): Promise<void>

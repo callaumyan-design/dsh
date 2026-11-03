@@ -19,10 +19,16 @@ fs.mkdirSync(shots, { recursive: true })
 // ---------------------------------------------------------------- fake LLM
 const requests = []
 const sttRequests = []
+const imageRequests = []
 const server = http.createServer((req, res) => {
   let body = ''
   req.on('data', (c) => (body += c))
   req.on('end', () => {
+    if (req.url.endsWith('/images/generations')) {
+      imageRequests.push(JSON.parse(body))
+      res.writeHead(200, { 'content-type': 'application/json' })
+      return res.end(JSON.stringify({ data: [{ b64_json: fs.readFileSync(path.join(root, 'resources/icons/icon.png')).toString('base64') }] }))
+    }
     if (req.url.endsWith('/audio/transcriptions')) {
       sttRequests.push({ type: req.headers['content-type'], size: body.length })
       res.writeHead(200, { 'content-type': 'application/json' })
@@ -72,7 +78,8 @@ fs.writeFileSync(
     providers: [{ id: 'fake', name: '测试模型', kind: 'openai', baseURL: `http://127.0.0.1:${port}/v1`, model: 'fake-1', noKey: true }],
     activeProviderId: 'fake',
     proactive: { level: 'off' },
-    stt: { enabled: true, baseURL: `http://127.0.0.1:${port}/v1`, model: 'sv', keyFrom: 'own' }
+    stt: { enabled: true, baseURL: `http://127.0.0.1:${port}/v1`, model: 'sv', keyFrom: 'own' },
+    imageGen: { baseURL: `http://127.0.0.1:${port}/v1`, model: 'kolors', size: '1024x1024', keyFrom: 'own', transparent: false }
   })
 )
 
@@ -250,6 +257,19 @@ for (const [label, file] of [
   await panel.screenshot({ path: path.join(shots, file) })
 }
 step('panel tabs render')
+
+// AI avatar: describe -> generate -> cut out -> save as a pet (through the panel UI)
+await panel.click('.nav:has-text("形象")')
+await panel.fill('.avatar-form textarea', '一只戴围巾的小企鹅')
+await panel.click('.avatar-form button:has-text("生成")')
+await panel.waitForSelector('.avatar-preview img')
+assert.match(imageRequests[0].prompt, /小企鹅.*纯白色背景/)
+await panel.fill('.avatar-form input[placeholder="给新形象起个名字"]', '企鹅君')
+await panel.click('.avatar-form button:has-text("就用它")')
+await waitFor(async () => (await pet.evaluate(() => window.soulpet.getSnapshot())).packs.some((p) => p.name === '企鹅君' && p.procedural), 8000, 'AI avatar pack')
+await pet.waitForSelector('.pet .proc img')
+await panel.screenshot({ path: path.join(shots, 'panel-avatar.png') })
+step('AI avatar generated, background removed and saved as an animated pet')
 
 // one-image pet: any picture becomes a procedurally animated pet
 const img = await pet.evaluate((file) => window.soulpet.packImport('image', file), path.join(root, 'resources/icons/icon.png'))

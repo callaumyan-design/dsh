@@ -45,6 +45,7 @@ export interface Settings {
   /** speech-to-text; keyFrom = provider id whose key to reuse, or 'own' */
   stt: { enabled: boolean; baseURL: string; model: string; keyFrom: string; language: string }
   weather: { enabled: boolean; city: string }
+  imageGen: { baseURL: string; model: string; size: string; keyFrom: string; transparent: boolean }
   window: { x: number | null; y: number | null }
   /** greeting shown */
   onboarded: boolean
@@ -68,6 +69,7 @@ export function defaultSettings(): Settings {
     voice: { enabled: false, voiceName: '', rate: 1.1, pitch: 1.3, volume: 0.9 },
     stt: { enabled: false, baseURL: 'https://api.siliconflow.cn/v1', model: 'FunAudioLLM/SenseVoiceSmall', keyFrom: 'siliconflow', language: '' },
     weather: { enabled: false, city: '' },
+    imageGen: { baseURL: 'https://api.siliconflow.cn/v1', model: 'Kwai-Kolors/Kolors', size: '1024x1024', keyFrom: 'siliconflow', transparent: false },
     window: { x: null, y: null },
     onboarded: false,
     setupDone: false
