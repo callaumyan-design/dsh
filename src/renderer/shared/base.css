@@ -1,0 +1,81 @@
+:root {
+  --bg: #f6f6fb;
+  --surface: #ffffff;
+  --surface-2: #f0f1f7;
+  --text: #1f2333;
+  --muted: #6b7085;
+  --border: #e2e4ee;
+  --accent: #5b6cff;
+  --accent-soft: #e8ebff;
+  --good: #22a06b;
+  --warn: #e8a33d;
+  --bad: #e5484d;
+  --ink: #2b2d3a;
+  --radius: 12px;
+  --shadow: 0 6px 24px rgba(30, 35, 70, 0.12);
+  font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', system-ui, sans-serif;
+  color: var(--text);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #15161d;
+    --surface: #1e2029;
+    --surface-2: #272a36;
+    --text: #e9eaf2;
+    --muted: #9aa0b8;
+    --border: #333748;
+    --accent: #8b97ff;
+    --accent-soft: #2b2f52;
+    --shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+  }
+}
+
+* { box-sizing: border-box; }
+
+/* Blob pet: ink stays dark on the light slime in both themes */
+.blob .ink { stroke: #2b2d3a; }
+.blob .ink-fill { fill: #2b2d3a; }
+.blob .mouth { fill: #6b2a3a; }
+.blob-shadow { fill: rgba(0, 0, 0, 0.16); }
+.blob-body { transform-origin: 85px 134px; transform-box: view-box; }
+
+.blob.state-idle .blob-body { animation: blob-breathe 2.6s ease-in-out infinite; }
+.blob.state-walk .blob-body, .blob.state-walk_left .blob-body { animation: blob-hop 0.5s ease-in-out infinite; }
+.blob.state-sleep .blob-body { animation: blob-breathe 4s ease-in-out infinite; }
+.blob.state-happy .blob-body, .blob.state-jump .blob-body, .blob.state-play .blob-body, .blob.state-wave .blob-body { animation: blob-bounce 0.6s ease-in-out infinite; }
+.blob.state-talk .blob-body, .blob.state-think .blob-body, .blob.state-work .blob-body { animation: blob-breathe 1.6s ease-in-out infinite; }
+.blob.state-sad .blob-body, .blob.state-sick .blob-body { animation: blob-droop 3s ease-in-out infinite; }
+.blob.state-drag .blob-body { transform: scale(0.88, 1.16); }
+.blob.state-fall .blob-body { transform: scale(1.12, 0.86); }
+.blob.state-eat .blob-body { animation: blob-breathe 0.5s ease-in-out infinite; }
+.blob.state-shy .blob-body { animation: blob-wiggle 1.2s ease-in-out infinite; }
+.blob.state-angry .blob-body { animation: blob-shake 0.25s linear infinite; }
+.blob.state-surprised .blob-body { transform: scale(0.95, 1.08); }
+.blob.state-bath .blob-body { animation: blob-wiggle 0.8s ease-in-out infinite; }
+
+.blob .talk-mouth { animation: mouth-talk 0.28s ease-in-out infinite alternate; transform-origin: 85px 105px; transform-box: view-box; }
+.blob .chomp-mouth { animation: mouth-talk 0.2s ease-in-out infinite alternate; transform-origin: 85px 105px; transform-box: view-box; }
+.blob .zzz { animation: float-up 2.4s ease-in-out infinite; }
+.blob .hearts { animation: float-up 1.6s ease-in-out infinite; }
+.blob .bubbles { animation: float-up 2s ease-in-out infinite; }
+.blob .tear, .blob .sweat { animation: drip 1.8s ease-in infinite; }
+.blob .ball { animation: ball-bounce 0.6s ease-in-out infinite; transform-box: view-box; }
+.blob .food { animation: food-shrink 1.2s ease-in infinite; transform-origin: 106px 116px; transform-box: view-box; }
+.blob .thought { animation: float-up 2.4s ease-in-out infinite; }
+
+@keyframes blob-breathe { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.03, 0.96); } }
+@keyframes blob-hop { 0%, 100% { transform: translateY(0) scale(1.04, 0.95); } 50% { transform: translateY(-12px) scale(0.96, 1.05); } }
+@keyframes blob-bounce { 0%, 100% { transform: translateY(0) scale(1.05, 0.94); } 45% { transform: translateY(-16px) scale(0.95, 1.06); } }
+@keyframes blob-droop { 0%, 100% { transform: scale(1.04, 0.95); } 50% { transform: scale(1.07, 0.92); } }
+@keyframes blob-wiggle { 0%, 100% { transform: rotate(-3deg); } 50% { transform: rotate(3deg); } }
+@keyframes blob-shake { 0%, 100% { transform: translateX(-1.5px); } 50% { transform: translateX(1.5px); } }
+@keyframes mouth-talk { from { transform: scaleY(0.35); } to { transform: scaleY(1.1); } }
+@keyframes float-up { 0% { transform: translateY(4px); opacity: 0.2; } 50% { opacity: 1; } 100% { transform: translateY(-8px); opacity: 0; } }
+@keyframes drip { 0% { transform: translateY(0); opacity: 1; } 100% { transform: translateY(14px); opacity: 0; } }
+@keyframes ball-bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-26px); } }
+@keyframes food-shrink { 0% { transform: scale(1); } 100% { transform: scale(0.2); opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .blob * { animation: none !important; }
+}

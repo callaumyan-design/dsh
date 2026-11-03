@@ -1,0 +1,41 @@
+appId: io.github.soulpet.app
+productName: SoulPet
+copyright: Copyright © 2026 SoulPet contributors
+directories:
+  output: release/${version}
+  buildResources: build
+files:
+  - out/**/*
+  - package.json
+extraResources:
+  - from: resources/pets
+    to: pets
+  - from: resources/icons
+    to: icons
+asar: true
+win:
+  icon: resources/icons/icon.png
+  target:
+    - target: nsis
+      arch: [x64]
+    - target: zip
+      arch: [x64]
+  artifactName: ${productName}-${version}-win-${arch}.${ext}
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  shortcutName: SoulPet 灵宠
+mac:
+  icon: resources/icons/icon.png
+  category: public.app-category.entertainment
+  target:
+    - target: dmg
+  artifactName: ${productName}-${version}-mac-${arch}.${ext}
+linux:
+  icon: resources/icons/icon.png
+  category: Game
+  target:
+    - AppImage
+  artifactName: ${productName}-${version}-linux-${arch}.${ext}
+publish: null

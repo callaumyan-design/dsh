@@ -1,0 +1,10 @@
+{
+  "id": "xiaoling",
+  "displayName": "小灵（Codex 格式示例）",
+  "description": "SoulPet 自带的原创小幽灵，Codex Pet 格式（8×9 精灵图，单帧 192×208），可作为自制宠物的模板。",
+  "author": "SoulPet",
+  "license": "CC0-1.0",
+  "spritesheetPath": "spritesheet.webp",
+  "spriteVersionNumber": 1,
+  "fps": 8
+}
