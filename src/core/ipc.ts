@@ -124,7 +124,7 @@ export interface SoulPetAPI {
 
   packsReload(): Promise<ResolvedPack[]>
   packSelect(id: string): Promise<PublicSettings>
-  packImport(kind: 'zip' | 'folder'): Promise<{ ok: boolean; packId?: string; name?: string; warnings?: string[]; error?: string }>
+  packImport(kind: 'zip' | 'folder' | 'image', file?: string): Promise<{ ok: boolean; packId?: string; name?: string; warnings?: string[]; error?: string }>
   openPacksFolder(): Promise<void>
   openDataFolder(): Promise<void>
   openLogsFolder(): Promise<void>

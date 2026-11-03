@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { unzipSync } from 'fflate'
+import { fitSize, imageSize } from '../core/pets/imageSize'
 import { planImport, sanitizeFolderName, uniqueName } from '../core/pets/importPlan'
 
 const MAX_BYTES = 300 * 1024 * 1024
@@ -33,5 +34,29 @@ export function importFolder(dir: string, userDir: string): string {
   if (path.resolve(dir).startsWith(path.resolve(userDir) + path.sep)) throw new Error('它已经在形象包目录里了，点“重新扫描”即可')
   const name = uniqueName(sanitizeFolderName(path.basename(dir)), (n) => fs.existsSync(path.join(userDir, n)))
   fs.cpSync(dir, path.join(userDir, name), { recursive: true })
+  return name
+}
+
+/** Turn a single picture into a procedurally animated pet pack. Returns the folder name. */
+export function createFromImage(imageFile: string, userDir: string, displayName?: string): string {
+  const data = fs.readFileSync(imageFile)
+  if (data.length > 30 * 1024 * 1024) throw new Error('图片太大了（超过 30MB）')
+  const size = imageSize(new Uint8Array(data))
+  if (!size) throw new Error('不支持的图片格式，请用 PNG / GIF / WebP / JPEG')
+  const ext = size.type === 'jpeg' ? 'jpg' : size.type
+  const base = sanitizeFolderName(displayName || path.basename(imageFile, path.extname(imageFile)))
+  const name = uniqueName(base, (n) => fs.existsSync(path.join(userDir, n)))
+  const root = path.join(userDir, name)
+  fs.mkdirSync(root, { recursive: true })
+  fs.writeFileSync(path.join(root, `image.${ext}`), data)
+  const manifest = {
+    format: 'soulpet-frames',
+    name: displayName || base,
+    author: '我',
+    size: fitSize(size),
+    animate: true,
+    states: { idle: `image.${ext}` }
+  }
+  fs.writeFileSync(path.join(root, 'manifest.json'), JSON.stringify(manifest, null, 2))
   return name
 }

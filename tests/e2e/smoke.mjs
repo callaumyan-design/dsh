@@ -251,6 +251,15 @@ for (const [label, file] of [
 }
 step('panel tabs render')
 
+// one-image pet: any picture becomes a procedurally animated pet
+const img = await pet.evaluate((file) => window.soulpet.packImport('image', file), path.join(root, 'resources/icons/icon.png'))
+assert.ok(img.ok, img.error)
+await pet.waitForSelector('.pet .proc.state-idle img')
+await pet.evaluate(() => window.soulpet.gameAction({ type: 'pet' }))
+await pet.waitForTimeout(700)
+await pet.screenshot({ path: path.join(shots, 'pet-image.png'), omitBackground: true })
+step(`one-image pet "${img.name}" created and animated procedurally`)
+
 // switch to the Codex-format sample pet
 const packs = await pet.evaluate(() => window.soulpet.packsReload())
 assert.ok(packs.some((p) => p.id === 'xiaoling' && p.kind === 'codex'), 'codex sample pack found')

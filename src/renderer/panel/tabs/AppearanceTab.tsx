@@ -39,6 +39,17 @@ export function AppearanceTab({ snap }: { snap: Snapshot }) {
         actions={
           <>
             <button
+              className="btn primary"
+              title="选一张透明背景的 PNG / GIF / WebP，自动加上呼吸、蹦跳等动作"
+              onClick={async () => {
+                const r = await api.packImport('image')
+                if (r.ok) toast(`「${r.name}」来到你的桌面啦！`)
+                else if (r.error) toast(r.error, 'err')
+              }}
+            >
+              用一张图片做宠物
+            </button>
+            <button
               className="btn"
               onClick={async () => {
                 const r = await api.packImport('zip')

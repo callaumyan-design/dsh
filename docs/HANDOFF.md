@@ -55,6 +55,7 @@ npm run dist:win           # 打包
 - [x] 诊断信息（设置 → 关于 → 诊断信息；IPC `app:diagnostics`）
 - [x] 天气（可选，wttr.in，只发送城市名；`src/core/weather.ts`；写进提示词，早安问候在雨雪 / 极端温度时会提醒）
 - [x] 用户使用说明 / 常见问题：`docs/USER_GUIDE.md`
+- [x] “用一张图片做宠物”：manifest 里写 `animate: true`，静态图会自动套上呼吸 / 蹦跳 / 特效（`.proc` CSS + `Extras` SVG 叠加层）；`createFromImage` 会解析 PNG/GIF/WebP/JPEG 的尺寸
 - [x] 更新检查（GitHub Releases 里的 `soulpet-v*`，只提示不下载）、隐藏 / 显示快捷键 `Ctrl+Alt+H`，聊天快捷键默认改为 `Ctrl+Alt+P`
 
 - [x] 语音输入（按住 🎤 说话 → MediaRecorder → 主进程 → OpenAI 兼容 `/audio/transcriptions`；默认用硅基流动 SenseVoice；e2e 用 Chromium 的假麦克风测试）。媒体权限只开放给自己的页面（`setPermissionRequestHandler`）

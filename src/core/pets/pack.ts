@@ -38,6 +38,8 @@ export interface ResolvedPack {
   source: 'builtin' | 'user'
   /** folder name inside the pets directory (not for builtin) */
   folder?: string
+  /** Animate the (static) art procedurally: breathing, hopping, effects. */
+  procedural?: boolean
   warnings: string[]
 }
 
@@ -224,6 +226,8 @@ export interface FramesManifest {
   size?: [number, number] | { width: number; height: number }
   facing?: 'left' | 'right'
   fps?: number
+  /** Static or simple art: let SoulPet add breathing / hopping / effects. */
+  animate?: boolean
   states: Partial<Record<PetAnimState, FrameStateSpec>>
   stages?: Partial<Record<'baby' | 'child' | 'adult', Partial<Record<PetAnimState, FrameStateSpec>>>>
 }
@@ -308,6 +312,7 @@ export function normalizeFramesPack(m: FramesManifest, fallbackId: string, io: P
     anims,
     stages,
     preview: anims.idle,
+    procedural: !!m.animate,
     source,
     warnings
   }

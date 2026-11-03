@@ -2,7 +2,7 @@ import type { Emotion } from '../../core/ai/emotion'
 import type { PetAnimState, Stage } from '../../core/game/types'
 import { pickAnim, type ResolvedPack } from '../../core/pets/pack'
 import type { Settings } from '../../core/settings'
-import { Blob } from './Blob'
+import { Blob, Extras } from './Blob'
 import { Sprite } from './Sprite'
 
 interface Props {
@@ -37,5 +37,19 @@ export function PetView({ pack, state, emotion, appearance, stage, width, height
   }
   const picked = pickAnim(pack, state, stage)
   if (!picked) return <div style={{ width, height, display: 'grid', placeItems: 'center', fontSize: 12, color: '#999' }}>（形象包缺少 idle 动画）</div>
+  if (pack.procedural) {
+    // Static art: the requested state drives CSS motion + SVG effects (hearts, Zzz, sweat ...)
+    const motion = state === 'walk_left' ? 'walk' : state
+    return (
+      <div className={`proc state-${motion}`} style={{ width, height }}>
+        <div className="proc-body">
+          <Sprite spec={picked.spec} width={width} height={height} flip={picked.flip} />
+        </div>
+        <svg className="proc-extras" viewBox="0 0 170 150" width={width} height={height}>
+          <Extras state={motion} />
+        </svg>
+      </div>
+    )
+  }
   return <Sprite spec={picked.spec} width={width} height={height} flip={picked.flip} />
 }

@@ -27,7 +27,7 @@ import { PetMotion } from './motion'
 import { checkForUpdate, type ReleaseInfo } from '../core/update'
 import { installLogger } from './logger'
 import { FullscreenWatcher } from './fullscreenWatch'
-import { importFolder, importZip } from './packImport'
+import { createFromImage, importFolder, importZip } from './packImport'
 import { PackManager, registerAssetScheme } from './packs'
 import { createPanelWindow, createPetWindow } from './windows'
 
@@ -437,15 +437,22 @@ function registerIpc(): void {
     broadcast('packs:update', list)
     return list
   })
-  h('packs:import', async (_e, kind: 'zip' | 'folder') => {
-    const r = await dialog.showOpenDialog(
-      kind === 'zip'
-        ? { title: '导入形象包（.zip）', properties: ['openFile'], filters: [{ name: '形象包', extensions: ['zip'] }] }
-        : { title: '选择形象包文件夹', properties: ['openDirectory'] }
-    )
-    if (r.canceled || !r.filePaths[0]) return { ok: false }
+  h('packs:import', async (_e, kind: 'zip' | 'folder' | 'image', file?: string) => {
+    let target = file && !app.isPackaged ? file : undefined // explicit path only for automated tests
+    if (!target) {
+      const r = await dialog.showOpenDialog(
+        kind === 'zip'
+          ? { title: '导入形象包（.zip）', properties: ['openFile'], filters: [{ name: '形象包', extensions: ['zip'] }] }
+          : kind === 'image'
+            ? { title: '选一张图片当宠物（最好是透明背景的 PNG）', properties: ['openFile'], filters: [{ name: '图片', extensions: ['png', 'gif', 'webp', 'jpg', 'jpeg'] }] }
+            : { title: '选择形象包文件夹', properties: ['openDirectory'] }
+      )
+      if (r.canceled || !r.filePaths[0]) return { ok: false }
+      target = r.filePaths[0]
+    }
     try {
-      const folder = kind === 'zip' ? importZip(r.filePaths[0], packs.userDir) : importFolder(r.filePaths[0], packs.userDir)
+      const folder =
+        kind === 'zip' ? importZip(target, packs.userDir) : kind === 'image' ? createFromImage(target, packs.userDir) : importFolder(target, packs.userDir)
       const list = packs.scan()
       broadcast('packs:update', list)
       const pack = list.find((p) => p.source === 'user' && p.folder === folder)

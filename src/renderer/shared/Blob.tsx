@@ -135,7 +135,7 @@ function Accessory({ kind, color }: { kind: BlobAccessory; color: string }) {
   }
 }
 
-function Extras({ state }: { state: PetAnimState }) {
+export function Extras({ state }: { state: PetAnimState }) {
   switch (state) {
     case 'sleep':
       return (
