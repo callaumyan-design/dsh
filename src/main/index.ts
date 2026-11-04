@@ -102,6 +102,7 @@ function snapshot(): Snapshot {
     memoryCount: core.memory.size,
     tasks: core.tasks.data,
     live2dCore: packs.coreUrl(),
+    motion: motion?.current ?? { mode: 'idle', dir: 'right', flip: false },
     platform: process.platform,
     dataDir: core.dataDir,
     version: app.getVersion()
@@ -151,9 +152,10 @@ function createPet(): void {
   motion = new PetMotion(
     petWin,
     (e) => broadcast('pet:motion', e),
-    (x, y) => core.saveWindowPosition(x, y)
+    (p) => core.saveWindowPosition(p)
   )
-  motion.placeInitial(s.window.x, s.window.y)
+  motion.setGravity(s.appearance.gravity)
+  motion.placeInitial(s.window)
   motion.setPaused('disabled', !s.appearance.walkEnabled)
   applyClickThrough()
   petWin.once('ready-to-show', () => {
@@ -380,6 +382,7 @@ function registerIpc(): void {
     if (s.app.autoStart !== before.app.autoStart) applyAutoStart()
     if (s.app.alwaysOnTop !== before.app.alwaysOnTop) petWin?.setAlwaysOnTop(s.app.alwaysOnTop, 'floating')
     motion?.setPaused('disabled', !s.appearance.walkEnabled)
+    motion?.setGravity(s.appearance.gravity)
     if (s.app.dnd !== before.app.dnd || s.app.clickThrough !== before.app.clickThrough) rebuildTray()
     if (s.app.clickThrough !== before.app.clickThrough) applyClickThrough()
     if (s.app.proxy !== before.app.proxy) void applyProxy()

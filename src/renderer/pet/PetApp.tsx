@@ -4,13 +4,13 @@ import { CONDITION_LABEL, expToNext, STAGE_SCALE, stageOf } from '../../core/gam
 import type { Condition, GameState, PetAnimState } from '../../core/game/types'
 import type { MotionEvent, PetSayEvent, PublicSettings } from '../../core/ipc'
 import { builtinPack, type ResolvedPack } from '../../core/pets/pack'
+import { BUBBLE_SPACE } from '../../core/petPlacement'
 import type { FocusSession } from '../../core/tasks'
 import { api } from '../shared/api'
 import { PetView } from '../shared/PetView'
 import { speak } from '../shared/speech'
 import { useRecorder, type Recording } from '../shared/useRecorder'
 
-const BUBBLE_SPACE = 150
 const MIN_W = 240
 /** pressing 🎤 in the small menu longer than this = push-to-talk (release sends); shorter = tap to start, tap ■ to send */
 const HOLD_MS = 400
@@ -62,7 +62,7 @@ export function PetApp() {
   const [conds, setConds] = useState<Condition[]>([])
   const [settings, setSettings] = useState<PublicSettings | null>(null)
   const [packs, setPacks] = useState<ResolvedPack[]>([builtinPack()])
-  const [motion, setMotion] = useState<MotionEvent>({ mode: 'idle', dir: 'right' })
+  const [motion, setMotion] = useState<MotionEvent>({ mode: 'idle', dir: 'right', flip: false })
   const [bubble, setBubble] = useState<Bubble | null>(null)
   const [oneShot, setOneShot] = useState<{ anim: PetAnimState; until: number } | null>(null)
   const [thinking, setThinking] = useState(false)
@@ -130,6 +130,7 @@ export function PetApp() {
       setPetName(s.persona.name)
       setFocus(s.tasks.focus)
       setLive2dCore(s.live2dCore)
+      setMotion(s.motion)
     })
     const off = [
       api.on('persona:update', (p) => setPetName(p.name)),
@@ -417,7 +418,7 @@ export function PetApp() {
 
   return (
     <div
-      className="pet-root"
+      className={`pet-root ${motion.flip ? 'flipped' : ''}`}
       style={{ width: winW, height: winH, opacity: settings.appearance.opacity ?? 1 }}
       onMouseDownCapture={(e) => {
         // a click anywhere outside the small menu closes it

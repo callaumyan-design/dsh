@@ -6,7 +6,7 @@
 ┌────────────────────────── Electron 主进程 (src/main) ──────────────────────────┐
 │ index.ts   生命周期、托盘（含“照顾它”菜单）、全局快捷键、IPC 注册、媒体权限、代理      │
 │ core.ts    AppCore：所有状态 + 后台服务（聊天、记忆整理、向量、日记、主动搭话、游戏时钟）│
-│ motion.ts  宠物窗口移动：闲逛 / 拖拽 / 抛出后重力下落 / 多显示器                  │
+│ motion.ts  宠物窗口移动：闲逛 / 拖拽 / 放哪停哪（可选重力）/ 气泡翻到下方 / 多显示器 │
 │ packs.ts   扫描形象包，通过 soulpet-asset:// 协议提供素材（防目录穿越）             │
 │ secrets.ts API Key 用 safeStorage（DPAPI / Keychain / libsecret）加密              │
 │ storage.ts JSON 原子写入 + 按天的 JSONL 聊天记录                                   │

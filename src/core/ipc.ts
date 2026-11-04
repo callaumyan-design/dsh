@@ -41,6 +41,8 @@ export interface Snapshot {
   tasks: TasksState
   /** URL of the Live2D Cubism Core if available */
   live2dCore: string | null
+  /** current pet window motion (the pet window asks on load; later changes come as pet:motion) */
+  motion: MotionEvent
   platform: string
   dataDir: string
   version: string
@@ -52,6 +54,8 @@ export type ScoredMemoryPublic = Omit<ScoredMemory, 'item'> & { item: MemoryItem
 export interface MotionEvent {
   mode: 'idle' | 'walk' | 'drag' | 'fall'
   dir: 'left' | 'right'
+  /** bubble strip below the pet (it sits near the top of the screen) */
+  flip: boolean
 }
 
 export interface PetSayEvent {

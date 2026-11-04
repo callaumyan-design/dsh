@@ -39,6 +39,8 @@ export interface Settings {
     packId: string
     scale: number
     walkEnabled: boolean
+    /** on: released, the pet falls to the bottom of the screen; off: it stays where it was put */
+    gravity: boolean
     blobColor: string
     blobAccessory: BlobAccessory
     opacity: number
@@ -49,7 +51,8 @@ export interface Settings {
   stt: { enabled: boolean; baseURL: string; model: string; keyFrom: string; language: string }
   weather: { enabled: boolean; city: string }
   imageGen: { baseURL: string; model: string; size: string; keyFrom: string; transparent: boolean }
-  window: { x: number | null; y: number | null }
+  /** pet window as last left (size too, so it is restored to the exact spot); flipped = bubble below */
+  window: { x: number | null; y: number | null; w: number | null; h: number | null; flipped: boolean }
   /** greeting shown */
   onboarded: boolean
   /** first-run wizard finished */
@@ -67,13 +70,13 @@ export function defaultSettings(): Settings {
     chat: { historyChars: 6000, dailyTokenLimit: 0 },
     proactive: { level: 'medium', quietEnabled: true, quietStart: '23:00', quietEnd: '08:00', useAI: false },
     game: { difficulty: 'normal', maxOfflineHours: 12 },
-    appearance: { packId: BUILTIN_PACK_ID, scale: 1, walkEnabled: true, blobColor: '#8fd3ff', blobAccessory: 'bow', opacity: 1 },
+    appearance: { packId: BUILTIN_PACK_ID, scale: 1, walkEnabled: true, gravity: false, blobColor: '#8fd3ff', blobAccessory: 'bow', opacity: 1 },
     app: { autoStart: false, dnd: false, hotkey: 'CommandOrControl+Alt+P', hideHotkey: 'CommandOrControl+Alt+H', alwaysOnTop: true, clickThrough: false, proxy: '', checkUpdates: true, hideOnFullscreen: true },
     voice: { enabled: false, voiceName: '', rate: 1.1, pitch: 1.3, volume: 0.9 },
     stt: { enabled: false, baseURL: 'https://api.siliconflow.cn/v1', model: 'FunAudioLLM/SenseVoiceSmall', keyFrom: 'siliconflow', language: '' },
     weather: { enabled: false, city: '' },
     imageGen: { baseURL: 'https://api.siliconflow.cn/v1', model: 'Kwai-Kolors/Kolors', size: '1024x1024', keyFrom: 'siliconflow', transparent: false },
-    window: { x: null, y: null },
+    window: { x: null, y: null, w: null, h: null, flipped: false },
     onboarded: false,
     setupDone: false
   }

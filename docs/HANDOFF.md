@@ -8,7 +8,8 @@ SoulPet 灵宠：Electron + TypeScript + React 的桌面电子宠物，有四大
 
 ## 发布
 
-- **v0.3.1（最新）**：右键菜单改版（见 CHANGELOG）。用户试用 v0.3.0 后反馈：右键弹出的原生长菜单太繁琐，希望像 ChatGPT 的桌宠那样只出一个很小的菜单，左边语音、右边打字。现在右键弹出的是渲染进程里画的两键胶囊（`PetApp.tsx` 里的 `mini` 状态，样式 `.mini`），原来那些养成操作挪到了托盘的「🐾 照顾它」子菜单（`careMenu()`）。**以后不要往右键菜单里加东西**，新入口放托盘或面板。
+- **v0.3.2（最新）**：宠物放哪停哪（默认关闭重力），见下方功能清单 v0.3.1 一节的说明。
+- **v0.3.1**：右键菜单改版（见 CHANGELOG）。用户试用 v0.3.0 后反馈：右键弹出的原生长菜单太繁琐，希望像 ChatGPT 的桌宠那样只出一个很小的菜单，左边语音、右边打字。现在右键弹出的是渲染进程里画的两键胶囊（`PetApp.tsx` 里的 `mini` 状态，样式 `.mini`），原来那些养成操作挪到了托盘的「🐾 照顾它」子菜单（`careMenu()`）。**以后不要往右键菜单里加东西**，新入口放托盘或面板。
 - **v0.3.0**：Release 草稿「SoulPet soulpet-v0.3.0」（workflow run 41740299870，提交 51cff8a），包含三轮审查修复。四个安装包都已上传：`SoulPet-0.3.0-win-x64.exe`、`SoulPet-0.3.0-win-x64.zip`（免安装）、`SoulPet-0.3.0-mac-arm64.dmg`、`SoulPet-0.3.0-linux-x86_64.AppImage`。草稿里还混进了约 20 张 e2e 截图（png），发布前可以在编辑页删掉，也可以留着当预览。那次 run 显示失败，就是因为 Linux 和 Windows 的截图同名，上传时冲突；之后的 workflow 已改为只下载 `SoulPet-*` 安装包 artifact。
 - v0.2.0：较早的草稿，**有已知 bug**（gpt-5 调用失败、宠物被打断后不再走路）。可以删掉，或者只发布 v0.3.0。
 - 草稿只有仓库成员能看到，用户确认后在 GitHub Releases 页面点 Publish。发布方式见下文“沙箱推不了 tag”。
@@ -50,7 +51,7 @@ npm run dist:win           # 打包
 - 主动搭话（每日预算、安静时段、免打扰、离开检测）— `src/core/proactive.ts`
 - 形象包：Codex 格式、逐状态素材、回退表；内置矢量史莱姆“团子”；示例 Codex 宠物“小灵”（`scripts/gen-assets.mjs` 生成）
 - SillyTavern 角色卡导入（JSON / PNG tEXt `chara`/`ccv3`）
-- 宠物窗口（透明置顶、闲逛、拖拽、抛出、重力）+ 面板 + 托盘 + 快捷键 + 开机自启 + safeStorage 加密 Key
+- 宠物窗口（透明置顶、闲逛、拖拽、抛出）+ 面板 + 托盘 + 快捷键 + 开机自启 + safeStorage 加密 Key
 
 **v0.2**
 - 首次启动引导（`WelcomeTab`，`settings.setupDone`）
@@ -64,6 +65,7 @@ npm run dist:win           # 打包
 **v0.3.1**
 - 右键两键小菜单：🎤（按住说话 / 点一下开始、■ 发送）和 ⌨（打开输入框）；点别处、Esc、5 秒没操作会收起；失焦时丢弃没说完的录音。IPC `pet:menu`（暂停闲逛并抢焦点，用来接收 blur）
 - 托盘菜单：聊天、🐾 照顾它（随养成状态重建）、面板、设置、免打扰、鼠标穿透
+- 放哪停哪：用户反馈“放到屏幕顶部会自己掉下来”。现在默认没有重力（`appearance.gravity`，默认 false），松手原地停住；快速甩出会带摩擦滑行。规则是纯函数 `src/core/petPlacement.ts`（有单元测试），`src/main/motion.ts` 负责执行。窗口 = 宠物 + 150px 气泡条：宠物离屏幕顶部太近时气泡条翻到宠物下方（`MotionEvent.flip` → `.pet-root.flipped`），这样宠物能贴着屏幕顶边。只有站在屏幕底部时才闲逛。`settings.window` 现在会保存窗口尺寸和 flipped，重启后回到原位
 
 **v0.3**
 - 语音输入（MediaRecorder → OpenAI 兼容 `/audio/transcriptions`；媒体权限只给自己的页面）

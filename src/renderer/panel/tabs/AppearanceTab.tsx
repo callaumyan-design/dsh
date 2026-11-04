@@ -153,8 +153,11 @@ export function AppearanceTab({ snap }: { snap: Snapshot }) {
         <Field label="透明度" hint={`${Math.round((a.opacity ?? 1) * 100)}%`}>
           <input type="range" min={0.2} max={1} step={0.05} value={a.opacity ?? 1} onChange={(e) => update({ opacity: Number(e.target.value) })} />
         </Field>
-        <Field label="自己到处走">
+        <Field label="自己到处走" hint={a.gravity ? undefined : '站在屏幕底部时才会走动；放在别处就乖乖待着'}>
           <Toggle checked={a.walkEnabled} onChange={(v) => update({ walkEnabled: v })} />
+        </Field>
+        <Field label="重力" hint="打开后，松手它会掉到屏幕底部；关闭时放在哪儿就停在哪儿">
+          <Toggle checked={!!a.gravity} onChange={(v) => update({ gravity: v })} />
         </Field>
         {current?.kind === 'builtin' && (
           <>

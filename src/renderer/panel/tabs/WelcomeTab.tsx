@@ -212,7 +212,7 @@ export function WelcomeTab({ snap, onDone }: { snap: Snapshot; onDone: () => voi
               <b>双击</b>，或者按 <code>{s.app.hotkey.replace('CommandOrControl', snap.platform === 'darwin' ? 'Cmd' : 'Ctrl')}</code>：和它聊天
             </li>
             <li>
-              <b>拖动</b>：把它拎起来，松手会掉下去
+              <b>拖动</b>：放在屏幕上哪儿都行，松手就停在那儿
             </li>
             <li>
               <b>右键</b>：弹出小菜单，左边 🎤 说话，右边 ⌨ 打字

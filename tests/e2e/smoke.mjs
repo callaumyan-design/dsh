@@ -343,6 +343,12 @@ step('Codex-format pack renders from spritesheet')
 
 await app.close()
 
+// leave the pet near the top of the screen (as if dragged there) before restarting
+const settingsFile = path.join(dataDir, 'settings.json')
+const savedSettings = JSON.parse(fs.readFileSync(settingsFile, 'utf8'))
+savedSettings.window = { ...savedSettings.window, x: 200, y: -120, flipped: false }
+fs.writeFileSync(settingsFile, JSON.stringify(savedSettings))
+
 // ---------------------------------------------------------------- run 2: persistence
 ;({ app, pet } = await launch())
 const snap = await pet.evaluate(() => window.soulpet.getSnapshot())
@@ -353,6 +359,32 @@ assert.ok(mem2.some((m) => m.text.includes('草莓')))
 const hist = await pet.evaluate(() => window.soulpet.chatHistory(50))
 assert.ok(hist.length >= 4)
 step(`state persisted across restart (${mem2.length} memories, ${hist.length} messages)`)
+
+// no gravity by default: the pet stays at the top, its bubble flips below it
+const petBounds = () =>
+  app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().includes('/pet/')).getBounds())
+await pet.waitForSelector('.pet-root.flipped')
+const topBounds = await petBounds()
+assert.equal(topBounds.y, 30, 'window starts with the pet body, which stays where it was left (30px from the top)')
+await pet.waitForTimeout(4000) // past the first wander decision
+assert.equal((await petBounds()).y, 30, 'the pet did not fall')
+await app.evaluate(({ BrowserWindow }) => {
+  for (const w of BrowserWindow.getAllWindows()) if (w.webContents.getURL().includes('/pet/')) w.webContents.send('pet:say', { text: '我在屏幕顶上哦~', emotion: 'happy' })
+})
+await pet.waitForSelector('.bubble')
+const order = await pet.evaluate(() => document.querySelector('.bubble').getBoundingClientRect().top > document.querySelector('.pet').getBoundingClientRect().top)
+assert.ok(order, 'bubble is below the pet')
+await pet.screenshot({ path: path.join(shots, 'pet-top.png'), omitBackground: true })
+// turning gravity on drops it to the bottom of the screen
+await pet.evaluate(() => window.soulpet.settingsUpdate({ appearance: { gravity: true } }))
+await waitFor(async () => {
+  const b = await petBounds()
+  const d = await app.evaluate(({ screen }) => screen.getPrimaryDisplay().workArea)
+  return b.y + b.height === d.y + d.height
+}, 5000, 'fall to the bottom with gravity')
+assert.ok(!(await pet.$('.pet-root.flipped')), 'bubble back above the pet')
+await pet.evaluate(() => window.soulpet.settingsUpdate({ appearance: { gravity: false } }))
+step('pet stays where it is put (even at the top, bubble below); gravity setting drops it to the bottom')
 
 // idle resource usage (informational; software rendering under Xvfb inflates CPU)
 await app.evaluate(({ app }) => app.getAppMetrics()) // first call primes the counters

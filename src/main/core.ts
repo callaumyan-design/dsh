@@ -202,8 +202,8 @@ export class AppCore {
   }
 
   /** The pet moves often: persist its position without a settings broadcast. */
-  saveWindowPosition(x: number, y: number): void {
-    this.settings.data.window = { x: Math.round(x), y: Math.round(y) }
+  saveWindowPosition(p: { x: number; y: number; w: number; h: number; flipped: boolean }): void {
+    this.settings.data.window = { x: Math.round(p.x), y: Math.round(p.y), w: Math.round(p.w), h: Math.round(p.h), flipped: !!p.flipped }
     this.settings.scheduleSave(2000)
   }
 
