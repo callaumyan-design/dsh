@@ -215,10 +215,13 @@ export function WelcomeTab({ snap, onDone }: { snap: Snapshot; onDone: () => voi
               <b>拖动</b>：把它拎起来，松手会掉下去
             </li>
             <li>
-              <b>右键</b>：喂食、洗澡、玩耍、打工、打开面板
+              <b>右键</b>：弹出小菜单，左边 🎤 说话，右边 ⌨ 打字
             </li>
             <li>
               <b>鼠标停在它身上</b>：看它饿不饿、困不困
+            </li>
+            <li>
+              <b>托盘图标 → 🐾 照顾它</b>：喂食、洗澡、玩耍、打工、专注……
             </li>
             <li>
               按 <code>{s.app.hideHotkey.replace('CommandOrControl', snap.platform === 'darwin' ? 'Cmd' : 'Ctrl')}</code>：一键藏起来 / 叫出来

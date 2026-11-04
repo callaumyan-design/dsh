@@ -8,10 +8,31 @@ import type { FocusSession } from '../../core/tasks'
 import { api } from '../shared/api'
 import { PetView } from '../shared/PetView'
 import { speak } from '../shared/speech'
-import { useRecorder } from '../shared/useRecorder'
+import { useRecorder, type Recording } from '../shared/useRecorder'
 
 const BUBBLE_SPACE = 150
 const MIN_W = 240
+/** pressing 🎤 in the small menu longer than this = push-to-talk (release sends); shorter = tap to start, tap ■ to send */
+const HOLD_MS = 400
+const MAX_VOICE_MS = 60_000
+const MENU_IDLE_MS = 5000
+
+/** the small right-click menu: two buttons, or the "listening" pill it turns into */
+type Mini = null | 'menu' | 'voice'
+
+const svg = { width: 18, height: 18, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' } as const
+const MicIcon = () => (
+  <svg {...svg}>
+    <rect x="9" y="3" width="6" height="11" rx="3" />
+    <path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21" />
+  </svg>
+)
+const KeyboardIcon = () => (
+  <svg {...svg}>
+    <rect x="2.5" y="6" width="19" height="12" rx="2.5" />
+    <path d="M6.5 10h.01M10 10h.01M13.5 10h.01M17 10h.01M8 14h8" />
+  </svg>
+)
 
 interface Bubble {
   text: string
@@ -53,6 +74,7 @@ export function PetApp() {
   const [focus, setFocus] = useState<FocusSession | null>(null)
   const [live2dCore, setLive2dCore] = useState<string | null>(null)
   const [hearing, setHearing] = useState(false)
+  const [mini, setMini] = useState<Mini>(null)
   const recorder = useRecorder()
   const [, force] = useState(0)
 
@@ -62,6 +84,9 @@ export function PetApp() {
   const inputRef = useRef<HTMLInputElement>(null)
   const drag = useRef<{ x: number; y: number; dragging: boolean } | null>(null)
   const clickTimer = useRef<number | null>(null)
+  const miniRef = useRef<HTMLDivElement>(null)
+  const miniTimer = useRef<number | null>(null)
+  const voiceAt = useRef(0)
 
   // While a reply streams, other lines (achievements, reminders...) wait in a queue so they
   // never overwrite or truncate the reply.
@@ -148,7 +173,10 @@ export function PetApp() {
         showBubble({ text: p.message, emotion: 'sad', streaming: false, error: true }, 7000)
         playOnce('sad')
       }),
-      api.on('pet:openInput', () => setInputOpen(true))
+      api.on('pet:openInput', () => {
+        setMini((m) => (m === 'voice' ? m : null))
+        setInputOpen(true)
+      })
     ]
     return () => off.forEach((f) => f())
   }, [showBubble, playOnce])
@@ -177,10 +205,15 @@ export function PetApp() {
     if (inputOpen) {
       api.petSetInteractive(true)
       window.setTimeout(() => inputRef.current?.focus(), 30)
-    } else if (!hover) {
+    } else if (!hover && !mini) {
       api.petSetInteractive(false)
     }
-  }, [inputOpen, hover])
+  }, [inputOpen, hover, mini])
+
+  useEffect(() => {
+    api.petMenuState(mini !== null)
+    if (mini) api.petSetInteractive(true)
+  }, [mini])
 
   // ------------------------------------------------------------ animation state
   let state: PetAnimState = game ? (focusing && !game.asleep ? 'work' : idleFor(game, conds)) : 'idle'
@@ -251,12 +284,10 @@ export function PetApp() {
       showBubble({ text: `打不开麦克风：${(e as Error).message}`, emotion: 'sad', streaming: false, error: true }, 5000)
     }
   }
-  const stopTalk = async () => {
-    const rec = await recorder.stop()
-    if (!rec) return
-    if (rec.ms < 500) return showBubble({ text: '按住 🎤 说话，说完再松开哦~', emotion: null, streaming: false }, 3000)
+  /** speech → text → chat. Returns once the text is known (the reply streams in by itself). */
+  const transcribeAndSend = async (rec: Recording) => {
     setHearing(true)
-    const r = await api.sttTranscribe(rec.data, rec.mime)
+    const r = await api.sttTranscribe(rec.data, rec.mime).catch((e: Error) => ({ ok: false, text: '', error: e.message }))
     setHearing(false)
     if (!r.ok || !r.text) return showBubble({ text: r.error ?? '没听清', emotion: 'sad', streaming: false, error: true }, 5000)
     setDraft('')
@@ -266,13 +297,112 @@ export function PetApp() {
     })
   }
 
+  const stopTalk = async () => {
+    const rec = await recorder.stop()
+    if (!rec) return
+    if (rec.ms < 500) return showBubble({ text: '按住 🎤 说话，说完再松开哦~', emotion: null, streaming: false }, 3000)
+    await transcribeAndSend(rec)
+  }
+
+  // ------------------------------------------------------------ small right-click menu
+  const clearMiniTimer = () => {
+    if (miniTimer.current) window.clearTimeout(miniTimer.current)
+    miniTimer.current = null
+  }
+  /** an untouched menu goes away by itself */
+  const armMiniTimer = () => {
+    clearMiniTimer()
+    miniTimer.current = window.setTimeout(() => setMini((m) => (m === 'menu' ? null : m)), MENU_IDLE_MS)
+  }
+
+  const openMenu = () => {
+    if (mini === 'voice') return
+    setInputOpen(false)
+    setMini('menu')
+    armMiniTimer()
+  }
+
+  /** end the voice pill: send what was said, or throw it away */
+  const finishVoice = async (send: boolean) => {
+    const rec = await recorder.stop()
+    if (send && rec && rec.ms >= 500) await transcribeAndSend(rec)
+    else if (send && rec) showBubble({ text: '没听到声音呢，再说一次吧~', emotion: null, streaming: false }, 3000)
+    setMini(null)
+  }
+  const finishVoiceRef = useRef(finishVoice)
+  finishVoiceRef.current = finishVoice
+
+  const onMiniMic = (e: ReactMouseEvent) => {
+    e.preventDefault()
+    if (e.button !== 0) return
+    clearMiniTimer()
+    if (!settings?.stt?.enabled) {
+      setMini(null)
+      showBubble({ text: '语音输入还没打开~ 我把设置打开啦，在「语音输入」里开一下就能用', emotion: null, streaming: false }, 6000)
+      void api.openPanel('settings')
+      return
+    }
+    setMini('voice')
+    const at = Date.now()
+    voiceAt.current = at
+    const up = () => {
+      window.removeEventListener('mouseup', up)
+      // held down = push-to-talk; a quick tap keeps listening until ■ is pressed
+      if (Date.now() - at >= HOLD_MS && voiceAt.current === at) void finishVoiceRef.current(true)
+    }
+    window.addEventListener('mouseup', up)
+    recorder.start().catch((err: Error) => {
+      setMini(null)
+      showBubble({ text: `打不开麦克风：${err.message}`, emotion: 'sad', streaming: false, error: true }, 5000)
+    })
+  }
+
+  const onMiniType = () => {
+    clearMiniTimer()
+    setMini(null)
+    setInputOpen(true)
+  }
+
+  // Esc / clicking another window closes the menu (and drops an unfinished recording)
+  useEffect(() => {
+    if (!mini) return
+    const key = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      if (mini === 'menu') setMini(null)
+      else if (!hearing) void finishVoiceRef.current(false)
+    }
+    const blur = () => {
+      if (mini === 'menu') setMini(null)
+      else if (!hearing) void finishVoiceRef.current(false)
+    }
+    window.addEventListener('keydown', key)
+    window.addEventListener('blur', blur)
+    return () => {
+      window.removeEventListener('keydown', key)
+      window.removeEventListener('blur', blur)
+    }
+  }, [mini, hearing])
+
+  // a forgotten recording stops (and sends) by itself
+  useEffect(() => {
+    if (mini !== 'voice' || !recorder.recording) return
+    const tick = window.setInterval(() => force((n) => n + 1), 1000)
+    const cap = window.setTimeout(() => void finishVoiceRef.current(true), MAX_VOICE_MS)
+    return () => {
+      window.clearInterval(tick)
+      window.clearTimeout(cap)
+    }
+  }, [mini, recorder.recording])
+
+  useEffect(() => () => clearMiniTimer(), [])
+
   const enter = () => {
     setHover(true)
     api.petSetInteractive(true)
   }
   const leave = () => {
     setHover(false)
-    if (!inputOpen && !drag.current) api.petSetInteractive(false)
+    if (!inputOpen && !mini && !drag.current) api.petSetInteractive(false)
   }
 
   if (!game || !settings) return null
@@ -286,9 +416,47 @@ export function PetApp() {
   ]
 
   return (
-    <div className="pet-root" style={{ width: winW, height: winH, opacity: settings.appearance.opacity ?? 1 }}>
+    <div
+      className="pet-root"
+      style={{ width: winW, height: winH, opacity: settings.appearance.opacity ?? 1 }}
+      onMouseDownCapture={(e) => {
+        // a click anywhere outside the small menu closes it
+        if (mini === 'menu' && !miniRef.current?.contains(e.target as Node)) setMini(null)
+      }}
+    >
       <div className="top-area" style={{ height: BUBBLE_SPACE }}>
-        {inputOpen ? (
+        {mini ? (
+          <div
+            ref={miniRef}
+            className="mini hit"
+            onMouseEnter={() => (enter(), clearMiniTimer())}
+            onMouseLeave={() => (leave(), mini === 'menu' && armMiniTimer())}
+            onContextMenu={(e) => e.preventDefault()}
+          >
+            {mini === 'menu' ? (
+              <>
+                <button key="mic" className={`mini-btn ${settings.stt?.enabled ? '' : 'off'}`} title="说话：按住说、松开发送；或者点一下开始" onMouseDown={onMiniMic}>
+                  <MicIcon />
+                </button>
+                <button key="type" className="mini-btn" title="打字" onClick={onMiniType}>
+                  <KeyboardIcon />
+                </button>
+              </>
+            ) : hearing ? (
+              <span className="mini-label">识别中…</span>
+            ) : (
+              <>
+                <button key="stop" className="mini-btn rec" title="说完了，发送" onMouseDown={(e) => (e.preventDefault(), void finishVoice(true))}>
+                  <span className="rec-dot" />
+                </button>
+                <span className="mini-label">{recorder.recording ? `正在听 ${Math.floor((Date.now() - voiceAt.current) / 1000)}s` : '准备中…'}</span>
+                <button key="cancel" className="mini-btn ghost" title="取消" onMouseDown={(e) => (e.preventDefault(), void finishVoice(false))}>
+                  ✕
+                </button>
+              </>
+            )}
+          </div>
+        ) : inputOpen ? (
           <div className="quick-input hit" onMouseEnter={enter} onMouseLeave={leave}>
             {settings.stt?.enabled && (
               <button
@@ -361,7 +529,7 @@ export function PetApp() {
         onMouseLeave={leave}
         onContextMenu={(e) => {
           e.preventDefault()
-          api.petContextMenu()
+          openMenu()
         }}
         data-state={state}
       >

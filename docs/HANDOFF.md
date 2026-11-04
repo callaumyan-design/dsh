@@ -8,7 +8,8 @@ SoulPet 灵宠：Electron + TypeScript + React 的桌面电子宠物，有四大
 
 ## 发布
 
-- **v0.3.0（推荐）**：Release 草稿「SoulPet soulpet-v0.3.0」（workflow run 41740299870，提交 51cff8a），包含三轮审查修复。四个安装包都已上传：`SoulPet-0.3.0-win-x64.exe`、`SoulPet-0.3.0-win-x64.zip`（免安装）、`SoulPet-0.3.0-mac-arm64.dmg`、`SoulPet-0.3.0-linux-x86_64.AppImage`。草稿里还混进了约 20 张 e2e 截图（png），发布前可以在编辑页删掉，也可以留着当预览。那次 run 显示失败，就是因为 Linux 和 Windows 的截图同名，上传时冲突；之后的 workflow 已改为只下载 `SoulPet-*` 安装包 artifact。
+- **v0.3.1（最新）**：右键菜单改版（见 CHANGELOG）。用户试用 v0.3.0 后反馈：右键弹出的原生长菜单太繁琐，希望像 ChatGPT 的桌宠那样只出一个很小的菜单，左边语音、右边打字。现在右键弹出的是渲染进程里画的两键胶囊（`PetApp.tsx` 里的 `mini` 状态，样式 `.mini`），原来那些养成操作挪到了托盘的「🐾 照顾它」子菜单（`careMenu()`）。**以后不要往右键菜单里加东西**，新入口放托盘或面板。
+- **v0.3.0**：Release 草稿「SoulPet soulpet-v0.3.0」（workflow run 41740299870，提交 51cff8a），包含三轮审查修复。四个安装包都已上传：`SoulPet-0.3.0-win-x64.exe`、`SoulPet-0.3.0-win-x64.zip`（免安装）、`SoulPet-0.3.0-mac-arm64.dmg`、`SoulPet-0.3.0-linux-x86_64.AppImage`。草稿里还混进了约 20 张 e2e 截图（png），发布前可以在编辑页删掉，也可以留着当预览。那次 run 显示失败，就是因为 Linux 和 Windows 的截图同名，上传时冲突；之后的 workflow 已改为只下载 `SoulPet-*` 安装包 artifact。
 - v0.2.0：较早的草稿，**有已知 bug**（gpt-5 调用失败、宠物被打断后不再走路）。可以删掉，或者只发布 v0.3.0。
 - 草稿只有仓库成员能看到，用户确认后在 GitHub Releases 页面点 Publish。发布方式见下文“沙箱推不了 tag”。
 
@@ -59,6 +60,10 @@ npm run dist:win           # 打包
 - TTS 朗读（`src/renderer/shared/speech.ts`）、鼠标穿透、透明度
 - 从 zip / 文件夹导入形象包（防 zip-slip，`src/main/packImport.ts` + `src/core/pets/importPlan.ts`）
 - 日志（`<数据目录>/logs/main.log`，Key 会打码）、代理、诊断信息、更新检查
+
+**v0.3.1**
+- 右键两键小菜单：🎤（按住说话 / 点一下开始、■ 发送）和 ⌨（打开输入框）；点别处、Esc、5 秒没操作会收起；失焦时丢弃没说完的录音。IPC `pet:menu`（暂停闲逛并抢焦点，用来接收 blur）
+- 托盘菜单：聊天、🐾 照顾它（随养成状态重建）、面板、设置、免打扰、鼠标穿透
 
 **v0.3**
 - 语音输入（MediaRecorder → OpenAI 兼容 `/audio/transcriptions`；媒体权限只给自己的页面）

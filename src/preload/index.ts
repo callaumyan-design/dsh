@@ -59,7 +59,7 @@ const api: SoulPetAPI = {
   petDragStart: () => ipcRenderer.send('pet:dragStart'),
   petDragEnd: () => ipcRenderer.send('pet:dragEnd'),
   petSetInteractive: (on) => ipcRenderer.send('pet:interactive', on),
-  petContextMenu: () => ipcRenderer.send('pet:contextMenu'),
+  petMenuState: (open) => ipcRenderer.send('pet:menu', open),
   petInputState: (open) => ipcRenderer.send('pet:input', open),
   petSetSize: (w, h) => ipcRenderer.send('pet:size', w, h),
 

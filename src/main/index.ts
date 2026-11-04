@@ -86,6 +86,7 @@ function applyFullscreenWatch(): void {
 
 function broadcast<K extends keyof EventMap>(channel: K, payload: EventMap[K]): void {
   for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.webContents.send(channel, payload)
+  if (channel === 'game:update' || channel === 'tasks:update') refreshTrayIfStale()
 }
 
 function snapshot(): Snapshot {
@@ -167,12 +168,12 @@ function createPet(): void {
 
 // ------------------------------------------------------------------ menus
 
-function petMenuTemplate(): MenuItemConstructorOptions[] {
+/** "照顾它" submenu of the tray: everything the old right-click menu on the pet had. */
+function careMenu(): MenuItemConstructorOptions[] {
   const g = core.game.data
   const food = ITEMS.filter((i) => (i.kind === 'food' || i.kind === 'drink' || i.kind === 'medicine' || i.kind === 'gift') && (g.inventory[i.id] ?? 0) > 0)
   const act = (type: 'play' | 'bath' | 'sleep' | 'wake' | 'work' | 'study' | 'checkIn') => () => runAction({ type })
   return [
-    { label: '💬 聊天', click: () => broadcast('pet:openInput', {}) },
     {
       label: '🍙 喂食 / 使用',
       submenu: food.length
@@ -187,19 +188,19 @@ function petMenuTemplate(): MenuItemConstructorOptions[] {
     { label: '📅 每日签到', click: act('checkIn') },
     core.focusActive()
       ? { label: '🍅 结束专注', click: () => core.stopFocus() }
-      : {
-          label: '🍅 一起专注',
-          submenu: [15, 25, 45, 60].map((m) => ({ label: `${m} 分钟`, click: () => core.startFocus(m) }))
-        },
-    { label: '⏰ 提醒 / 待办', click: () => openPanel('tasks') },
-    { type: 'separator' },
-    { label: '📊 状态 / 背包', click: () => openPanel('status') },
-    { label: '🧠 记忆', click: () => openPanel('memory') },
-    { label: '⚙️ 设置', click: () => openPanel('settings') },
-    { type: 'separator' },
-    { label: '隐藏宠物', click: () => setPetVisible(false) },
-    { label: '退出', click: () => app.quit() }
+      : { label: '🍅 一起专注', submenu: [15, 25, 45, 60].map((m) => ({ label: `${m} 分钟`, click: () => core.startFocus(m) })) },
+    { label: '⏰ 提醒 / 待办', click: () => openPanel('tasks') }
   ]
+}
+
+// The tray menu is built ahead of time, so rebuild it when what the care submenu shows changes.
+let trayKey = ''
+function trayStateKey(): string {
+  const g = core.game.data
+  return [g.asleep, core.focusActive(), ITEMS.map((i) => g.inventory[i.id] ?? 0).join(',')].join('|')
+}
+function refreshTrayIfStale(): void {
+  if (tray && trayStateKey() !== trayKey) rebuildTray()
 }
 
 function runAction(action: Parameters<AppCore['gameAction']>[0]): void {
@@ -210,11 +211,14 @@ function runAction(action: Parameters<AppCore['gameAction']>[0]): void {
 function rebuildTray(): void {
   if (!tray) return
   const s = core.settings.data
+  trayKey = trayStateKey()
   tray.setContextMenu(
     Menu.buildFromTemplate([
       { label: petWin?.isVisible() ? '隐藏宠物' : '显示宠物', click: () => setPetVisible(!petWin?.isVisible()) },
-      { label: '聊天', click: () => (setPetVisible(true), broadcast('pet:openInput', {})) },
+      { label: '💬 聊天', click: () => (setPetVisible(true), broadcast('pet:openInput', {})) },
+      { label: '🐾 照顾它', submenu: careMenu() },
       { label: '打开面板', click: () => openPanel() },
+      { label: '⚙️ 设置', click: () => openPanel('settings') },
       { type: 'separator' },
       {
         label: '鼠标穿透（宠物不挡点击）',
@@ -535,10 +539,13 @@ function registerIpc(): void {
     if (process.platform === 'linux' || !petWin || core.settings.data.app.clickThrough) return
     petWin.setIgnoreMouseEvents(!on, { forward: true })
   })
-  ipcMain.on('pet:contextMenu', () => {
-    if (!petWin) return
-    motion?.setPaused('menu', true)
-    Menu.buildFromTemplate(petMenuTemplate()).popup({ window: petWin, callback: () => motion?.setPaused('menu', false) })
+  ipcMain.on('pet:menu', (_e, open: boolean) => {
+    motion?.setPaused('menu', !!open)
+    if (open) {
+      // take focus so the renderer gets a blur (and closes the menu) when the user clicks elsewhere
+      petWin?.focus()
+      core.lastPetInteractionAt = Date.now()
+    }
   })
   ipcMain.on('pet:input', (_e, open: boolean) => {
     motion?.setPaused('input', !!open)

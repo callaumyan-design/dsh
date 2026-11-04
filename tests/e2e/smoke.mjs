@@ -214,6 +214,39 @@ await waitFor(() => requests.slice(sttBefore).some((r) => r.messages?.at(-1)?.co
 await waitFor(async () => (await pet.textContent('.bubble'))?.includes('草莓呀'), 8000, 'reply to voice message')
 step(`voice input: recorded ${sttRequests[0].size} bytes from the (fake) mic, transcribed and answered`)
 
+// right-click: a tiny two-button menu (🎤 | ⌨), not a long native menu
+await pet.click('.pet', { button: 'right' })
+await pet.waitForSelector('.mini')
+assert.equal((await pet.$$('.mini .mini-btn')).length, 2, 'small menu has exactly two buttons')
+await pet.screenshot({ path: path.join(shots, 'pet-menu.png'), omitBackground: true })
+await pet.click('.mini .mini-btn:nth-child(2)')
+await pet.waitForSelector('.quick-input input')
+assert.equal(await pet.evaluate(() => !document.querySelector('.mini')), true, 'menu closes when typing starts')
+await pet.waitForFunction(() => document.activeElement?.matches('.quick-input input'), null, { timeout: 3000 })
+await pet.keyboard.press('Escape')
+await pet.waitForSelector('.quick-input', { state: 'detached' })
+await pet.click('.pet', { button: 'right' })
+await pet.waitForSelector('.mini')
+await pet.keyboard.press('Escape')
+await pet.waitForSelector('.mini', { state: 'detached' })
+step('right-click shows a two-button menu; ⌨ opens the text box; Esc closes both')
+
+// 🎤 in the menu: a quick tap starts listening, ■ sends
+const sttCount = sttRequests.length
+const chatsBefore = requests.length
+await pet.click('.pet', { button: 'right' })
+await pet.waitForSelector('.mini')
+await pet.click('.mini .mini-btn:nth-child(1)')
+await pet.waitForSelector('.mini .mini-btn.rec')
+await waitFor(async () => (await pet.textContent('.mini'))?.includes('正在听'), 5000, 'listening pill')
+await pet.waitForTimeout(1200)
+await pet.screenshot({ path: path.join(shots, 'pet-listening.png'), omitBackground: true })
+await pet.click('.mini .mini-btn.rec')
+await waitFor(() => sttRequests.length > sttCount, 8000, 'transcription from the menu mic')
+await waitFor(() => requests.slice(chatsBefore).some((r) => r.messages?.at(-1)?.content === '我喜欢吃什么'), 8000, 'menu voice sent as chat')
+await pet.waitForSelector('.mini', { state: 'detached' })
+step('menu 🎤: tap to start listening, ■ to stop → transcribed and sent')
+
 // game
 const before = (await pet.evaluate(() => window.soulpet.getSnapshot())).game
 const fed = await pet.evaluate(() => window.soulpet.gameAction({ type: 'use', itemId: 'fish' }))

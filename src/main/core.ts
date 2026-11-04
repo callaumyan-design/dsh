@@ -457,7 +457,7 @@ export class AppCore {
     const p = this.provider()
     if (!this.ready(p)) {
       const msg = this.say(
-        explicit ? `我记住啦：${explicit}！不过我还没接上“大脑”，去设置里填一下 API Key 我就能陪你聊天了~` : '我还没有接上“大脑”呢……右键我 → 设置，填一下 API Key 就能聊天啦~',
+        explicit ? `我记住啦：${explicit}！不过我还没接上“大脑”，去设置里填一下 API Key 我就能陪你聊天了~` : '我还没有接上“大脑”呢……点一下托盘图标 → ⚙️ 设置，填一下 API Key 就能聊天啦~',
         { emotion: explicit ? 'happy' : 'sad' }
       )
       this.opts.broadcast('chat:done', { id, message: msg })

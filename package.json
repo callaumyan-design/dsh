@@ -1,7 +1,7 @@
 {
   "name": "soulpet",
   "productName": "SoulPet",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "灵宠 SoulPet —— 可自定义形象、带养成系统、接入大模型并拥有长期记忆的桌面电子宠物",
   "main": "out/main/index.js",
   "author": "callaumyan-design",

@@ -145,7 +145,8 @@ export interface SoulPetAPI {
   petDragStart(): void
   petDragEnd(): void
   petSetInteractive(interactive: boolean): void
-  petContextMenu(): void
+  /** the small right-click menu (or its voice mode) is open: pause walking, take focus */
+  petMenuState(open: boolean): void
   petInputState(open: boolean): void
   petSetSize(width: number, height: number): void
 
