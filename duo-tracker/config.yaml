@@ -1,0 +1,50 @@
+# iPhone Duo 适配进度追踪器配置
+regions: [cn, us]
+
+schedule:
+  time: "09:30"              # 每天运行时间（--schedule 模式）
+  timezone: Asia/Shanghai
+
+http:
+  # 通用客户端名，不含任何个人信息
+  user_agent: "Mozilla/5.0 (compatible; DuoTracker/1.0)"
+  min_interval: 1.0          # 同一站点两次请求的最小间隔（秒），低于 1 会被强制为 1
+  retries: 4                 # 429/5xx/网络错误时的重试次数（指数退避 2,4,8,16s）
+  backoff: 2.0
+  timeout: 30
+  respect_robots: true
+  # 显式放行的 robots.txt 例外（host -> 路径前缀），默认不放行任何路径。
+  # shipeiduo.com 的 robots.txt 写了 `Disallow: /api/`，而它是纯 SPA，数据只在 /api/v1。
+  # 默认严格遵守 robots.txt → shipeiduo 来源每天记为「robots 禁止」并跳过，其它来源照常。
+  # 如果你确认要使用该接口（例如已获站长许可），取消下面两行注释即可（每天约 18 个请求、间隔 ≥1s）。
+  robots_exceptions: {}
+  #  shipeiduo.com: ["/api/v1/"]
+
+paths:
+  db: data/tracker.db
+  raw: raw
+  reports: reports
+  unmatched: unmatched.csv
+  watchlist: watchlist.yaml
+  manual_matches: manual_matches.yaml
+
+charts:
+  # 主来源：App Store 网页榜单 apps.apple.com/<cc>/iphone/charts/{36,6014}，一页含免费/付费各 Top 200
+  use_v2_rss: true           # 网页榜单失败时用新版 RSS 兜底（仅 top-free/top-paid，最多 100 名）
+  legacy_rss: false          # 旧版 iTunes RSS 被 itunes.apple.com/robots.txt 禁止；需同时在 robots_exceptions 放行
+  top_n: 200
+
+official:
+  story_ids: ["6820639500"]  # 「Great Apps and Games on iPhone Duo」
+  story_regions: [us, cn]
+
+sources:                     # 每个第三方站点可单独开关
+  shipeiduo: {enabled: true, max_pages: 30}
+  xiaoxinnote: {enabled: true}
+  duotoday: {enabled: true}
+  foldhunt: {enabled: true}
+  duoappcheck: {enabled: true}
+  duoappsupport: {enabled: true}
+  duoregistry: {enabled: true}
+  duodiscover: {enabled: true}
+  iphoneapplicationlist: {enabled: true}

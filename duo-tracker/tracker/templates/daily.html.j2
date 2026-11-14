@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<title>Duo 适配日报 {{ date }}</title>
+{% include "_style.html.j2" %}
+<style>
+.trend{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}
+.panel h3{font-size:14px;margin:0 0 4px}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--ink2);margin:0 0 6px}
+.legend i{display:inline-block;width:14px;height:2px;vertical-align:middle;margin-right:5px;border-radius:1px}
+.chart{position:relative}
+.chart svg{display:block;width:100%;height:auto;overflow:visible}
+.tip{position:absolute;pointer-events:none;background:var(--surface);border:1px solid var(--border);border-radius:8px;
+     padding:6px 9px;font-size:12px;box-shadow:0 4px 14px rgba(0,0,0,.12);white-space:nowrap;display:none;z-index:2}
+.tip b{font-weight:600}
+.bar{display:flex;height:10px;border-radius:5px;overflow:hidden;background:var(--chip);min-width:120px;gap:2px}
+.bar span{display:block;height:100%}
+</style>
+</head>
+<body>
+{% import "_macros.html.j2" as m %}
+<div class="wrap">
+<header class="top">
+  <h1>iPhone Duo 适配日报 · {{ date }}</h1>
+  <nav class="tabs"><a href="all.html">全量总表</a><a href="../timeline.html">历史时间线</a><a href="status.csv">CSV</a></nav>
+</header>
+<p class="sub">跟踪 {{ n_apps }} 个 App（中/美 App Store 免费榜、付费榜 Top 200 × App/游戏 ∪ 自定义名单），
+  其中判定为已适配 {{ adapted_n }} 个。{% if prev_date %}对比上次运行：{{ prev_date }}。{% else %}<b>首次运行：今天的数据作为基线。</b>{% endif %}</p>
+
+<div class="kpis">
+{% for p in today_prog if p.chart == 'top-free' %}
+  <div class="kpi"><div class="v">{{ (100 * p.adapted / p.n) | round(1) if p.n else 0 }}%</div>
+  <div class="l">{{ REGION_LABEL[p.region] }} · 免费榜 {{ KIND_LABEL[p.kind] }} Top {{ p.n }} 已适配（{{ p.adapted }}）</div></div>
+{% endfor %}
+  <div class="kpi"><div class="v">{{ changes|length }}</div><div class="l">今日状态变化</div></div>
+  <div class="kpi"><div class="v">{{ disputed|length }}</div><div class="l">有争议</div></div>
+</div>
+
+<!-- ① -->
+<section class="card" id="s1">
+  <h2>① 今日有新版本的 App</h2>
+  <p class="hint">与上次快照比对 iTunes Lookup 的 version。绿色标签 = 更新说明命中强关键词（「官方疑似适配」）；虚线 = 弱关键词（如「展开」「大屏」，误报多，仅供参考）。</p>
+  {% if not prev_date %}
+    <p>首次运行，记录了 {{ n_baseline }} 个版本作为基线，不计为新版本。基线版本中有 <b>{{ baseline_hits|length }}</b> 个的更新说明明确提到 Duo/折叠屏：</p>
+  {% endif %}
+  {% set vlist = new_versions if prev_date else baseline_hits %}
+  {% if vlist %}
+  <div class="scroll"><table>
+    <thead><tr><th>App</th><th>版本</th><th class="hide-m">发布</th><th>关键词</th><th>当前判定</th><th class="hide-m">更新说明</th></tr></thead>
+    <tbody>
+    {% for v in vlist %}
+      <tr><td><a href="https://apps.apple.com/{{ v.region }}/app/id{{ v.id }}" target="_blank" rel="noopener">{{ v.name }}</a>
+            <span class="tag">{{ KIND_LABEL[v.kind] }}</span><span class="tag">{{ REGION_LABEL.get(v.region, v.region) }}</span></td>
+          <td>{{ v.version }}</td><td class="hide-m small muted">{{ v.release_date }}</td>
+          <td>{% for k in v.strong %}<span class="tag hit">{{ k }}</span>{% endfor %}{% for k in v.weak %}<span class="tag weak">{{ k }}</span>{% endfor %}</td>
+          <td>{{ m.pill(v.status) }}</td>
+          <td class="hide-m"><div class="notesbox">{{ v.notes }}</div></td></tr>
+    {% endfor %}
+    </tbody></table></div>
+  {% elif prev_date %}<p class="muted">今天没有跟踪名单内的 App 发布新版本。</p>{% endif %}
+</section>
+
+<!-- ② -->
+<section class="card" id="s2">
+  <h2>② 状态发生变化的 App</h2>
+  <p class="hint">综合判定相对上次运行的变化，附各来源证据。规则：自上次判定确立以来没有新版本，就维持原判定（官方合集除外）。</p>
+  {% if changes %}
+  <div class="scroll"><table>
+    <thead><tr><th>App</th><th>变化</th><th>置信度</th><th>证据</th></tr></thead><tbody>
+    {% for a in changes %}
+      <tr><td>{{ m.appcell(a) }}</td><td style="white-space:nowrap">{{ m.pill(a.prev) }} → {{ m.pill(a.status) }}</td>
+          <td class="small">{{ CONF_LABEL.get(a.confidence, a.confidence) }}</td><td>{{ m.claims(a.claims, True) }}</td></tr>
+    {% endfor %}</tbody></table></div>
+  {% elif not prev_date %}<p class="muted">首次运行没有可比较的上一次判定；全部初始判定见「全量总表」。</p>
+  {% else %}<p class="muted">今天没有状态变化。</p>{% endif %}
+  {% if held %}
+  <details style="margin-top:10px"><summary>证据有变化但没有新版本、维持原判定的 App（{{ held|length }}）</summary>
+  <div class="scroll"><table><thead><tr><th>App</th><th>维持</th><th>证据给出</th><th>证据</th></tr></thead><tbody>
+  {% for a in held %}<tr><td>{{ m.appcell(a) }}</td><td>{{ m.pill(a.status) }}</td><td>{{ m.pill(a.proposed) }}</td><td>{{ m.claims(a.claims, True) }}</td></tr>{% endfor %}
+  </tbody></table></div></details>
+  {% endif %}
+</section>
+
+<!-- ③ -->
+<section class="card" id="s3">
+  <h2>③ 各追踪站新增条目和新增投稿</h2>
+  <p class="hint">与该站上一次抓取相比新出现的条目；「已有条目状态变化」列出该站自身标注的变化。首次接入的站点只记基线条数。</p>
+  {% if baseline_sources %}
+  <p class="small ink2">首次接入（基线）：{% for s, n in baseline_sources.items() %}<span class="tag">{{ SOURCE_LABEL.get(s, s) }} {{ n }} 条</span>{% endfor %}</p>
+  {% endif %}
+  {% for s, items in new_items.items() if items %}
+    <details open><summary><b>{{ SOURCE_LABEL.get(s, s) }}</b> 新增 {{ items|length }} 条</summary>
+    <div class="scroll"><table><thead><tr><th>名称</th><th>状态</th><th>匹配</th><th class="hide-m">说明</th></tr></thead><tbody>
+    {% for it in items[:200] %}<tr><td>{% if it.url %}<a href="{{ it.url }}" target="_blank" rel="noopener">{{ it.name }}</a>{% else %}{{ it.name }}{% endif %}</td>
+      <td>{{ m.pill(it.status) }} <span class="muted small">{{ it.raw }}</span>{% if it.votes %} <span class="tag">+{{ it.votes.fit }}/−{{ it.votes.unfit }}</span>{% endif %}</td>
+      <td class="small">{% if it.app_id %}跟踪中（{{ it.match }}）{% else %}<span class="muted">{{ it.match }}</span>{% endif %}</td>
+      <td class="hide-m small ink2">{{ (it.evidence or '')[:180] }}</td></tr>{% endfor %}
+    </tbody></table></div>{% if items|length > 200 %}<p class="muted small">仅显示前 200 条。</p>{% endif %}</details>
+  {% endfor %}
+  {% for s, moves in status_moves.items() if moves %}
+    <details><summary><b>{{ SOURCE_LABEL.get(s, s) }}</b> 已有条目状态变化 {{ moves|length }} 条</summary>
+    <ul class="claims">{% for x in moves[:200] %}<li><b>{{ x.name }}</b>：{{ x.old }} → {{ x.cur }}{% if x.app_id %} <span class="tag">跟踪中</span>{% endif %}</li>{% endfor %}</ul></details>
+  {% endfor %}
+  {% if prev_date and not new_items and not status_moves %}<p class="muted">各站今天没有新增条目。</p>{% endif %}
+</section>
+
+<!-- ④ -->
+<section class="card" id="s4">
+  <h2>④ 有争议列表（{{ disputed|length }}）</h2>
+  <p class="hint">各来源结论冲突（适配与未适配两边都有站点级证据），或只有网友投稿且适配票−不适配票 ≤ 0。这里只列出各方说法，不做裁决。</p>
+  {% if disputed %}
+  <div class="scroll"><table><thead><tr><th>App</th><th>说明</th><th>各方说法</th></tr></thead><tbody>
+  {% for a in disputed %}<tr><td>{{ m.appcell(a) }}</td><td class="small ink2">{{ a.reason }}</td><td>{{ m.claims(a.claims, True) }}</td></tr>{% endfor %}
+  </tbody></table></div>
+  {% else %}<p class="muted">没有争议条目。</p>{% endif %}
+</section>
+
+<!-- ⑤ -->
+<section class="card" id="s5">
+  <h2>⑤ 整体进度</h2>
+  <p class="hint">Top 200 来自 App Store 网页榜单（App = 总榜，不含游戏；游戏 = 游戏榜）。已适配 = 完美适配 + 已适配 + 部分适配；有争议、未知不计入。</p>
+  <div class="scroll"><table>
+    <thead><tr><th>地区</th><th>榜单</th><th>类型</th><th class="num">数量</th><th class="num">已适配</th><th class="num">占比</th>
+      <th class="num hide-m">完美</th><th class="num hide-m">已适配</th><th class="num hide-m">部分</th><th class="num hide-m">未适配</th><th class="num hide-m">争议</th><th class="num hide-m">未知</th><th class="hide-m">构成</th></tr></thead>
+    <tbody>
+    {% for p in today_prog|sort(attribute='chart')|sort(attribute='region') %}
+      <tr><td>{{ REGION_LABEL[p.region] }}</td><td>{{ CHART_LABEL.get(p.chart, p.chart) }}</td><td>{{ KIND_LABEL[p.kind] }}</td>
+        <td class="num">{{ p.n }}</td><td class="num">{{ p.adapted }}</td><td class="num"><b>{{ (100 * p.adapted / p.n)|round(1) if p.n else 0 }}%</b></td>
+        <td class="num hide-m">{{ p.perfect }}</td><td class="num hide-m">{{ p.full_ }}</td><td class="num hide-m">{{ p.partial }}</td>
+        <td class="num hide-m">{{ p.none_ }}</td><td class="num hide-m">{{ p.disputed }}</td><td class="num hide-m">{{ p.unknown }}</td>
+        <td class="hide-m"><div class="bar" title="完美 {{ p.perfect }} / 已适配 {{ p.full_ }} / 部分 {{ p.partial }} / 未适配 {{ p.none_ }}">
+          {% if p.n %}<span style="width:{{ 100*(p.perfect+p.full_)/p.n }}%;background:var(--good)"></span><span style="width:{{ 100*p.partial/p.n }}%;background:var(--warn)"></span><span style="width:{{ 100*p.none_/p.n }}%;background:var(--critical)"></span>{% endif %}</div></td></tr>
+    {% endfor %}
+    </tbody></table></div>
+
+  <h3 style="font-size:14px;margin:18px 0 6px">趋势：免费榜 Top 200 已适配占比</h3>
+  <div class="trend" id="trend"></div>
+  <details style="margin-top:8px"><summary>数据表</summary>
+    <div class="scroll"><table><thead><tr><th>日期</th><th>地区</th><th>榜单</th><th>类型</th><th class="num">已适配/数量</th><th class="num">占比</th></tr></thead><tbody>
+    {% for p in progress|reverse %}<tr><td>{{ p.run_date }}</td><td>{{ REGION_LABEL[p.region] }}</td><td>{{ CHART_LABEL.get(p.chart,p.chart) }}</td><td>{{ KIND_LABEL[p.kind] }}</td>
+      <td class="num">{{ p.adapted }}/{{ p.n }}</td><td class="num">{{ (100*p.adapted/p.n)|round(1) if p.n else 0 }}%</td></tr>{% endfor %}
+    </tbody></table></div></details>
+</section>
+
+<section class="card" id="health">
+  <h2>数据源运行情况</h2>
+  <div class="scroll"><table><thead><tr><th>来源</th><th>结果</th><th class="num">条目</th><th class="num">请求</th><th>说明</th></tr></thead><tbody>
+  {% for s, v in sources.items() %}<tr><td>{{ SOURCE_LABEL.get(s, s) }}</td>
+    <td>{% if v.ok %}<span class="ok">✓ 成功</span>{% else %}<span class="bad">✕ 失败</span>{% endif %}</td>
+    <td class="num">{{ v.n if v.n is not none else '' }}</td><td class="num">{{ v.requests }}</td><td class="small ink2">{{ (v.error or '')[:300] }}</td></tr>{% endfor %}
+  </tbody></table></div>
+  <p class="small ink2" style="margin-top:10px">iTunes Lookup 成功率：
+  {% for r, v in lookup.items() %}<span class="tag">{{ REGION_LABEL.get(r, r) }} {{ v.found }}/{{ v.requested }}（{{ (100*v.found/v.requested)|round(1) if v.requested else 0 }}%）</span>{% endfor %}
+  {% if unmatched_n %} · 未能匹配的条目 {{ unmatched_n }} 条，见 <code>unmatched.csv</code>{% endif %}</p>
+  {% if notes %}<ul class="notes">{% for n in notes %}<li>{{ n }}</li>{% endfor %}</ul>{% endif %}
+</section>
+</div>
+
+<script>
+const PROGRESS = {{ progress | tojson_safe }};
+const REGION = {cn: "中国", us: "美国"};
+(function () {
+  const host = document.getElementById("trend");
+  const css = getComputedStyle(document.documentElement);
+  const series = [{kind: "app", label: "App", color: "var(--s1)"}, {kind: "game", label: "游戏", color: "var(--s2)"}];
+  const W = 520, H = 220, L = 40, R = 14, T = 12, B = 28;
+  for (const region of ["cn", "us"]) {
+    const rows = PROGRESS.filter(p => p.region === region && p.chart === "top-free" && p.n);
+    if (!rows.length) continue;
+    const dates = [...new Set(rows.map(r => r.run_date))].sort();
+    const val = (d, k) => { const r = rows.find(x => x.run_date === d && x.kind === k); return r ? {pct: 100 * r.adapted / r.n, r} : null; };
+    const maxPct = Math.max(10, ...rows.map(r => 100 * r.adapted / r.n));
+    const tick = maxPct <= 20 ? 5 : maxPct <= 50 ? 10 : 20;
+    const yMax = Math.min(100, Math.ceil(maxPct / tick) * tick);
+    const x = i => dates.length === 1 ? (L + (W - R)) / 2 : L + i * (W - L - R) / (dates.length - 1);
+    const y = v => T + (H - T - B) * (1 - v / yMax);
+    const panel = document.createElement("div"); panel.className = "panel";
+    panel.innerHTML = `<h3>${REGION[region]}</h3><div class="legend">${series.map(s => `<span><i style="background:${s.color}"></i>${s.label}</span>`).join("")}</div>`;
+    const box = document.createElement("div"); box.className = "chart";
+    let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${REGION[region]}免费榜 Top 200 已适配占比趋势">`;
+    for (let g = 0; g <= yMax; g += tick) {
+      svg += `<line x1="${L}" x2="${W - R}" y1="${y(g)}" y2="${y(g)}" stroke="var(--grid)" stroke-width="1"/>`;
+      svg += `<text x="${L - 6}" y="${y(g) + 4}" text-anchor="end" font-size="11" fill="var(--muted)">${Math.round(g)}%</text>`;
+    }
+    const step = Math.max(1, Math.ceil(dates.length / 6));
+    dates.forEach((d, i) => { if (i % step === 0 || i === dates.length - 1) svg += `<text x="${x(i)}" y="${H - 8}" text-anchor="middle" font-size="11" fill="var(--muted)">${d.slice(5)}</text>`; });
+    for (const s of series) {
+      const pts = dates.map((d, i) => { const v = val(d, s.kind); return v ? [x(i), y(v.pct)] : null; }).filter(Boolean);
+      if (pts.length > 1) svg += `<polyline fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="${pts.map(p => p.join(",")).join(" ")}"/>`;
+      const last = pts[pts.length - 1];
+      if (last) {
+        svg += `<circle cx="${last[0]}" cy="${last[1]}" r="4" fill="${s.color}" stroke="var(--surface)" stroke-width="2"/>`;
+        const lv = val(dates[dates.length - 1], s.kind);
+        svg += `<text x="${Math.min(last[0] + 8, W - R - 2)}" y="${last[1] - 8}" font-size="11.5" fill="var(--ink2)" text-anchor="${dates.length === 1 ? 'start' : 'end'}">${s.label} ${lv.pct.toFixed(1)}%</text>`;
+      }
+    }
+    svg += `<line id="xh-${region}" y1="${T}" y2="${H - B}" stroke="var(--axis)" stroke-width="1" visibility="hidden"/>`;
+    svg += `<rect x="${L}" y="${T}" width="${W - L - R}" height="${H - T - B}" fill="transparent" data-hit="1"/></svg>`;
+    box.innerHTML = svg + `<div class="tip"></div>`;
+    panel.appendChild(box); host.appendChild(panel);
+    const svgEl = box.querySelector("svg"), tip = box.querySelector(".tip"), xh = box.querySelector(`#xh-${region}`);
+    const move = ev => {
+      const rect = svgEl.getBoundingClientRect();
+      const px = (ev.clientX - rect.left) * W / rect.width;
+      let bi = 0, bd = Infinity; dates.forEach((d, i) => { const dd = Math.abs(x(i) - px); if (dd < bd) { bd = dd; bi = i; } });
+      const d = dates[bi];
+      xh.setAttribute("x1", x(bi)); xh.setAttribute("x2", x(bi)); xh.setAttribute("visibility", "visible");
+      tip.innerHTML = `<b>${d}</b>` + series.map(s => { const v = val(d, s.kind); return v ? `<div><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${s.color};margin-right:5px"></span>${s.label}：${v.pct.toFixed(1)}%（${v.r.adapted}/${v.r.n}）</div>` : ""; }).join("");
+      tip.style.display = "block";
+      const left = x(bi) * rect.width / W;
+      tip.style.left = Math.min(left + 12, rect.width - tip.offsetWidth - 4) + "px"; tip.style.top = "8px";
+    };
+    svgEl.addEventListener("pointermove", move);
+    svgEl.addEventListener("pointerleave", () => { tip.style.display = "none"; xh.setAttribute("visibility", "hidden"); });
+  }
+})();
+</script>
+</body>
+</html>

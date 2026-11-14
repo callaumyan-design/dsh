@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+# 运行产物（数据库、原始缓存、报告）默认不入库；需要时可去掉对应行
+data/
+raw/
+reports/
+unmatched.csv

@@ -1,0 +1,5 @@
+# 人工确认的名称匹配（处理 unmatched.csv 后填这里）。
+# source 省略表示对所有来源生效；ignore: true 表示确认不是跟踪名单里的 App，不再提示。
+matches: []
+#  - {source: duoregistry, name: "Things", app_id: "904237743"}
+#  - {source: duoappsupport, name: "Box", ignore: true}

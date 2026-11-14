@@ -1,0 +1,16 @@
+# 自定义跟踪名单：可写 App Store id，也可只写名称（会用 iTunes Search 在对应地区解析为 id，
+# 解析不唯一或找不到时写入 unmatched.csv，不会强行猜测）。regions 缺省为 [cn]。
+apps:
+  - {id: "1142110895", note: 抖音, regions: [cn]}
+  - {id: "414478124", note: 微信, regions: [cn, us]}
+  - {id: "6514281568", note: 异环, regions: [cn]}
+  - {id: "1606359076", note: 绝区零（国服）, regions: [cn]}
+  - {id: "1606356401", note: Zenless Zone Zero（国际服）, regions: [us]}
+  - {id: "989673964", note: 王者荣耀, regions: [cn]}
+  - {id: "1321803705", note: 和平精英, regions: [cn]}
+  - {name: 原神, regions: [cn]}
+  - {id: "835599320", note: TikTok, regions: [us]}
+  - {id: "363590051", note: Netflix, regions: [us]}
+  - {name: 小红书, regions: [cn]}
+  - {name: 哔哩哔哩, regions: [cn]}
+  - {name: 崩坏：星穹铁道, regions: [cn]}
