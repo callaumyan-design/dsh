@@ -1,7 +1,8 @@
 __pycache__/
 *.pyc
-# 运行产物（数据库、原始缓存、报告）默认不入库；需要时可去掉对应行
-data/
+# 运行产物：原始响应缓存与报告不入库；数据库 data/tracker.db 入库，用来在每天的云端运行之间保存完整历史
+data/*
+!data/tracker.db
 raw/
 reports/
 unmatched.csv

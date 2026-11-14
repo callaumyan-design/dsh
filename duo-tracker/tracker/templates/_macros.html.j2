@@ -1,19 +1,18 @@
 {% macro pill(st) -%}<span class="pill st-{{ st or 'unknown' }}">{{ STATUS_LABEL.get(st or 'unknown', st) }}</span>{%- endmacro %}
 {% macro claims(cs, only_definite=False) -%}
 <ul class="claims">
-{%- for c in cs if (not only_definite or c.status != 'unknown') %}
-  <li><b>{{ SOURCE_LABEL.get(c.source, c.source) }}</b>：{{ STATUS_LABEL.get(c.status, c.status) }}
-  {%- if c.raw_status %} <span class="muted">（{{ c.raw_status }}）</span>{% endif %}
-  {%- if c.votes %} <span class="tag">票 +{{ c.votes.fit }}/−{{ c.votes.unfit }}</span>{% endif %}
-  {%- if c.disputed_votes %} <span class="tag">票数有争议</span>{% endif %}
-  {%- if c.stale %} <span class="tag" title="该结论的日期早于 App 当前版本的发布日期，已降权">早于当前版本</span>{% endif %}
-  {%- if c.observed_at %} <span class="muted small">{{ c.observed_at[:10] }}</span>{% endif %}
-  {%- if c.evidence %} — {{ c.evidence[:220] }}{% endif %}
-  {%- if c.url %} <a href="{{ c.url }}" target="_blank" rel="noopener">链接</a>{% endif %}</li>
+{%- for c in cs if (not only_definite or c.st != 'unknown') %}
+  <li><span class="dot st-{{ c.st }}"></span><b>{{ SOURCE_LABEL.get(c.s, c.s) }}</b> {{ STATUS_LABEL.get(c.st, c.st) }}
+  {%- if c.raw %} <span class="muted">· {{ c.raw }}</span>{% endif %}
+  {%- if c.v %} <span class="tag">票 +{{ c.v[0] }}/−{{ c.v[1] }}</span>{% endif %}
+  {%- if c.dv %} <span class="tag">票数有争议</span>{% endif %}
+  {%- if c.stale %} <span class="tag" title="该结论早于 App 当前版本的发布日期，已降权">早于当前版本</span>{% endif %}
+  {%- if c.at %} <span class="muted">· {{ c.at }}</span>{% endif %}
+  {%- if c.ev %}<div class="ev">{{ c.ev[:220] }}{% if c.url %} <a href="{{ c.url }}" target="_blank" rel="noopener">来源 ↗</a>{% endif %}</div>{% endif %}</li>
 {%- endfor %}
 </ul>
 {%- endmacro %}
 {% macro appcell(a) -%}
-<a href="https://apps.apple.com/{{ (a.regions or ['cn'])[0] or 'cn' }}/app/id{{ a.id }}" target="_blank" rel="noopener">{{ a.name }}</a>
-<span class="tag">{{ KIND_LABEL.get(a.kind, a.kind) }}</span>{% for r in a.regions if r %}<span class="tag">{{ REGION_LABEL.get(r, r) }}</span>{% endfor %}
+<a class="appname" href="https://apps.apple.com/{{ (a.regions or ['cn'])[0] }}/app/id{{ a.id }}" target="_blank" rel="noopener">{{ a.name }}</a>
+<span class="tag">{{ KIND_LABEL.get(a.kind, a.kind) }}{% if a.cat %} · {{ a.cat }}{% endif %}</span>{% for r in a.regions %}<span class="tag">{{ REGION_LABEL.get(r, r) }}</span>{% endfor %}
 {%- endmacro %}

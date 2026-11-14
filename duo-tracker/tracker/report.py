@@ -39,32 +39,54 @@ def _env():
     return env
 
 
+_CONN = None
+
+
 def _claims(row) -> dict:
     try:
-        return json.loads(row["claims"] or "{}")
+        return dbm.load_claims(_CONN, row)
     except (TypeError, ValueError):
         return {}
 
 
+def _short_claim(c: dict) -> dict:
+    out = {"s": c.get("source"), "st": c.get("status"), "raw": c.get("raw_status"), "w": c.get("weight"),
+           "ev": (c.get("evidence") or "")[:260], "url": c.get("url"), "at": (c.get("observed_at") or "")[:10]}
+    if c.get("votes"):
+        out["v"] = [c["votes"].get("fit"), c["votes"].get("unfit")]
+    if c.get("stale"):
+        out["stale"] = 1
+    if c.get("disputed_votes"):
+        out["dv"] = 1
+    return {k: v for k, v in out.items() if v not in (None, "")}
+
+
 def _app_rows(conn, date):
     rows = conn.execute("""
-        SELECT a.*, v.status, v.confidence, v.prev_status, v.changed, v.held, v.proposed_status, v.claims,
+        SELECT a.*, v.status, v.confidence, v.prev_status, v.changed, v.held, v.proposed_status, v.claims, v.claims_id,
                v.current_version, v.score
         FROM verdicts v JOIN apps a USING(app_id) WHERE v.run_date=?""", (date,)).fetchall()
     ranks = defaultdict(dict)
     for r in conn.execute("SELECT * FROM top200 WHERE run_date=?", (date,)):
         ranks[r["app_id"]][f"{r['region']}:{r['chart']}"] = r["rank"]
+    hist = defaultdict(list)
+    for r in conn.execute("""SELECT app_id, run_date, status, held, proposed_status FROM verdicts
+                             WHERE run_date<=? AND (changed=1 OR prev_status IS NULL OR held=1) ORDER BY run_date""", (date,)):
+        hist[r["app_id"]].append([r["run_date"], r["status"]] + ([r["proposed_status"]] if r["held"] else []))
     out = []
     for r in rows:
         c = _claims(r)
+        claims = sorted((_short_claim(x) for x in c.get("claims", [])),
+                        key=lambda x: (x.get("st") == "unknown", -(x.get("w") or 0)))
         out.append({
             "id": r["app_id"], "name": r["name"], "name_cn": r["name_cn"], "name_us": r["name_us"],
-            "developer": r["developer"], "genre": r["genre"], "kind": "game" if r["is_game"] else "app",
-            "regions": (r["regions"] or "").split(","), "status": r["status"], "confidence": r["confidence"],
-            "prev": r["prev_status"], "changed": r["changed"], "held": r["held"], "proposed": r["proposed_status"],
-            "version": r["current_version"], "ranks": ranks.get(r["app_id"], {}), "reason": c.get("reason", ""),
-            "claims": [x for x in c.get("claims", [])],
-            "track": r["track_reason"],
+            "dev": r["developer"], "kind": "game" if r["is_game"] else "app",
+            "cat": r["category"] or ("游戏" if r["is_game"] else "其他"),
+            "regions": [x for x in (r["regions"] or "").split(",") if x], "status": r["status"],
+            "conf": r["confidence"], "prev": r["prev_status"], "changed": r["changed"], "held": r["held"],
+            "proposed": r["proposed_status"], "ver": r["current_version"], "ranks": ranks.get(r["app_id"], {}),
+            "reason": c.get("reason", ""), "claims": claims, "watch": "watchlist" in (r["track_reason"] or ""),
+            "hist": hist.get(r["app_id"], []),
         })
     return out
 
@@ -86,7 +108,9 @@ def _progress(conn):
 
 def build(root: Path, cfg: dict, date: str) -> dict:
     root = Path(root)
+    global _CONN
     conn = dbm.connect(root / cfg["paths"]["db"])
+    _CONN = conn
     out_dir = root / cfg["paths"]["reports"] / date
     out_dir.mkdir(parents=True, exist_ok=True)
     env = _env()
@@ -120,29 +144,23 @@ def build(root: Path, cfg: dict, date: str) -> dict:
     changes = [a for a in apps if a["changed"]]
     held = [a for a in apps if a["held"] and a["proposed"] and a["proposed"] != "unknown"]
 
-    # ③ 各追踪站新增条目 / 新增投稿
+    # ③ 各追踪站新增条目 / 新增投稿（source_seen.first_seen = 今天）与已有条目的状态变化（source_events）
     new_items, baseline_sources = defaultdict(list), {}
-    for src in [r[0] for r in conn.execute("SELECT DISTINCT source FROM source_items WHERE run_date=?", (date,))]:
-        had = conn.execute("SELECT 1 FROM source_items WHERE source=? AND run_date<? LIMIT 1", (src, date)).fetchone()
-        if not had:
-            baseline_sources[src] = conn.execute("SELECT COUNT(*) FROM source_items WHERE source=? AND run_date=?",
+    for src, fs in conn.execute("SELECT source, MIN(first_seen) FROM source_seen WHERE first_seen<=? GROUP BY source", (date,)):
+        if fs == date:
+            baseline_sources[src] = conn.execute("SELECT COUNT(*) FROM source_seen WHERE source=? AND first_seen=?",
                                                  (src, date)).fetchone()[0]
             continue
-        rows = conn.execute("""SELECT s.* FROM source_items s WHERE s.source=? AND s.run_date=? AND NOT EXISTS
-                               (SELECT 1 FROM source_items p WHERE p.source=s.source AND p.source_key=s.source_key
-                                AND p.run_date<?)""", (src, date, date)).fetchall()
-        for r in rows:
+        for r in conn.execute("""SELECT ss.*, si.payload, si.status FROM source_seen ss LEFT JOIN source_items si
+                                 ON si.run_date=? AND si.source=ss.source AND si.source_key=ss.source_key
+                                 WHERE ss.source=? AND ss.first_seen=?""", (date, src, date)):
             p = json.loads(r["payload"] or "{}")
-            new_items[src].append({"name": r["name"], "status": r["status"], "raw": r["raw_status"],
+            new_items[src].append({"name": r["name"], "status": r["status"], "raw": r["last_raw"],
                                    "app_id": r["app_id"], "match": r["match_method"], "url": p.get("url"),
                                    "evidence": p.get("evidence"), "votes": p.get("votes")})
-    status_moves = defaultdict(list)  # 已有条目的原始状态变化
-    if prev_date:
-        for r in conn.execute("""SELECT s.source, s.name, s.raw_status cur, p.raw_status old, s.app_id FROM source_items s
-                                 JOIN source_items p ON p.source=s.source AND p.source_key=s.source_key AND p.run_date=?
-                                 WHERE s.run_date=? AND IFNULL(s.raw_status,'')<>IFNULL(p.raw_status,'')""",
-                              (prev_date, date)):
-            status_moves[r["source"]].append(dict(r))
+    status_moves = defaultdict(list)
+    for r in conn.execute("SELECT * FROM source_events WHERE run_date=? ORDER BY source, name", (date,)):
+        status_moves[r["source"]].append({"name": r["name"], "old": r["old_raw"], "cur": r["new_raw"], "app_id": r["app_id"]})
 
     # ④ 争议
     disputed = [a for a in apps if a["status"] == "disputed"]
@@ -160,47 +178,60 @@ def build(root: Path, cfg: dict, date: str) -> dict:
                today_prog=today_prog, progress=progress, sources=sources, lookup=lookup, notes=summary.get("notes", []),
                unmatched_n=unmatched_n, top_sizes=summary.get("top_sizes", {}), n_apps=len(apps),
                adapted_n=sum(1 for a in apps if a["status"] in ADAPTED))
-    (out_dir / "daily.html").write_text(env.get_template("daily.html.j2").render(**ctx), encoding="utf-8")
-    (out_dir / "all.html").write_text(env.get_template("all.html.j2").render(**ctx), encoding="utf-8")
     _write_csv(out_dir / "status.csv", apps)
 
     # 历史时间线
     tl = conn.execute("""SELECT v.run_date, v.app_id, v.status, v.prev_status, v.changed, v.held, v.proposed_status,
-                                v.confidence, v.claims, a.name, a.is_game, a.regions
+                                v.confidence, v.claims, v.claims_id, a.name, a.is_game, a.regions
                          FROM verdicts v JOIN apps a USING(app_id)
-                         WHERE v.changed=1 OR (v.held=1 AND v.proposed_status IS NOT NULL AND v.proposed_status<>'unknown')
-                         ORDER BY v.run_date DESC, a.name""").fetchall()
-    first = conn.execute("""SELECT run_date, COUNT(*) n, SUM(CASE WHEN status IN ('perfect','full','partial') THEN 1 ELSE 0 END) ad
-                            FROM verdicts GROUP BY run_date ORDER BY run_date""").fetchall()
+                         WHERE v.run_date<=? AND (v.changed=1 OR (v.held=1 AND v.proposed_status IS NOT NULL
+                               AND v.proposed_status<>'unknown'))
+                         ORDER BY v.run_date DESC, a.name""", (date,)).fetchall()
+    days = conn.execute("""SELECT run_date, COUNT(*) n, SUM(CASE WHEN status IN ('perfect','full','partial') THEN 1 ELSE 0 END) ad
+                           FROM verdicts WHERE run_date<=? GROUP BY run_date ORDER BY run_date""", (date,)).fetchall()
     events = defaultdict(list)
     for r in tl:
         c = _claims(r)
         events[r["run_date"]].append({"id": r["app_id"], "name": r["name"], "status": r["status"], "prev": r["prev_status"],
                                       "held": r["held"], "proposed": r["proposed_status"], "confidence": r["confidence"],
-                                      "kind": "game" if r["is_game"] else "app", "regions": r["regions"],
-                                      "claims": c.get("claims", [])})
+                                      "kind": "game" if r["is_game"] else "app",
+                                      "regions": [x for x in (r["regions"] or "").split(",") if x],
+                                      "claims": [_short_claim(x) for x in c.get("claims", [])]})
     vtl = conn.execute("""SELECT first_seen d, COUNT(*) n, SUM(CASE WHEN keyword_hits LIKE '%"strong": ["%' THEN 1 ELSE 0 END) hits
                           FROM versions WHERE is_baseline=0 GROUP BY 1""").fetchall()
-    tl_ctx = dict(events=dict(events), days=[dict(r) for r in first], versions={r["d"]: dict(r) for r in vtl},
-                  latest=date, progress=progress)
+    ctx.update(events=dict(events), days=[dict(r) for r in days], vstats={r["d"]: dict(r) for r in vtl},
+               categories=_categories(apps), dates=[r["run_date"] for r in days])
+    tpl = env.get_template("site.html.j2")
+    (out_dir / "index.html").write_text(tpl.render(standalone=True, **ctx), encoding="utf-8")
+    # 发布为 Artifact 用：不带 doctype/html/head/body（发布时由平台套壳）
+    (out_dir / "artifact.html").write_text(tpl.render(standalone=False, **ctx), encoding="utf-8")
+    for alias, view in (("daily.html", "today"), ("all.html", "apps")):
+        (out_dir / alias).write_text(_redirect(f"index.html#{view}"), encoding="utf-8")
     rep_root = root / cfg["paths"]["reports"]
-    (rep_root / "timeline.html").write_text(env.get_template("timeline.html.j2").render(**tl_ctx), encoding="utf-8")
-    latest = sorted(p.name for p in rep_root.iterdir() if p.is_dir() and (p / "daily.html").exists())[-1]
-    (rep_root / "index.html").write_text(
-        f'<!doctype html><meta charset="utf-8"><title>Duo 适配日报</title>'
-        f'<meta http-equiv="refresh" content="0; url={latest}/daily.html"><a href="{latest}/daily.html">最新日报</a>',
-        encoding="utf-8")
-    return {"daily": str(out_dir / "daily.html"), "all": str(out_dir / "all.html"),
-            "timeline": str(rep_root / "timeline.html")}
+    latest = sorted(p.name for p in rep_root.iterdir() if p.is_dir() and (p / "index.html").exists())[-1]
+    (rep_root / "index.html").write_text(_redirect(f"{latest}/index.html"), encoding="utf-8")
+    (rep_root / "timeline.html").write_text(_redirect(f"{latest}/index.html#trend"), encoding="utf-8")
+    return {"daily": str(out_dir / "index.html"), "site": str(out_dir / "index.html")}
 
+
+def _redirect(url: str) -> str:
+    return (f'<!doctype html><meta charset="utf-8"><title>Duo 适配追踪</title>'
+            f'<meta http-equiv="refresh" content="0; url={url}"><a href="{url}">打开</a>')
+
+
+def _categories(apps):
+    cats = defaultdict(lambda: {"n": 0})
+    for a in apps:
+        cats[(a["kind"], a["cat"])]["n"] += 1
+    return sorted(([k[0], k[1], v["n"]] for k, v in cats.items()), key=lambda x: (x[0], -x[2]))
 
 def _write_csv(path: Path, apps: list[dict]):
-    cols = ["id", "name", "name_cn", "name_us", "kind", "regions", "status", "confidence", "version", "ranks",
-            "reason", "sources"]
+    cols = ["id", "name", "name_cn", "name_us", "kind", "category", "regions", "status", "confidence", "version",
+            "ranks", "reason", "sources"]
     with open(path, "w", newline="", encoding="utf-8-sig") as f:
         w = csv.writer(f)
         w.writerow(cols)
         for a in sorted(apps, key=lambda a: a["name"] or ""):
-            srcs = "; ".join(f"{c['source']}={c['status']}" for c in a["claims"] if c.get("status") != "unknown")
-            w.writerow([a["id"], a["name"], a["name_cn"], a["name_us"], a["kind"], ",".join(a["regions"]), a["status"],
-                        a["confidence"], a["version"], json.dumps(a["ranks"]), a["reason"], srcs])
+            srcs = "; ".join(f"{c['s']}={c['st']}" for c in a["claims"] if c.get("st") != "unknown")
+            w.writerow([a["id"], a["name"], a["name_cn"], a["name_us"], a["kind"], a["cat"], ",".join(a["regions"]),
+                        a["status"], a["conf"], a["ver"], json.dumps(a["ranks"]), a["reason"], srcs])

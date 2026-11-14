@@ -74,6 +74,29 @@ SOURCE_LABEL = {
 }
 
 
+# App Store 分类 id → 中文名（已用国区/美区 Lookup 的 genreIds 与 genres 对照核实）
+GENRE_CN = {
+    "6000": "商务", "6001": "天气", "6002": "工具", "6003": "旅游", "6004": "体育", "6005": "社交",
+    "6006": "参考资料", "6007": "效率", "6008": "摄影与录像", "6009": "新闻", "6010": "导航", "6011": "音乐",
+    "6012": "生活", "6013": "健康健美", "6014": "游戏", "6015": "财务", "6016": "娱乐", "6017": "教育",
+    "6018": "图书", "6020": "医疗", "6021": "报刊杂志", "6023": "美食佳饮", "6024": "购物", "6026": "软件开发工具",
+    "6027": "图形与设计",
+    "7001": "动作", "7002": "冒险", "7003": "休闲", "7004": "桌面", "7005": "卡牌", "7006": "娱乐场", "7007": "骰子",
+    "7008": "教育", "7009": "家庭聚会", "7011": "音乐", "7012": "益智解谜", "7013": "竞速", "7014": "角色扮演",
+    "7015": "模拟", "7016": "体育", "7017": "策略", "7018": "益智问答", "7019": "字谜",
+}
+
+
+def category_of(result: dict) -> tuple[str | None, str | None]:
+    """返回 (分类 id, 中文名)。游戏取第一个 70xx 子分类，App 取主分类。"""
+    ids = [str(g) for g in result.get("genreIds", [])]
+    if "6014" in ids or result.get("primaryGenreName") == "Games":
+        sub = next((g for g in ids if g.startswith("70")), None)
+        return (sub, GENRE_CN.get(sub, "其他游戏")) if sub else ("6014", "其他游戏")
+    gid = str(result.get("primaryGenreId") or (ids[0] if ids else ""))
+    return gid or None, GENRE_CN.get(gid, result.get("primaryGenreName"))
+
+
 def map_status(source: str, raw: str | None) -> str:
     if raw is None:
         return UNKNOWN

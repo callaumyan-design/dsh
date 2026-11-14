@@ -1,0 +1,459 @@
+{% if standalone %}<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+{% endif %}<title>Duo 适配追踪</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700&family=Inter:wght@400;500;600;700&display=swap">
+{% include "_style.html.j2" %}
+<style>
+/* —— 应用浏览视图 —— */
+.view[hidden]{display:none!important}
+.pagehead{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 14px;margin:20px 0 4px}
+.pagehead h1{font-size:22px;margin:0}
+.pagehead p{margin:0;color:var(--ink-2);font-size:13px}
+.presets{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 4px}
+.preset{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:5px 12px;font-size:12.5px;cursor:pointer;color:var(--ink-2)}
+.preset:hover{border-color:var(--accent);color:var(--ink)}
+.overview{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:12px;margin:12px 0 16px}
+.tcard{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;display:grid;gap:10px}
+.tcard.sel{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.tcard .hd{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.tcard .hd button{all:unset;cursor:pointer;font:700 16px var(--f-display)}
+.tcard .hd button:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
+.tcard .big{margin-left:auto;font:700 26px/1 var(--f-display);font-variant-numeric:tabular-nums}
+.tcard .big small{font:500 12px var(--f-body);color:var(--muted);margin-left:4px}
+.sbar{display:flex;gap:2px;height:14px;border-radius:4px;overflow:hidden;background:var(--surface-2)}
+.sbar button{all:unset;cursor:pointer;height:100%;min-width:3px;transition:filter .15s}
+.sbar button:hover,.sbar button:focus-visible{filter:brightness(1.12) saturate(1.1);outline:none}
+.slegend{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--ink-2)}
+.slegend button{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:5px;border-radius:4px}
+.slegend button:hover{color:var(--ink)} .slegend button:focus-visible{outline:2px solid var(--accent)}
+.slegend b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
+
+.explore{display:grid;grid-template-columns:290px minmax(0,1fr);gap:16px;align-items:start}
+.rail{position:sticky;top:calc(env(safe-area-inset-top,0px) + 64px);max-height:calc(100vh - 80px);overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overscroll-behavior:contain}
+.rail>details>summary{list-style:none;padding:12px 14px;font-weight:600;color:var(--ink);display:flex;gap:8px;align-items:center;font-size:14px}
+.rail>details>summary::-webkit-details-marker{display:none}
+.rail>details>summary .cnt{margin-left:auto;color:var(--muted);font-weight:500;font-size:12px}
+.fgroup{padding:10px 14px;border-top:1px solid var(--line);display:grid;gap:8px}
+.flabel{display:flex;align-items:center;gap:8px;font-size:11.5px;font-weight:600;letter-spacing:.06em;color:var(--muted)}
+.linkbtn{all:unset;cursor:pointer;margin-left:auto;font-size:12px;letter-spacing:0;font-weight:500;color:var(--accent)}
+.seg{display:flex;background:var(--surface-2);border-radius:8px;padding:3px;gap:2px;flex-wrap:wrap}
+.seg button{flex:1 1 auto;border:0;background:transparent;padding:5px 8px;border-radius:6px;font-size:12.5px;cursor:pointer;color:var(--ink-2);white-space:nowrap}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.1)}
+.seg button .c{color:var(--muted);font-size:11px;margin-left:3px;font-variant-numeric:tabular-nums}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:4px 10px 4px 8px;font-size:12.5px;cursor:pointer;color:var(--ink)}
+.chip .c{color:var(--muted);font-size:11.5px;font-variant-numeric:tabular-nums}
+.chip[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent)}
+.chip[disabled]{opacity:.45;cursor:default}
+.cats{display:grid;gap:2px}
+.cats .grp{font-size:11.5px;color:var(--muted);margin:6px 0 2px}
+.cat{all:unset;cursor:pointer;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 8px;padding:6px 8px;border-radius:7px}
+.cat:hover{background:var(--surface-2)} .cat:focus-visible{outline:2px solid var(--accent)}
+.cat[aria-pressed="true"]{background:var(--accent-soft)}
+.cat .nm{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cat .pc{font-size:12px;color:var(--ink-2);font-variant-numeric:tabular-nums;text-align:right}
+.cat .mini{grid-column:1/-1;display:flex;gap:1px;height:5px;border-radius:3px;overflow:hidden;background:var(--surface-2)}
+.cat .mini span{height:100%}
+.cat[data-empty]{opacity:.4}
+
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+.search{flex:1 1 240px;position:relative}
+.search input{width:100%;font:inherit;font-size:14px;padding:9px 12px 9px 34px;border-radius:9px;border:1px solid var(--line);background:var(--surface);color:var(--ink)}
+.search svg{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--muted)}
+.search kbd{position:absolute;right:10px;top:50%;transform:translateY(-50%);font:11px var(--f-mono);color:var(--muted);border:1px solid var(--line);border-radius:4px;padding:0 5px}
+select{font:inherit;font-size:13px;padding:8px 10px;border-radius:9px;border:1px solid var(--line);background:var(--surface);color:var(--ink)}
+.activebar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-height:28px;margin-bottom:8px;font-size:13px;color:var(--ink-2)}
+.activebar .tot{font-weight:600;color:var(--ink);margin-right:4px;font-variant-numeric:tabular-nums}
+.af{display:inline-flex;align-items:center;gap:4px;background:var(--surface-2);border:0;border-radius:6px;padding:2px 6px 2px 8px;font-size:12px;cursor:pointer;color:var(--ink)}
+.af::after{content:"×";color:var(--muted);font-size:14px;line-height:1}
+.list{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+.row{display:grid;grid-template-columns:36px minmax(0,1fr) auto auto 28px;gap:12px;align-items:center;padding:10px 12px;border-top:1px solid var(--line);cursor:pointer}
+.row:first-child{border-top:0}
+.row:hover{background:color-mix(in srgb,var(--surface-2) 55%,transparent)}
+.av{width:36px;height:36px;border-radius:9px;background:var(--surface-2);display:grid;place-items:center;font:600 15px var(--f-display);color:var(--ink-2);position:relative}
+.av::after{content:"";position:absolute;right:-2px;bottom:-2px;width:11px;height:11px;border-radius:50%;border:2px solid var(--surface);background:var(--st-unknown)}
+.av.st-perfect::after{background:var(--st-perfect)} .av.st-full::after{background:var(--st-full)} .av.st-partial::after{background:var(--st-partial)}
+.av.st-none::after{background:var(--st-none)} .av.st-disputed::after{background:var(--st-disputed)}
+.row .t{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .t .alt{font-weight:400;color:var(--muted);font-size:12.5px;margin-left:6px}
+.row .m{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .m .rk{color:var(--ink-2);font-variant-numeric:tabular-nums}
+.row .m .new{color:var(--accent);font-weight:600}
+.srcs{display:flex;gap:3px;align-items:center}
+.srcs i{width:7px;height:16px;border-radius:2px;background:var(--st-unknown)}
+.srcs .n{font-size:11.5px;color:var(--muted);margin-left:4px;font-variant-numeric:tabular-nums;min-width:3ch}
+.stc{display:grid;justify-items:end;gap:2px}
+.stc .cf{font-size:11px;color:var(--muted);white-space:nowrap}
+.chev{width:28px;height:28px;border:0;background:transparent;border-radius:6px;cursor:pointer;color:var(--muted);display:grid;place-items:center}
+.row[aria-expanded="true"] .chev svg{transform:rotate(180deg)}
+.detail{padding:4px 16px 16px 60px;border-top:1px dashed var(--line);background:color-mix(in srgb,var(--surface-2) 35%,transparent)}
+.detail .why{font-size:13px;color:var(--ink);margin:10px 0}
+.detail .links{display:flex;gap:12px;flex-wrap:wrap;font-size:12.5px;margin:10px 0 0}
+.hist{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;font-size:12px;color:var(--muted);align-items:center}
+.empty{padding:40px 16px;text-align:center;color:var(--ink-2)}
+.empty button{margin-top:10px}
+.more{display:block;margin:12px auto 0;border:1px solid var(--line);background:var(--surface);border-radius:9px;padding:8px 18px;cursor:pointer;color:var(--ink)}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:13px}
+.foot{margin-top:28px;font-size:12px;color:var(--muted);display:grid;gap:4px}
+@media (max-width:900px){
+  .explore{grid-template-columns:minmax(0,1fr)}
+  .rail{position:static;max-height:none}
+}
+@media (max-width:640px){
+  .presets{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin-inline:calc(-1 * max(16px,env(safe-area-inset-left,0px)));padding-inline:max(16px,env(safe-area-inset-left,0px))}
+  .presets::-webkit-scrollbar{display:none}
+  .preset{flex:none}
+  .row{grid-template-columns:32px minmax(0,1fr) auto;gap:10px}
+  .row .srcs,.row .chev{display:none}
+  .av{width:32px;height:32px}
+  .detail{padding-left:16px}
+  .views a{padding:5px 10px}
+  .brand small{display:none}
+}
+</style>
+{% if standalone %}</head>
+<body>{% endif %}
+<header class="topbar"><div class="in">
+  <div class="brand">
+    <svg width="26" height="22" viewBox="0 0 26 22" aria-hidden="true"><rect x="1.5" y="1.5" width="10" height="19" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.6"/><rect x="14.5" y="1.5" width="10" height="19" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M13 3v16" stroke="var(--accent)" stroke-width="1.6" stroke-dasharray="2 2"/></svg>
+    <span>Duo 适配追踪</span><small>{{ date }}</small>
+  </div>
+  <nav class="views" aria-label="视图">
+    <a href="#apps" data-view="apps">应用浏览</a>
+    <a href="#today" data-view="today">今日</a>
+    <a href="#trend" data-view="trend">趋势</a>
+  </nav>
+</div></header>
+
+<main class="wrap">
+<!-- ================= 应用浏览 ================= -->
+<section class="view" id="view-apps">
+  <div class="pagehead">
+    <h1>iPhone Duo 适配状况</h1>
+    <p>中/美 App Store 免费榜、付费榜 Top 200 与自定义名单，共 {{ n_apps }} 个 App 和游戏 · 数据日期 {{ date }}</p>
+  </div>
+  <div class="presets" id="presets" aria-label="常用筛选"></div>
+  <div class="overview" id="overview"></div>
+  <div class="explore">
+    <aside class="rail" aria-label="筛选">
+      <details id="railbox" open>
+        <summary>筛选 <span class="muted small" style="font-weight:400">类型 · 状态 · 地区 · 分类</span><span class="cnt" id="railcnt"></span></summary>
+        <div class="fgroup"><div class="flabel">类型</div><div class="seg" id="f-kind"></div></div>
+        <div class="fgroup"><div class="flabel">适配状态 <button class="linkbtn" id="clear-status" type="button">清除</button></div><div class="chips" id="f-status"></div></div>
+        <div class="fgroup"><div class="flabel">地区</div><div class="seg" id="f-region"></div></div>
+        <div class="fgroup"><div class="flabel">名单</div><div class="seg" id="f-chart"></div></div>
+        <div class="fgroup"><div class="flabel">分类 <span style="margin-left:auto;font-weight:500;letter-spacing:0">已适配占比</span></div><div class="cats" id="f-cat"></div></div>
+      </details>
+    </aside>
+    <div class="results">
+      <div class="toolbar">
+        <label class="search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input type="search" id="q" placeholder="搜索 App、游戏、开发者或 id" aria-label="搜索" autocomplete="off"><kbd>/</kbd></label>
+        <select id="sort" aria-label="排序">
+          <option value="rank">按榜单名次</option>
+          <option value="status">按适配状态</option>
+          <option value="evidence">按证据数量</option>
+          <option value="change">最近变化在前</option>
+          <option value="name">按名称</option>
+        </select>
+      </div>
+      <div class="activebar" id="active" aria-live="polite"></div>
+      <div class="list" id="list"></div>
+      <button class="more" id="more" type="button" hidden>显示更多</button>
+    </div>
+  </div>
+  <div class="foot">
+    <span>判定规则：苹果官方合集 &gt; 更新说明明确提及 &gt; 多个追踪站一致 &gt; 单个站点 &gt; 网友投稿；来源冲突标为“有争议”，不做裁决；没有新版本时维持原判定。</span>
+    <span>“已适配”统计包含完美适配、已适配、部分适配三档。点击任一行可查看各来源的原文证据和链接。</span>
+  </div>
+</section>
+
+<!-- ================= 今日 ================= -->
+<section class="view" id="view-today" hidden>
+  <div class="pagehead"><h1>今日日报 · {{ date }}</h1>
+    <p>{% if prev_date %}对比上次运行 {{ prev_date }}{% else %}首次运行，今天的数据作为基线{% endif %}</p></div>
+  {% include "_today.html.j2" %}
+</section>
+
+<!-- ================= 趋势 ================= -->
+<section class="view" id="view-trend" hidden>
+  <div class="pagehead"><h1>整体进度与时间线</h1><p>Top 200 已适配占比、趋势和每天的判定变化</p></div>
+  {% include "_trend.html.j2" %}
+</section>
+</main>
+
+<script>
+const APPS = {{ apps | tojson_safe }};
+const SL = {{ STATUS_LABEL | tojson_safe }}, SRC = {{ SOURCE_LABEL | tojson_safe }}, CL = {{ CONF_LABEL | tojson_safe }};
+const DATE = {{ date | tojson_safe }};
+const ORDER = ["perfect", "full", "partial", "disputed", "none", "unknown"];
+const ADAPTED = new Set(["perfect", "full", "partial"]);
+const RL = {cn: "中国", us: "美国"}, KL = {app: "App", game: "游戏"};
+const CHARTL = {"top-free": "免费 Top 200", "top-paid": "付费 Top 200", watch: "自定义名单"};
+const STORE_KEY = "duo-tracker-filters-v1";
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+const cssv = st => `var(--st-${st})`;
+
+/* ---------- 状态 ---------- */
+const DEF = {kind: "", status: [], region: "", chart: "", cat: "", q: "", sort: "rank", changed: false};
+let S = {...DEF};
+try { const saved = JSON.parse(localStorage.getItem(STORE_KEY) || "null"); if (saved) S = {...DEF, ...saved}; } catch (e) {}
+const save = () => { try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); } catch (e) {} };
+let shown = 60;
+
+for (const a of APPS) {
+  a._hay = [a.name, a.name_cn, a.name_us, a.dev, a.id, a.cat].filter(Boolean).join(" ").toLowerCase();
+  a._def = a.claims.filter(c => c.st !== "unknown");
+  a._last = a.hist.length ? a.hist[a.hist.length - 1][0] : "";
+}
+
+function rankOf(a, chart = S.chart, region = S.region) {
+  let best = null;
+  for (const [k, v] of Object.entries(a.ranks)) {
+    const [r, c] = k.split(":");
+    if (region && r !== region) continue;
+    if (chart && chart !== "watch" && c !== chart) continue;
+    if (best === null || v < best.v) best = {v, r, c};
+  }
+  return best;
+}
+function match(a, skip = "") {
+  if (skip !== "kind" && skip !== "kindstatus" && S.kind && a.kind !== S.kind) return false;
+  if (skip !== "status" && skip !== "kindstatus" && S.status.length && !S.status.includes(a.status)) return false;
+  if (S.changed && !(a.changed || a.held)) return false;
+  if (skip !== "region" && S.region && !a.regions.includes(S.region)) return false;
+  if (skip !== "chart" && S.chart) {
+    if (S.chart === "watch") { if (!a.watch) return false; }
+    else if (!rankOf(a, S.chart, S.region)) return false;
+  }
+  if (skip !== "cat" && S.cat && a.cat !== S.cat) return false;
+  if (skip !== "q" && S.q) { const q = S.q.trim().toLowerCase(); if (q && !a._hay.includes(q)) return false; }
+  return true;
+}
+function countBy(list, key) { const m = {}; for (const a of list) m[a[key]] = (m[a[key]] || 0) + 1; return m; }
+const pct = (n, d) => d ? (100 * n / d) : 0;
+const fmtPct = (n, d) => d ? (Math.round(pct(n, d) * 10) / 10).toFixed(1) + "%" : "—";
+
+/* ---------- 常用筛选 ---------- */
+const PRESETS = [
+  ["游戏 Top 200 已适配", {kind: "game", status: ["perfect", "full", "partial"], chart: "top-free"}],
+  ["App Top 200 已适配", {kind: "app", status: ["perfect", "full", "partial"], chart: "top-free"}],
+  ["官方点名/完美适配", {status: ["perfect"]}],
+  ["国区未适配热门 App", {kind: "app", status: ["none"], region: "cn", chart: "top-free"}],
+  ["有争议", {status: ["disputed"]}],
+  ["今日有变化", {changed: true, sort: "change"}],
+];
+function renderPresets() {
+  $("presets").innerHTML = PRESETS.map((p, i) => `<button class="preset" type="button" data-p="${i}">${esc(p[0])}</button>`).join("")
+    + `<button class="preset" type="button" data-p="reset">重置全部筛选</button>`;
+}
+$("presets").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  if (b.dataset.p === "reset") { S = {...DEF}; }
+  else {
+    const p = PRESETS[+b.dataset.p][1];
+    S = {...DEF, ...p, status: p.status ? [...p.status] : []};
+  }
+  $("q").value = S.q; shown = 60; update();
+});
+
+/* ---------- 概览卡（类型 × 状态） ---------- */
+function renderOverview() {
+  $("overview").innerHTML = ["app", "game"].map(k => {
+    const all = APPS.filter(a => a.kind === k && match(a, "kindstatus"));
+    const c = countBy(all, "status"), n = all.length;
+    const ad = (c.perfect || 0) + (c.full || 0) + (c.partial || 0);
+    const segs = ORDER.filter(s => c[s]).map(s => `<button type="button" data-k="${k}" data-s="${s}" style="flex:${c[s]};background:${cssv(s)}" title="${KL[k]} · ${SL[s]} ${c[s]}" aria-label="${KL[k]} ${SL[s]} ${c[s]} 个"></button>`).join("");
+    const leg = ORDER.map(s => `<button type="button" data-k="${k}" data-s="${s}"><span class="dot st-${s}"></span>${SL[s]} <b>${c[s] || 0}</b></button>`).join("");
+    return `<div class="tcard${S.kind === k ? " sel" : ""}">
+      <div class="hd"><button type="button" data-k="${k}" data-s="">${KL[k]}</button><span class="muted small">当前范围 ${n} 个</span>
+        <span class="big">${fmtPct(ad, n)}<small>已适配 ${ad}</small></span></div>
+      <div class="sbar">${segs}</div><div class="slegend">${leg}</div></div>`;
+  }).join("");
+}
+$("overview").addEventListener("click", e => {
+  const b = e.target.closest("button[data-k]"); if (!b) return;
+  S.kind = b.dataset.k;
+  S.status = b.dataset.s ? [b.dataset.s] : [];
+  shown = 60; update();
+});
+
+/* ---------- 筛选栏 ---------- */
+function seg(el, opts, cur, key, facetList) {
+  el.innerHTML = opts.map(([v, label]) => {
+    const c = facetList ? facetList(v) : null;
+    return `<button type="button" data-v="${v}" aria-pressed="${cur === v}">${esc(label)}${c !== null ? `<span class="c">${c}</span>` : ""}</button>`;
+  }).join("");
+  el.onclick = e => { const b = e.target.closest("button"); if (!b) return; S[key] = b.dataset.v; if (key === "kind" && S.cat && !catExists(S.cat, S.kind)) S.cat = ""; shown = 60; update(); };
+}
+function catExists(cat, kind) { return APPS.some(a => a.cat === cat && (!kind || a.kind === kind)); }
+function renderRail() {
+  const kindBase = APPS.filter(a => match(a, "kind"));
+  seg($("f-kind"), [["", "全部"], ["app", "App"], ["game", "游戏"]], S.kind, "kind",
+      v => v ? kindBase.filter(a => a.kind === v).length : kindBase.length);
+  const regBase = APPS.filter(a => match(a, "region"));
+  seg($("f-region"), [["", "全部"], ["cn", "中国"], ["us", "美国"]], S.region, "region",
+      v => v ? regBase.filter(a => a.regions.includes(v)).length : regBase.length);
+  const chBase = APPS.filter(a => match(a, "chart"));
+  seg($("f-chart"), [["", "全部"], ["top-free", "免费榜"], ["top-paid", "付费榜"], ["watch", "自定义"]], S.chart, "chart",
+      v => !v ? chBase.length : v === "watch" ? chBase.filter(a => a.watch).length : chBase.filter(a => rankOf(a, v, S.region)).length);
+
+  const stBase = countBy(APPS.filter(a => match(a, "status")), "status");
+  $("f-status").innerHTML = ORDER.map(s => `<button class="chip" type="button" data-s="${s}" aria-pressed="${S.status.includes(s)}" ${!stBase[s] && !S.status.includes(s) ? "disabled" : ""}><span class="dot st-${s}"></span>${SL[s]}<span class="c">${stBase[s] || 0}</span></button>`).join("");
+  $("clear-status").hidden = !S.status.length;
+
+  const catBase = APPS.filter(a => match(a, "cat"));
+  const groups = (S.kind ? [S.kind] : ["app", "game"]).map(k => {
+    const inKind = APPS.filter(a => a.kind === k);
+    const names = [...new Set(inKind.map(a => a.cat))];
+    const rows = names.map(nm => {
+      const list = catBase.filter(a => a.kind === k && a.cat === nm);
+      const c = countBy(list, "status"); const ad = (c.perfect || 0) + (c.full || 0) + (c.partial || 0);
+      return {nm, n: list.length, c, ad};
+    }).sort((x, y) => y.n - x.n || x.nm.localeCompare(y.nm, "zh"));
+    return `<div class="grp">${KL[k]} 分类</div>` + rows.map(r => `<button class="cat" type="button" data-cat="${esc(r.nm)}" aria-pressed="${S.cat === r.nm}" ${r.n ? "" : "data-empty"}>
+        <span class="nm">${esc(r.nm)} <span class="muted">${r.n}</span></span><span class="pc">${r.n ? fmtPct(r.ad, r.n) : "—"}</span>
+        <span class="mini">${ORDER.filter(s => r.c[s]).map(s => `<span style="flex:${r.c[s]};background:${cssv(s)}"></span>`).join("")}</span></button>`).join("");
+  }).join("");
+  $("f-cat").innerHTML = groups;
+}
+$("f-status").addEventListener("click", e => {
+  const b = e.target.closest("button[data-s]"); if (!b || b.disabled) return;
+  const s = b.dataset.s; S.status = S.status.includes(s) ? S.status.filter(x => x !== s) : [...S.status, s]; shown = 60; update();
+});
+$("clear-status").addEventListener("click", () => { S.status = []; update(); });
+$("f-cat").addEventListener("click", e => {
+  const b = e.target.closest("button[data-cat]"); if (!b) return;
+  S.cat = S.cat === b.dataset.cat ? "" : b.dataset.cat; shown = 60; update();
+});
+
+/* ---------- 结果列表 ---------- */
+const STATUS_RANK = Object.fromEntries(ORDER.map((s, i) => [s, i]));
+function sorted(list) {
+  const r = a => { const x = rankOf(a); return x ? x.v : 9999; };
+  const by = {
+    rank: (a, b) => r(a) - r(b) || STATUS_RANK[a.status] - STATUS_RANK[b.status] || a.name.localeCompare(b.name, "zh"),
+    status: (a, b) => STATUS_RANK[a.status] - STATUS_RANK[b.status] || r(a) - r(b),
+    evidence: (a, b) => b._def.length - a._def.length || STATUS_RANK[a.status] - STATUS_RANK[b.status] || r(a) - r(b),
+    change: (a, b) => (b.changed - a.changed) || (b.held - a.held) || b._last.localeCompare(a._last) || r(a) - r(b),
+    name: (a, b) => a.name.localeCompare(b.name, "zh"),
+  }[S.sort] || ((a, b) => 0);
+  return list.slice().sort(by);
+}
+function metaLine(a) {
+  const parts = [KL[a.kind] + " · " + esc(a.cat), a.regions.map(r => RL[r] || r).join("/")];
+  const rk = rankOf(a, S.chart === "watch" ? "" : S.chart);
+  if (rk) parts.push(`<span class="rk">${rk.c === "top-free" ? "免费" : "付费"} #${rk.v}${a.regions.length > 1 || !S.region ? " " + RL[rk.r] : ""}</span>`);
+  if (a.changed) parts.unshift(`<span class="new">今日变化 ${esc(SL[a.prev] || "")}→${esc(SL[a.status])}</span>`);
+  else if (a.held) parts.unshift(`<span class="new">证据变化·维持</span>`);
+  return parts.join(" · ");
+}
+function rowHTML(a, open) {
+  const srcs = a._def.slice(0, 8).map(c => `<i style="background:${cssv(c.st)}" title="${esc(SRC[c.s] || c.s)}：${esc(SL[c.st])}"></i>`).join("");
+  const alt = a.name_us && a.name_cn && a.name_us !== a.name_cn ? `<span class="alt">${esc(a.name_us)}</span>` : "";
+  let h = `<div class="row" role="button" tabindex="0" data-id="${a.id}" aria-expanded="${open}">
+    <div class="av st-${a.status}" aria-hidden="true">${esc([...(a.name || "?")][0])}</div>
+    <div style="min-width:0"><div class="t">${esc(a.name)}${alt}</div><div class="m">${metaLine(a)}</div></div>
+    <div class="srcs" title="有明确结论的来源">${srcs}<span class="n">${a._def.length ? a._def.length + " 源" : ""}</span></div>
+    <div class="stc"><span class="pill st-${a.status}">${esc(SL[a.status])}</span><span class="cf">${esc(CL[a.conf] || "")}</span></div>
+    <span class="chev" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></span>
+  </div>`;
+  if (open) h += detailHTML(a);
+  return h;
+}
+function detailHTML(a) {
+  const cl = a.claims.map(c => `<li><span class="dot st-${c.st}"></span><b>${esc(SRC[c.s] || c.s)}</b>${esc(SL[c.st] || c.st)}${c.raw ? ` <span class="muted">· ${esc(c.raw)}</span>` : ""}${c.v ? ` <span class="tag">票 +${c.v[0]}/−${c.v[1]}</span>` : ""}${c.dv ? ' <span class="tag">票数有争议</span>' : ""}${c.stale ? ' <span class="tag" title="该结论早于 App 当前版本发布，已降权">早于当前版本</span>' : ""}${c.at ? ` <span class="muted">· ${esc(c.at)}</span>` : ""}
+    ${c.ev ? `<div class="ev">${esc(c.ev)}${c.url ? ` <a href="${esc(c.url)}" target="_blank" rel="noopener">来源 ↗</a>` : ""}</div>` : ""}</li>`).join("");
+  const hist = a.hist.map(h => `<span><span class="muted">${esc(h[0].slice(5))}</span> <span class="pill st-${h[1]}">${esc(SL[h[1]])}</span>${h[2] ? ` <span class="muted">(证据给出 ${esc(SL[h[2]])}，无新版本)</span>` : ""}</span>`).join('<span class="muted">→</span>');
+  const region = a.regions[0] || "cn";
+  return `<div class="detail">
+    <div class="why">${esc(SL[a.status])} · ${esc(CL[a.conf] || "")}${a.reason ? "：" + esc(a.reason) : ""}</div>
+    <ul class="claims">${cl || '<li class="muted">还没有任何来源提到这个 App。</li>'}</ul>
+    <div class="hist"><span>判定历史</span>${hist}</div>
+    <div class="links"><a href="https://apps.apple.com/${region}/app/id${a.id}" target="_blank" rel="noopener">App Store 页面 ↗</a>
+      <span class="muted">id ${a.id}${a.dev ? " · " + esc(a.dev) : ""}${a.ver ? " · 版本 " + esc(a.ver.replace(/;/g, " ")) : ""}</span></div>
+  </div>`;
+}
+const openSet = new Set();
+let current = [];
+function renderList() {
+  current = sorted(APPS.filter(a => match(a)));
+  const ad = current.filter(a => ADAPTED.has(a.status)).length;
+  const act = [];
+  if (S.kind) act.push(["kind", KL[S.kind]]);
+  for (const s of S.status) act.push(["status:" + s, SL[s]]);
+  if (S.region) act.push(["region", RL[S.region]]);
+  if (S.chart) act.push(["chart", CHARTL[S.chart]]);
+  if (S.cat) act.push(["cat", S.cat]);
+  if (S.q) act.push(["q", "“" + S.q + "”"]);
+  if (S.changed) act.push(["changed", "今日有变化"]);
+  $("active").innerHTML = `<span class="tot">${current.length} 个</span><span>已适配 ${ad}（${fmtPct(ad, current.length)}）</span>`
+    + act.map(([k, l]) => `<button class="af" type="button" data-k="${esc(k)}" aria-label="移除筛选 ${esc(l)}">${esc(l)}</button>`).join("");
+  $("railcnt").textContent = act.length ? `${act.length} 项 · ${current.length} 个结果` : `${current.length} 个`;
+  if (!current.length) {
+    $("list").innerHTML = `<div class="empty">没有符合条件的 App。<br><button class="btn" type="button" id="empty-reset">清除所有筛选</button></div>`;
+    $("empty-reset").onclick = () => { S = {...DEF}; $("q").value = ""; update(); };
+    $("more").hidden = true; return;
+  }
+  $("list").innerHTML = current.slice(0, shown).map(a => rowHTML(a, openSet.has(a.id))).join("");
+  $("more").hidden = current.length <= shown;
+  $("more").textContent = `显示更多（还有 ${current.length - shown} 个）`;
+}
+$("active").addEventListener("click", e => {
+  const b = e.target.closest("button[data-k]"); if (!b) return;
+  const k = b.dataset.k;
+  if (k.startsWith("status:")) S.status = S.status.filter(s => s !== k.slice(7));
+  else { S[k] = k === "changed" ? false : ""; if (k === "q") $("q").value = ""; }
+  update();
+});
+$("list").addEventListener("click", e => {
+  if (e.target.closest("a")) return;
+  const row = e.target.closest(".row"); if (!row) return;
+  toggle(row.dataset.id);
+});
+$("list").addEventListener("keydown", e => {
+  const row = e.target.closest(".row"); if (!row || (e.key !== "Enter" && e.key !== " ")) return;
+  e.preventDefault(); toggle(row.dataset.id);
+});
+function toggle(id) {
+  openSet.has(id) ? openSet.delete(id) : openSet.add(id);
+  renderList();
+  const el = document.querySelector(`.row[data-id="${id}"]`); if (el) el.focus({preventScroll: true});
+}
+$("more").addEventListener("click", () => { shown += 120; renderList(); });
+let qt;
+$("q").addEventListener("input", e => { clearTimeout(qt); qt = setTimeout(() => { S.q = e.target.value; shown = 60; update(); }, 120); });
+$("sort").addEventListener("change", e => { S.sort = e.target.value; update(); });
+document.addEventListener("keydown", e => {
+  if (e.key === "/" && document.activeElement !== $("q") && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) { e.preventDefault(); showView("apps"); $("q").focus(); }
+});
+
+function update() {
+  renderOverview(); renderRail(); renderList();
+  $("sort").value = S.sort; save();
+}
+
+/* ---------- 视图切换 ---------- */
+const VIEWS = ["apps", "today", "trend"];
+function showView(v) {
+  if (!VIEWS.includes(v)) v = "apps";
+  for (const x of VIEWS) $("view-" + x).hidden = x !== v;
+  document.querySelectorAll(".views a").forEach(a => a.setAttribute("aria-current", a.dataset.view === v ? "page" : "false"));
+}
+window.addEventListener("hashchange", () => { showView(location.hash.slice(1)); window.scrollTo(0, 0); });
+
+if (window.matchMedia("(max-width: 900px)").matches) $("railbox").open = false;
+$("q").value = S.q || "";
+renderPresets();
+showView(location.hash.slice(1));
+update();
+</script>
+{% if standalone %}</body>
+</html>{% endif %}

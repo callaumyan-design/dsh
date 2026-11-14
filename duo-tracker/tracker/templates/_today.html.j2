@@ -1,0 +1,101 @@
+{% import "_macros.html.j2" as m %}
+<div class="kpis">
+{% for p in today_prog if p.chart == 'top-free' %}
+  <div class="kpi"><div class="v">{{ (100 * p.adapted / p.n) | round(1) if p.n else 0 }}%</div>
+  <div class="l">{{ REGION_LABEL[p.region] }} · 免费榜 {{ KIND_LABEL[p.kind] }} Top {{ p.n }} 已适配（{{ p.adapted }}）</div></div>
+{% endfor %}
+  <div class="kpi"><div class="v">{{ changes|length }}</div><div class="l">今日状态变化</div></div>
+  <div class="kpi"><div class="v">{{ disputed|length }}</div><div class="l">有争议</div></div>
+</div>
+
+<!-- ① -->
+<section class="card" id="s1">
+  <h2>① 今日有新版本的 App</h2>
+  <p class="hint">与上次快照比对 iTunes Lookup 的 version。绿色标签 = 更新说明命中强关键词（「官方疑似适配」）；虚线 = 弱关键词（如「展开」「大屏」，误报多，仅供参考）。</p>
+  {% if not prev_date %}
+    <p>首次运行，记录了 {{ n_baseline }} 个版本作为基线，不计为新版本。基线版本中有 <b>{{ baseline_hits|length }}</b> 个的更新说明明确提到 Duo/折叠屏：</p>
+  {% endif %}
+  {% set vlist = new_versions if prev_date else baseline_hits %}
+  {% if vlist %}
+  <div class="scroll"><table>
+    <thead><tr><th>App</th><th>版本</th><th class="hide-m">发布</th><th>关键词</th><th>当前判定</th><th class="hide-m">更新说明</th></tr></thead>
+    <tbody>
+    {% for v in vlist %}
+      <tr><td><a href="https://apps.apple.com/{{ v.region }}/app/id{{ v.id }}" target="_blank" rel="noopener">{{ v.name }}</a>
+            <span class="tag">{{ KIND_LABEL[v.kind] }}</span><span class="tag">{{ REGION_LABEL.get(v.region, v.region) }}</span></td>
+          <td>{{ v.version }}</td><td class="hide-m small muted">{{ v.release_date }}</td>
+          <td>{% for k in v.strong %}<span class="tag hit">{{ k }}</span>{% endfor %}{% for k in v.weak %}<span class="tag weak">{{ k }}</span>{% endfor %}</td>
+          <td>{{ m.pill(v.status) }}</td>
+          <td class="hide-m"><div class="notesbox">{{ v.notes }}</div></td></tr>
+    {% endfor %}
+    </tbody></table></div>
+  {% elif prev_date %}<p class="muted">今天没有跟踪名单内的 App 发布新版本。</p>{% endif %}
+</section>
+
+<!-- ② -->
+<section class="card" id="s2">
+  <h2>② 状态发生变化的 App</h2>
+  <p class="hint">综合判定相对上次运行的变化，附各来源证据。规则：自上次判定确立以来没有新版本，就维持原判定（官方合集除外）。</p>
+  {% if changes %}
+  <div class="scroll"><table>
+    <thead><tr><th>App</th><th>变化</th><th>置信度</th><th>证据</th></tr></thead><tbody>
+    {% for a in changes %}
+      <tr><td>{{ m.appcell(a) }}</td><td style="white-space:nowrap">{{ m.pill(a.prev) }} → {{ m.pill(a.status) }}</td>
+          <td class="small">{{ CONF_LABEL.get(a.conf, a.conf) }}</td><td>{{ m.claims(a.claims, True) }}</td></tr>
+    {% endfor %}</tbody></table></div>
+  {% elif not prev_date %}<p class="muted">首次运行没有可比较的上一次判定；全部初始判定见「全量总表」。</p>
+  {% else %}<p class="muted">今天没有状态变化。</p>{% endif %}
+  {% if held %}
+  <details style="margin-top:10px"><summary>证据有变化但没有新版本、维持原判定的 App（{{ held|length }}）</summary>
+  <div class="scroll"><table><thead><tr><th>App</th><th>维持</th><th>证据给出</th><th>证据</th></tr></thead><tbody>
+  {% for a in held %}<tr><td>{{ m.appcell(a) }}</td><td>{{ m.pill(a.status) }}</td><td>{{ m.pill(a.proposed) }}</td><td>{{ m.claims(a.claims, True) }}</td></tr>{% endfor %}
+  </tbody></table></div></details>
+  {% endif %}
+</section>
+
+<!-- ③ -->
+<section class="card" id="s3">
+  <h2>③ 各追踪站新增条目和新增投稿</h2>
+  <p class="hint">与该站上一次抓取相比新出现的条目；「已有条目状态变化」列出该站自身标注的变化。首次接入的站点只记基线条数。</p>
+  {% if baseline_sources %}
+  <p class="small ink2">首次接入（基线）：{% for s, n in baseline_sources.items() %}<span class="tag">{{ SOURCE_LABEL.get(s, s) }} {{ n }} 条</span>{% endfor %}</p>
+  {% endif %}
+  {% for s, items in new_items.items() if items %}
+    <details open><summary><b>{{ SOURCE_LABEL.get(s, s) }}</b> 新增 {{ items|length }} 条</summary>
+    <div class="scroll"><table><thead><tr><th>名称</th><th>状态</th><th>匹配</th><th class="hide-m">说明</th></tr></thead><tbody>
+    {% for it in items[:200] %}<tr><td>{% if it.url %}<a href="{{ it.url }}" target="_blank" rel="noopener">{{ it.name }}</a>{% else %}{{ it.name }}{% endif %}</td>
+      <td>{{ m.pill(it.status) }} <span class="muted small">{{ it.raw }}</span>{% if it.votes %} <span class="tag">+{{ it.votes.fit }}/−{{ it.votes.unfit }}</span>{% endif %}</td>
+      <td class="small">{% if it.app_id %}跟踪中（{{ it.match }}）{% else %}<span class="muted">{{ it.match }}</span>{% endif %}</td>
+      <td class="hide-m small ink2">{{ (it.evidence or '')[:180] }}</td></tr>{% endfor %}
+    </tbody></table></div>{% if items|length > 200 %}<p class="muted small">仅显示前 200 条。</p>{% endif %}</details>
+  {% endfor %}
+  {% for s, moves in status_moves.items() if moves %}
+    <details><summary><b>{{ SOURCE_LABEL.get(s, s) }}</b> 已有条目状态变化 {{ moves|length }} 条</summary>
+    <ul class="claims">{% for x in moves[:200] %}<li><b>{{ x.name }}</b>：{{ x.old }} → {{ x.cur }}{% if x.app_id %} <span class="tag">跟踪中</span>{% endif %}</li>{% endfor %}</ul></details>
+  {% endfor %}
+  {% if not baseline_sources and not new_items and not status_moves %}<p class="muted">各站今天没有新增条目。</p>{% endif %}
+</section>
+
+<!-- ④ -->
+<section class="card" id="s4">
+  <h2>④ 有争议列表（{{ disputed|length }}）</h2>
+  <p class="hint">各来源结论冲突（适配与未适配两边都有站点级证据），或只有网友投稿且适配票−不适配票 ≤ 0。这里只列出各方说法，不做裁决。</p>
+  {% if disputed %}
+  <div class="scroll"><table><thead><tr><th>App</th><th>说明</th><th>各方说法</th></tr></thead><tbody>
+  {% for a in disputed %}<tr><td>{{ m.appcell(a) }}</td><td class="small ink2">{{ a.reason }}</td><td>{{ m.claims(a.claims, True) }}</td></tr>{% endfor %}
+  </tbody></table></div>
+  {% else %}<p class="muted">没有争议条目。</p>{% endif %}
+</section>
+
+<section class="card" id="health">
+  <h2>数据源运行情况</h2>
+  <div class="scroll"><table><thead><tr><th>来源</th><th>结果</th><th class="num">条目</th><th class="num">请求</th><th>说明</th></tr></thead><tbody>
+  {% for s, v in sources.items() %}<tr><td>{{ SOURCE_LABEL.get(s, s) }}</td>
+    <td>{% if v.ok %}<span class="ok">✓ 成功</span>{% else %}<span class="bad">✕ 失败</span>{% endif %}</td>
+    <td class="num">{{ v.n if v.n is not none else '' }}</td><td class="num">{{ v.requests }}</td><td class="small ink2">{{ (v.error or '')[:300] }}</td></tr>{% endfor %}
+  </tbody></table></div>
+  <p class="small ink2" style="margin-top:10px">iTunes Lookup 成功率：
+  {% for r, v in lookup.items() %}<span class="tag">{{ REGION_LABEL.get(r, r) }} {{ v.found }}/{{ v.requested }}（{{ (100*v.found/v.requested)|round(1) if v.requested else 0 }}%）</span>{% endfor %}
+  {% if unmatched_n %} · 未能匹配的条目 {{ unmatched_n }} 条，见 <code>unmatched.csv</code>{% endif %}</p>
+  {% if notes %}<ul class="notes">{% for n in notes %}<li>{{ n }}</li>{% endfor %}</ul>{% endif %}
+</section>

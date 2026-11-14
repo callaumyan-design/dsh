@@ -1,0 +1,106 @@
+{% import "_macros.html.j2" as m %}
+<!-- ⑤ -->
+<section class="card" id="s5">
+  <h2>⑤ 整体进度</h2>
+  <p class="hint">Top 200 来自 App Store 网页榜单（App = 总榜，不含游戏；游戏 = 游戏榜）。已适配 = 完美适配 + 已适配 + 部分适配；有争议、未知不计入。</p>
+  <div class="scroll"><table>
+    <thead><tr><th>地区</th><th>榜单</th><th>类型</th><th class="num">数量</th><th class="num">已适配</th><th class="num">占比</th>
+      <th class="num hide-m">完美</th><th class="num hide-m">已适配</th><th class="num hide-m">部分</th><th class="num hide-m">未适配</th><th class="num hide-m">争议</th><th class="num hide-m">未知</th><th class="hide-m">构成</th></tr></thead>
+    <tbody>
+    {% for p in today_prog|sort(attribute='chart')|sort(attribute='region') %}
+      <tr><td>{{ REGION_LABEL[p.region] }}</td><td>{{ CHART_LABEL.get(p.chart, p.chart) }}</td><td>{{ KIND_LABEL[p.kind] }}</td>
+        <td class="num">{{ p.n }}</td><td class="num">{{ p.adapted }}</td><td class="num"><b>{{ (100 * p.adapted / p.n)|round(1) if p.n else 0 }}%</b></td>
+        <td class="num hide-m">{{ p.perfect }}</td><td class="num hide-m">{{ p.full_ }}</td><td class="num hide-m">{{ p.partial }}</td>
+        <td class="num hide-m">{{ p.none_ }}</td><td class="num hide-m">{{ p.disputed }}</td><td class="num hide-m">{{ p.unknown }}</td>
+        <td class="hide-m"><div class="bar" title="完美 {{ p.perfect }} / 已适配 {{ p.full_ }} / 部分 {{ p.partial }} / 未适配 {{ p.none_ }}">
+          {% if p.n %}<span style="width:{{ 100*(p.perfect+p.full_)/p.n }}%;background:var(--good)"></span><span style="width:{{ 100*p.partial/p.n }}%;background:var(--warn)"></span><span style="width:{{ 100*p.none_/p.n }}%;background:var(--critical)"></span>{% endif %}</div></td></tr>
+    {% endfor %}
+    </tbody></table></div>
+
+  <h3 style="font-size:14px;margin:18px 0 6px">趋势：免费榜 Top 200 已适配占比</h3>
+  <div class="trend" id="trend"></div>
+  <details style="margin-top:8px"><summary>数据表</summary>
+    <div class="scroll"><table><thead><tr><th>日期</th><th>地区</th><th>榜单</th><th>类型</th><th class="num">已适配/数量</th><th class="num">占比</th></tr></thead><tbody>
+    {% for p in progress|reverse %}<tr><td>{{ p.run_date }}</td><td>{{ REGION_LABEL[p.region] }}</td><td>{{ CHART_LABEL.get(p.chart,p.chart) }}</td><td>{{ KIND_LABEL[p.kind] }}</td>
+      <td class="num">{{ p.adapted }}/{{ p.n }}</td><td class="num">{{ (100*p.adapted/p.n)|round(1) if p.n else 0 }}%</td></tr>{% endfor %}
+    </tbody></table></div></details>
+</section>
+
+
+<section class="card" id="timeline"><h2>历史时间线</h2><p class="hint">每天的综合判定变化，包括“证据变了但没有新版本、维持原判定”的记录。完整历史保存在 SQLite 的 verdicts / observations / versions 表里。</p>
+  <div class="scroll"><table><thead><tr><th>日期</th><th class="num">跟踪 App</th><th class="num">已适配</th><th class="num">新版本</th><th class="num">新版本含 Duo 关键词</th><th class="num">状态变化</th></tr></thead><tbody>
+  {% for d in days|reverse %}<tr><td>{{ d.run_date }}</td><td class="num">{{ d.n }}</td><td class="num">{{ d.ad }}</td>
+    <td class="num">{{ vstats.get(d.run_date, {}).get('n', 0) }}</td><td class="num">{{ vstats.get(d.run_date, {}).get('hits', 0) }}</td>
+    <td class="num">{{ events.get(d.run_date, [])|selectattr('held','equalto',0)|list|length }}</td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
+{% for date, evs in events.items() %}
+<section class="card"><div class="day"><h2>{{ date }}</h2>
+  <div class="scroll"><table><thead><tr><th>App</th><th>变化</th><th>证据</th></tr></thead><tbody>
+  {% for e in evs %}<tr><td>{{ m.appcell(e) }}</td>
+    <td style="white-space:nowrap">{% if e.held %}{{ m.pill(e.status) }} <span class="muted small">维持（证据给出 {{ STATUS_LABEL.get(e.proposed, e.proposed) }}，无新版本）</span>{% else %}{{ m.pill(e.prev) }} → {{ m.pill(e.status) }}{% endif %}</td>
+    <td>{{ m.claims(e.claims, True) }}</td></tr>{% endfor %}
+  </tbody></table></div></div></section>
+{% else %}
+<section class="card"><p class="muted">还没有状态变化记录（首次运行只建立初始判定；之后每天的变化会出现在这里）。</p></section>
+{% endfor %}
+
+<script>
+const PROGRESS = {{ progress | tojson_safe }};
+const REGION = {cn: "中国", us: "美国"};
+(function () {
+  const host = document.getElementById("trend");
+  const css = getComputedStyle(document.documentElement);
+  const series = [{kind: "app", label: "App", color: "var(--s1)"}, {kind: "game", label: "游戏", color: "var(--s2)"}];
+  const W = 520, H = 220, L = 40, R = 14, T = 12, B = 28;
+  for (const region of ["cn", "us"]) {
+    const rows = PROGRESS.filter(p => p.region === region && p.chart === "top-free" && p.n);
+    if (!rows.length) continue;
+    const dates = [...new Set(rows.map(r => r.run_date))].sort();
+    const val = (d, k) => { const r = rows.find(x => x.run_date === d && x.kind === k); return r ? {pct: 100 * r.adapted / r.n, r} : null; };
+    const maxPct = Math.max(10, ...rows.map(r => 100 * r.adapted / r.n));
+    const tick = maxPct <= 20 ? 5 : maxPct <= 50 ? 10 : 20;
+    const yMax = Math.min(100, Math.ceil(maxPct / tick) * tick);
+    const x = i => dates.length === 1 ? (L + (W - R)) / 2 : L + i * (W - L - R) / (dates.length - 1);
+    const y = v => T + (H - T - B) * (1 - v / yMax);
+    const panel = document.createElement("div"); panel.className = "panel";
+    panel.innerHTML = `<h3>${REGION[region]}</h3><div class="legend">${series.map(s => `<span><i style="background:${s.color}"></i>${s.label}</span>`).join("")}</div>`;
+    const box = document.createElement("div"); box.className = "chart";
+    let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${REGION[region]}免费榜 Top 200 已适配占比趋势">`;
+    for (let g = 0; g <= yMax; g += tick) {
+      svg += `<line x1="${L}" x2="${W - R}" y1="${y(g)}" y2="${y(g)}" stroke="var(--grid)" stroke-width="1"/>`;
+      svg += `<text x="${L - 6}" y="${y(g) + 4}" text-anchor="end" font-size="11" fill="var(--muted)">${Math.round(g)}%</text>`;
+    }
+    const step = Math.max(1, Math.ceil(dates.length / 6));
+    dates.forEach((d, i) => { if (i % step === 0 || i === dates.length - 1) svg += `<text x="${x(i)}" y="${H - 8}" text-anchor="middle" font-size="11" fill="var(--muted)">${d.slice(5)}</text>`; });
+    for (const s of series) {
+      const pts = dates.map((d, i) => { const v = val(d, s.kind); return v ? [x(i), y(v.pct)] : null; }).filter(Boolean);
+      if (pts.length > 1) svg += `<polyline fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="${pts.map(p => p.join(",")).join(" ")}"/>`;
+      const last = pts[pts.length - 1];
+      if (last) {
+        svg += `<circle cx="${last[0]}" cy="${last[1]}" r="4" fill="${s.color}" stroke="var(--surface)" stroke-width="2"/>`;
+        const lv = val(dates[dates.length - 1], s.kind);
+        svg += `<text x="${Math.min(last[0] + 8, W - R - 2)}" y="${last[1] - 8}" font-size="11.5" fill="var(--ink2)" text-anchor="${dates.length === 1 ? 'start' : 'end'}">${s.label} ${lv.pct.toFixed(1)}%</text>`;
+      }
+    }
+    svg += `<line id="xh-${region}" y1="${T}" y2="${H - B}" stroke="var(--axis)" stroke-width="1" visibility="hidden"/>`;
+    svg += `<rect x="${L}" y="${T}" width="${W - L - R}" height="${H - T - B}" fill="transparent" data-hit="1"/></svg>`;
+    box.innerHTML = svg + `<div class="tip"></div>`;
+    panel.appendChild(box); host.appendChild(panel);
+    const svgEl = box.querySelector("svg"), tip = box.querySelector(".tip"), xh = box.querySelector(`#xh-${region}`);
+    const move = ev => {
+      const rect = svgEl.getBoundingClientRect();
+      const px = (ev.clientX - rect.left) * W / rect.width;
+      let bi = 0, bd = Infinity; dates.forEach((d, i) => { const dd = Math.abs(x(i) - px); if (dd < bd) { bd = dd; bi = i; } });
+      const d = dates[bi];
+      xh.setAttribute("x1", x(bi)); xh.setAttribute("x2", x(bi)); xh.setAttribute("visibility", "visible");
+      tip.innerHTML = `<b>${d}</b>` + series.map(s => { const v = val(d, s.kind); return v ? `<div><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${s.color};margin-right:5px"></span>${s.label}：${v.pct.toFixed(1)}%（${v.r.adapted}/${v.r.n}）</div>` : ""; }).join("");
+      tip.style.display = "block";
+      const left = x(bi) * rect.width / W;
+      tip.style.left = Math.min(left + 12, rect.width - tip.offsetWidth - 4) + "px"; tip.style.top = "8px";
+    };
+    svgEl.addEventListener("pointermove", move);
+    svgEl.addEventListener("pointerleave", () => { tip.style.display = "none"; xh.setAttribute("visibility", "hidden"); });
+  }
+})();
+</script>

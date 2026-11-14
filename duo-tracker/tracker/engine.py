@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 import json
 import logging
 import sqlite3
@@ -21,7 +22,7 @@ from .adapters import xiaoxinnote as xx
 from .http import PoliteClient
 from .matching import Matcher, write_unmatched
 from .model import (ADAPTED, RAW_STATUS_WEIGHT_FACTOR, SOURCE_WEIGHT, UNKNOWN, WEAK_KEYWORD_WEIGHT,
-                    SourceItem, base_name, map_status, norm_name)
+                    SourceItem, base_name, category_of, map_status, norm_name)
 from .verdict import Claim, apply_hold, decide, mark_stale, scan_release_notes
 
 log = logging.getLogger("tracker")
@@ -184,7 +185,20 @@ class Run:
 
         # 9) 判定
         self._verdicts(apps_index, obs)
+        # source_items 只保留最近一次运行（明细在 raw/ 缓存里，历史变化在 source_seen / source_events）
+        conn.execute("DELETE FROM source_items WHERE run_date<?", (self.date,))
+        # 当天也只留日报要展示的条目：非首次接入站点里今天新出现的，以及今天状态有变化的
+        conn.execute("""DELETE FROM source_items WHERE run_date=:d AND (
+                          source IN (SELECT source FROM source_seen GROUP BY source HAVING MIN(first_seen)=:d)
+                          OR (NOT EXISTS (SELECT 1 FROM source_seen ss WHERE ss.source=source_items.source
+                                          AND ss.source_key=source_items.source_key AND ss.first_seen=:d)
+                              AND NOT EXISTS (SELECT 1 FROM source_events se WHERE se.run_date=:d
+                                          AND se.source=source_items.source AND se.source_key=source_items.source_key)))""",
+                     {"d": self.date})
         conn.commit()
+        free, pages = conn.execute("PRAGMA freelist_count").fetchone()[0], conn.execute("PRAGMA page_count").fetchone()[0]
+        if pages and free / pages > 0.4:  # 空闲页过多时才整理，平时保持页面稳定（便于提交到 git 时增量小）
+            conn.execute("VACUUM")
         # 有明确结论的排前面，方便人工优先确认
         self.unmatched.sort(key=lambda r: (r.get("status") in (None, "", UNKNOWN), r.get("source", ""), r.get("name", "")))
         write_unmatched(self.root / self.cfg["paths"]["unmatched"], self.unmatched)
@@ -237,12 +251,13 @@ class Run:
                 row["developer"] = res.get("artistName") or row.get("developer")
                 row["genre"] = res.get("primaryGenreName") or row.get("genre")
                 row["is_game"] = int(apple.is_game(res))
+                row["category_id"], row["category"] = category_of(res)
             row["name"] = row.get("name_cn") or row.get("name_us") or row.get("name") or chart_names.get(aid) or aid
             row["regions"] = ",".join(sorted(regs))
             row["track_reason"] = ",".join(sorted(per_app_reasons[aid]))
             row["last_seen"] = self.date
             cols = ["app_id", "bundle_id", "name", "name_cn", "name_us", "developer", "genre", "is_game", "regions",
-                    "track_reason", "first_seen", "last_seen"]
+                    "track_reason", "first_seen", "last_seen", "category_id", "category"]
             conn.execute(f"INSERT OR REPLACE INTO apps ({','.join(cols)}) VALUES ({','.join('?' * len(cols))})",
                          [row.get(c) for c in cols])
         self.today_members = {aid: per_app_regions[aid] for aid in set(a for a, _ in members) if per_app_regions[aid]}
@@ -323,6 +338,7 @@ class Run:
              ",".join(m.app_ids) or None, m.method,
              dbm.dumps({"evidence": it.evidence, "url": it.url, "votes": it.votes, "observed_at": it.observed_at,
                         "alt_names": it.alt_names, "extra": it.extra})))
+        self._track_seen(it, m)
         if m.method in ("ambiguous", "no_candidate") and not it.store_id:
             self.unmatched.append({"run_date": self.date, "source": it.source, "source_key": it.key, "name": it.name,
                                    "alt_names": "|".join(it.alt_names), "region": it.region or "",
@@ -348,11 +364,42 @@ class Run:
             claim = Claim(it.source, it.status, weight, it.raw_status, it.evidence, it.url, it.votes, disputed_votes,
                           it.observed_at)
             obs[aid].append(claim)
-            self.conn.execute(
-                "INSERT INTO observations (run_date,app_id,source,source_key,status,raw_status,evidence,url,votes,weight,"
-                "match_method,observed_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-                (self.date, aid, it.source, it.key, it.status, it.raw_status, it.evidence, it.url,
-                 dbm.dumps(it.votes) if it.votes else None, weight, m.method, it.observed_at or self.date))
+            self._add_obs(aid, it.source, it.key, it.status, it.raw_status, it.evidence, it.url,
+                          dbm.dumps(it.votes) if it.votes else None, weight, m.method, it.observed_at or self.date)
+
+    def _add_obs(self, aid, source, key, status, raw, evidence, url, votes, weight, method, observed_at):
+        """观测按变更日志存：与该来源上一次记录相同（状态、原始状态、证据、票数）就不重复写。"""
+        last = self.conn.execute(
+            "SELECT status, raw_status, evidence, votes FROM observations WHERE app_id=? AND source=? "
+            "AND IFNULL(source_key,'')=? AND run_date<? ORDER BY run_date DESC, id DESC LIMIT 1",
+            (aid, source, key or "", self.date)).fetchone()
+        if last and tuple(last) == (status, raw, evidence, votes):
+            return
+        self.conn.execute(
+            "INSERT INTO observations (run_date,app_id,source,source_key,status,raw_status,evidence,url,votes,weight,"
+            "match_method,observed_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            (self.date, aid, source, key, status, raw, evidence, url, votes, weight, method, observed_at))
+
+    def _track_seen(self, it: SourceItem, m):
+        c = self.conn
+        row = c.execute("SELECT * FROM source_seen WHERE source=? AND source_key=?", (it.source, it.key)).fetchone()
+        app_id = ",".join(m.app_ids) or None
+        if row is None:
+            c.execute("INSERT INTO source_seen VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                      (it.source, it.key, it.name, it.store_id, it.region, self.date, self.date, it.raw_status,
+                       None, None, app_id, m.method))
+            return
+        if row["last_seen"] == self.date:      # 同日重跑：和上一次运行比
+            old, old_seen = row["prev_raw"], row["prev_seen"]
+        else:
+            old, old_seen = row["last_raw"], row["last_seen"]
+        c.execute("UPDATE source_seen SET name=?, store_id=?, region=?, last_seen=?, last_raw=?, prev_raw=?, prev_seen=?, "
+                  "app_id=?, match_method=? WHERE source=? AND source_key=?",
+                  (it.name, it.store_id, it.region, self.date, it.raw_status, old, old_seen, app_id, m.method,
+                   it.source, it.key))
+        if old_seen and (old or "") != (it.raw_status or ""):
+            c.execute("INSERT OR REPLACE INTO source_events VALUES (?,?,?,?,?,?,?)",
+                      (self.date, it.source, it.key, it.name, old, it.raw_status, app_id))
 
     def _keyword_observations(self, obs, tracked: set[str]):
         """历史上任一版本的更新说明命中关键词 → 「官方疑似适配」观测（证据指向命中的那个版本）。"""
@@ -377,11 +424,8 @@ class Run:
             claim = Claim("release_notes", map_status("release_notes", raw), w, raw, ev[:500], url,
                           observed_at=r["release_date"])
             obs[aid].append(claim)
-            self.conn.execute(
-                "INSERT INTO observations (run_date,app_id,source,source_key,status,raw_status,evidence,url,votes,weight,"
-                "match_method,observed_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-                (self.date, aid, "release_notes", f"{r['region']}:{r['version']}", claim.status, raw, claim.evidence,
-                 url, None, w, "trackId", r["release_date"]))
+            self._add_obs(aid, "release_notes", f"{r['region']}:{r['version']}", claim.status, raw, claim.evidence,
+                          url, None, w, "trackId", r["release_date"])
 
     def _version_sig(self, aid: str) -> str:
         rows = self.conn.execute(
@@ -403,10 +447,15 @@ class Run:
             h = apply_hold(v, dict(prev) if prev else None, sig)
             conn.execute(
                 "INSERT INTO verdicts (run_date,app_id,status,confidence,score,prev_status,changed,held,proposed_status,"
-                "status_version,current_version,claims) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                "status_version,current_version,claims_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                 (self.date, aid, h["status"], ("held" if h["held"] else v.confidence), v.score, h["prev"], h["changed"],
-                 h["held"], h["proposed"], h["status_version"], sig,
-                 dbm.dumps({"reason": v.reason, "proposed": v.status, "claims": [c.as_dict() for c in claims]})))
+                 h["held"], h["proposed"], h["status_version"], sig, self._claim_set(v, claims)))
+
+    def _claim_set(self, v, claims) -> str:
+        body = dbm.dumps({"reason": v.reason, "proposed": v.status, "claims": [c.as_dict() for c in claims]})
+        cid = hashlib.sha1(body.encode()).hexdigest()[:20]
+        self.conn.execute("INSERT OR IGNORE INTO claim_sets VALUES (?,?)", (cid, body))
+        return cid
 
 
 def load_config(root: Path) -> dict:

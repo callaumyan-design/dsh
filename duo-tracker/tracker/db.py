@@ -19,6 +19,8 @@ CREATE TABLE IF NOT EXISTS apps (
     is_game     INTEGER DEFAULT 0,
     regions     TEXT,                      -- 逗号分隔：cn,us
     track_reason TEXT,                     -- chart / watchlist
+    category_id TEXT,                      -- App：主分类；游戏：子分类（70xx）
+    category    TEXT,                      -- 分类中文名
     first_seen  TEXT,
     last_seen   TEXT
 );
@@ -50,9 +52,10 @@ CREATE TABLE IF NOT EXISTS observations (
     weight      REAL,
     match_method TEXT,                     -- trackId / bundleId / name / manual
     observed_at TEXT                       -- 来源给出的时间，缺省为 run_date
-);
+);  -- 只在某来源对某 App 的说法发生变化时写入一行（变更日志），未变化的日子不重复写
 CREATE INDEX IF NOT EXISTS idx_obs_app ON observations(app_id, run_date);
 CREATE INDEX IF NOT EXISTS idx_obs_date ON observations(run_date, source);
+CREATE INDEX IF NOT EXISTS idx_obs_key ON observations(app_id, source, source_key, run_date);
 
 CREATE TABLE IF NOT EXISTS verdicts (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -105,6 +108,39 @@ CREATE TABLE IF NOT EXISTS source_items (
     PRIMARY KEY (run_date, source, source_key)
 );
 
+-- 判定所依据的各来源说法，按内容去重（verdicts.claims_id 引用），避免每天重复存同样的证据
+CREATE TABLE IF NOT EXISTS claim_sets (
+    id   TEXT PRIMARY KEY,
+    body TEXT NOT NULL
+);
+
+-- 各追踪站条目的“首次出现 / 最近出现 / 最近状态”，用于新增条目与状态变化；source_items 只保留最近一次运行
+CREATE TABLE IF NOT EXISTS source_seen (
+    source     TEXT NOT NULL,
+    source_key TEXT NOT NULL,
+    name       TEXT,
+    store_id   TEXT,
+    region     TEXT,
+    first_seen TEXT NOT NULL,
+    last_seen  TEXT NOT NULL,
+    last_raw   TEXT,
+    prev_raw   TEXT,                       -- last_seen 之前那次的状态（同日重跑时用来比较）
+    prev_seen  TEXT,
+    app_id     TEXT,
+    match_method TEXT,
+    PRIMARY KEY (source, source_key)
+);
+CREATE TABLE IF NOT EXISTS source_events (
+    run_date   TEXT NOT NULL,
+    source     TEXT NOT NULL,
+    source_key TEXT NOT NULL,
+    name       TEXT,
+    old_raw    TEXT,
+    new_raw    TEXT,
+    app_id     TEXT,
+    PRIMARY KEY (run_date, source, source_key)
+);
+
 CREATE TABLE IF NOT EXISTS runs (
     run_date    TEXT NOT NULL,
     source      TEXT NOT NULL,
@@ -124,9 +160,22 @@ def connect(path: Path) -> sqlite3.Connection:
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA journal_mode=DELETE")  # 单文件，便于提交到仓库保存历史
     conn.executescript(SCHEMA)
+    _migrate(conn)
     return conn
+
+
+def _migrate(conn: sqlite3.Connection):
+    """给旧库补列（新增字段时在这里登记）。"""
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(apps)")}
+    for col in ("category_id", "category"):
+        if col not in cols:
+            conn.execute(f"ALTER TABLE apps ADD COLUMN {col} TEXT")
+    vcols = {r[1] for r in conn.execute("PRAGMA table_info(verdicts)")}
+    if "claims_id" not in vcols:
+        conn.execute("ALTER TABLE verdicts ADD COLUMN claims_id TEXT")
+    conn.commit()
 
 
 def clear_run(conn: sqlite3.Connection, run_date: str):
@@ -134,7 +183,21 @@ def clear_run(conn: sqlite3.Connection, run_date: str):
     for t in ("observations", "verdicts", "chart_entries", "top200", "source_items", "runs"):
         conn.execute(f"DELETE FROM {t} WHERE run_date=?", (run_date,))
     conn.execute("DELETE FROM versions WHERE first_seen=?", (run_date,))
+    conn.execute("DELETE FROM source_events WHERE run_date=?", (run_date,))
+    conn.execute("DELETE FROM source_seen WHERE first_seen=?", (run_date,))
     conn.commit()
+
+
+def load_claims(conn: sqlite3.Connection, row) -> dict:
+    """verdict 行的各来源说法：新数据在 claim_sets，旧数据内联在 claims 列。"""
+    keys = row.keys()
+    if "claims" in keys and row["claims"]:
+        return json.loads(row["claims"])
+    if "claims_id" in keys and row["claims_id"]:
+        r = conn.execute("SELECT body FROM claim_sets WHERE id=?", (row["claims_id"],)).fetchone()
+        if r:
+            return json.loads(r[0])
+    return {}
 
 
 def dumps(o) -> str:
