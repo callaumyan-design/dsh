@@ -142,6 +142,7 @@ class Run:
             elif w.get("name"):
                 pending_names.append((w["name"], regs))
         catalogue = self._name_catalogue(tracker_items, chart_entries)
+        self.catalogue = catalogue
         for nm, regs in pending_names:
             for r in regs:
                 found = self._resolve_name(catalogue, nm, r)
@@ -331,7 +332,8 @@ class Run:
 
     def _ingest(self, it: SourceItem, matcher: Matcher, obs):
         m = matcher.match(it)
-        app_id = m.app_ids[0] if len(m.app_ids) == 1 else None
+        if m.method == "no_candidate" and not it.store_id and self._known_untracked(it):
+            m.method = "untracked"  # 在带 id 的目录里能找到，但不在跟踪名单（Top 200 / watchlist）里
         self.conn.execute(
             "INSERT OR REPLACE INTO source_items VALUES (?,?,?,?,?,?,?,?,?,?,?)",
             (self.date, it.source, it.key, it.name, it.store_id, it.region, it.raw_status, it.status,
@@ -366,6 +368,14 @@ class Run:
             obs[aid].append(claim)
             self._add_obs(aid, it.source, it.key, it.status, it.raw_status, it.evidence, it.url,
                           dbm.dumps(it.votes) if it.votes else None, weight, m.method, it.observed_at or self.date)
+
+    def _known_untracked(self, it: SourceItem) -> bool:
+        regions = [it.region] if it.region else self.regions
+        for n in [it.name, *it.alt_names]:
+            for k in (norm_name(n), base_name(n)):
+                if any(self.catalogue.get((r, k)) for r in regions):
+                    return True
+        return False
 
     def _add_obs(self, aid, source, key, status, raw, evidence, url, votes, weight, method, observed_at):
         """观测按变更日志存：与该来源上一次记录相同（状态、原始状态、证据、票数）就不重复写。"""

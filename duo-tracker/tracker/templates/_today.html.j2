@@ -23,7 +23,7 @@
     {% for v in vlist %}
       <tr><td><a href="https://apps.apple.com/{{ v.region }}/app/id{{ v.id }}" target="_blank" rel="noopener">{{ v.name }}</a>
             <span class="tag">{{ KIND_LABEL[v.kind] }}</span><span class="tag">{{ REGION_LABEL.get(v.region, v.region) }}</span></td>
-          <td>{{ v.version }}</td><td class="hide-m small muted">{{ v.release_date }}</td>
+          <td>{{ v.version }}</td><td class="hide-m small muted" style="white-space:nowrap">{{ v.release_date }}</td>
           <td>{% for k in v.strong %}<span class="tag hit">{{ k }}</span>{% endfor %}{% for k in v.weak %}<span class="tag weak">{{ k }}</span>{% endfor %}</td>
           <td>{{ m.pill(v.status) }}</td>
           <td class="hide-m"><div class="notesbox">{{ v.notes }}</div></td></tr>
