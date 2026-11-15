@@ -61,3 +61,20 @@ test("只接受读取请求；HEAD 只回信息不回内容（状态检测用）
   assert.equal(await head.text(), "");
   assert.equal((await get("/nope", { method: "HEAD" })).status, 404);
 });
+
+test("搬走的旧地址会跳到新地址，并保留后面的路径和参数", async () => {
+  const moved = createHandler(new Map([["/index.html", file("home", "text/html; charset=utf-8")]]), { "/drop": "https://new.example/drop" });
+  const go = (path, init) => moved(new Request("https://example.test" + path, init));
+  for (const [from, to] of [
+    ["/drop", "https://new.example/drop"],
+    ["/drop/", "https://new.example/drop/"],
+    ["/drop/room/abc?x=1", "https://new.example/drop/room/abc?x=1"],
+  ]) {
+    const res = await go(from);
+    assert.equal(res.status, 307, from);
+    assert.equal(res.headers.get("location"), to);
+  }
+  assert.equal((await go("/drop/ws", { method: "POST" })).status, 307); // 其他请求方式也照样指过去
+  assert.equal((await go("/dropbox")).status, 404); // 只是开头几个字母相同的不算
+  assert.equal((await go("/")).status, 200);
+});

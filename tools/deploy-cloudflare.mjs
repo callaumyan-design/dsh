@@ -74,9 +74,11 @@ files.forEach((rel, i) => {
 });
 
 fs.copyFileSync(path.join(ROOT, "tools/worker/handler.js"), path.join(OUT, "handler.js"));
+// 搬走的旧地址（比如以前挂在这个域名下的别的应用）：旧路径前缀 → 新地址
+const redirects = JSON.parse(fs.readFileSync(path.join(ROOT, "tools/worker/redirects.json"), "utf8"));
 fs.writeFileSync(
   path.join(OUT, "worker.js"),
-  `// 这个文件是 tools/deploy-cloudflare.mjs 自动生成的，不要手改。\nimport { createHandler } from "./handler.js";\n${imports.join("\n")}\n\nconst FILES = new Map([\n${table.join("\n")}\n]);\n\nexport default { fetch: createHandler(FILES) };\n`
+  `// 这个文件是 tools/deploy-cloudflare.mjs 自动生成的，不要手改。\nimport { createHandler } from "./handler.js";\n${imports.join("\n")}\n\nconst FILES = new Map([\n${table.join("\n")}\n]);\nconst REDIRECTS = ${JSON.stringify(redirects)};\n\nexport default { fetch: createHandler(FILES, REDIRECTS) };\n`
 );
 fs.writeFileSync(path.join(OUT, "metadata.json"), JSON.stringify({ main_module: "worker.js", compatibility_date: "2026-01-01" }));
 console.log(`打包完成：${files.length} 个文件，共 ${(total / 1024).toFixed(0)} KB → ${path.relative(ROOT, OUT)}/`);

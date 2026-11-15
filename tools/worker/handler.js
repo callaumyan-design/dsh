@@ -2,6 +2,7 @@
 // 网站的所有文件在发布时直接打包进来（见 tools/deploy-cloudflare.mjs），这里不读硬盘、不连数据库。
 //
 // files 是一张表：网址路径（如 "/assets/css/main.css"）→ { body: 文件内容, type: 文件类型, etag: 内容指纹 }
+// redirects 是"搬家了的旧地址"：路径前缀 → 新地址（见 tools/worker/redirects.json）
 
 const NOT_FOUND = `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>找不到这个页面</title><body style="font:16px/1.6 system-ui,sans-serif;max-width:32em;margin:18vh auto;padding:0 20px;text-align:center"><h1 style="font-size:22px">找不到这个页面</h1><p><a href="/">回到起始页</a></p></body></html>`;
 
@@ -20,9 +21,22 @@ function resolve(files, pathname) {
   return {};
 }
 
-export function createHandler(files) {
+/** 旧地址搬到哪了：/drop 和 /drop/任意内容 → 新地址下的同一位置。没搬过的返回空 */
+function movedTo(redirects, url) {
+  for (const [prefix, target] of Object.entries(redirects)) {
+    if (url.pathname === prefix || url.pathname.startsWith(prefix + "/")) {
+      return target + url.pathname.slice(prefix.length) + url.search;
+    }
+  }
+  return "";
+}
+
+export function createHandler(files, redirects = {}) {
   return async function fetch(request) {
     const url = new URL(request.url);
+    // 搬走的旧地址：不管是什么请求，都指到新地址去（307 会保留原来的请求方式）
+    const moved = movedTo(redirects, url);
+    if (moved) return new Response(null, { status: 307, headers: { Location: moved, "Cache-Control": "no-store" } });
     if (request.method !== "GET" && request.method !== "HEAD") {
       return new Response("Method Not Allowed", { status: 405, headers: { Allow: "GET, HEAD" } });
     }

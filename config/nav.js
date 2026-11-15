@@ -29,6 +29,7 @@ export default [
   // 页面最下面的四个应用。
   // ./duo/ 和 ./uq/ 是本网站自己的子目录（文件就在仓库的 duo/ 和 uq/ 文件夹里）；
   // CatGPT 和砚录是另外部署的，写的是它们现在的真实地址。
+  // （CatGPT 原来在 callaum.com，起始页接管这个域名后搬到了微软服务器自带的网址上。）
   {
     name: "Duo 适配",
     icon: "smartphone",
@@ -41,7 +42,7 @@ export default [
   {
     name: "CatGPT",
     icon: "cat",
-    url: "https://callaum.com/",
+    url: "https://omnichat-28701.japaneast.cloudapp.azure.com/",
     desc: "多模型 AI 聊天",
     group: "应用",
     newTab: false,
