@@ -46,6 +46,7 @@ export default [
     group: "应用",
     newTab: false,
     color: "#5b5bd6",
+    status: false, // CatGPT 的服务器不允许别的网站探测它，状态点只会一直显示"未知"，所以不显示
   },
   {
     name: "UQ 校历",
