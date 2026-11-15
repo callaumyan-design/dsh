@@ -110,13 +110,14 @@
 2. 跨域白名单：`Access-Control-Allow-Origin: <起始页域名>`，`Access-Control-Allow-Headers: Content-Type, Authorization`，
    并正确回应 `OPTIONS` 预检请求。如果起始页和 CatGPT 部署在同一个域名下，就不需要这一条。
 
-## 四个应用在哪
+## 五个应用在哪
 
 | 应用 | 地址 | 说明 |
 | --- | --- | --- |
 | Duo 适配 | `./duo/`（本网站的子目录） | 仓库里的 `duo/index.html`，是用 Duo 追踪器分支里的数据生成的报告 |
 | UQ 校历 | `./uq/`（本网站的子目录） | 仓库里的 `uq/index.html`，是 UQ 校历分支上那个网页文件的副本 |
-| CatGPT | `https://omnichat-28701.japaneast.cloudapp.azure.com/` | 另外部署在微软（Azure）的服务器上，用的是那台服务器自带的网址 |
+| CatGPT | `https://chat.callaum.com/` | 另外部署在微软（Azure）的服务器上 |
+| WiFi Drop | `https://chat.callaum.com/drop/` | 和 CatGPT 在同一台服务器上 |
 | 砚录 | `https://ocr.callaum.com/` | 另外部署在 Cloudflare 上 |
 
 `duo/` 和 `uq/` 是副本，不会自动跟着原项目更新。原项目更新后，在仓库根目录运行：
@@ -145,17 +146,13 @@ node tools/deploy-cloudflare.mjs
 ### callaum.com 和 CatGPT 的地址
 
 `callaum.com` 原来是 CatGPT 的地址。起始页接管这个域名时，CatGPT（以及同一台服务器上的 WiFi Drop）
-搬到了那台微软服务器自带的网址：`https://omnichat-28701.japaneast.cloudapp.azure.com/`。
+搬到了 `https://chat.callaum.com/`。
 
-- `callaum.com` 绑在 Cloudflare 的 `start-page` 项目上（Workers & Pages → `start-page` → Settings → Domains & Routes）。
-- 旧的 `callaum.com/drop/…` 会自动跳到新地址，规则写在 `tools/worker/redirects.json` 里。
+- `callaum.com` 和 `www.callaum.com` 绑在 Cloudflare 的 `start-page` 项目上（Workers & Pages → `start-page` → Settings → Domains & Routes）。
+- `chat.callaum.com` 是 Cloudflare DNS 里的一条 A 记录，直接指向那台微软服务器（不开代理）。
+- 旧的 `callaum.com/drop/…` 会自动跳到 `chat.callaum.com/drop/…`，规则写在 `tools/worker/redirects.json` 里。
 - 那台服务器按虚拟机的 `domain` 标签决定自己接受哪些地址（多个地址用逗号隔开）。
-
-**以后想给 CatGPT 换一个好看的地址**（比如 `chat.callaum.com`）：
-1. 在 Cloudflare 的 DNS 里加一条 `chat` 的 A 记录，指向那台服务器的 IP（不开代理）。
-2. 把虚拟机的 `domain` 标签改成新地址，并让服务器上的网关按新地址重新启动
-   （做法见 CatGPT 的 `omnichat/deploy/azure/README.md`）。
-3. 把 `config/nav.js` 里 CatGPT 的地址和 `tools/worker/redirects.json` 里的地址改成新的，重新发布。
+  它同时还接受微软自带的网址 `omnichat-28701.japaneast.cloudapp.azure.com`，作为备用。
 
 注意：那台服务器上的网关配置文件里有一段手工加的 WiFi Drop 设置，不在 CatGPT 的代码仓库里。
 服务器重启或运行它的更新脚本时，这个文件会被仓库里的版本覆盖，WiFi Drop 会因此打不开——

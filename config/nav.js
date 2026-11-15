@@ -28,8 +28,8 @@
 export default [
   // 页面最下面的四个应用。
   // ./duo/ 和 ./uq/ 是本网站自己的子目录（文件就在仓库的 duo/ 和 uq/ 文件夹里）；
-  // CatGPT 和砚录是另外部署的，写的是它们现在的真实地址。
-  // （CatGPT 原来在 callaum.com，起始页接管这个域名后搬到了微软服务器自带的网址上。）
+  // CatGPT、砚录、WiFi Drop 是另外部署的，写的是它们现在的真实地址。
+  // （CatGPT 和 WiFi Drop 原来在 callaum.com，起始页接管这个域名后搬到了 chat.callaum.com。）
   {
     name: "Duo 适配",
     icon: "smartphone",
@@ -42,7 +42,7 @@ export default [
   {
     name: "CatGPT",
     icon: "cat",
-    url: "https://omnichat-28701.japaneast.cloudapp.azure.com/",
+    url: "https://chat.callaum.com/",
     desc: "多模型 AI 聊天",
     group: "应用",
     newTab: false,
@@ -66,5 +66,14 @@ export default [
     group: "应用",
     newTab: false,
     color: "#7c5a2e",
+  },
+  {
+    name: "WiFi Drop",
+    icon: "wifi",
+    url: "https://chat.callaum.com/drop/",
+    desc: "同一个 WiFi 下互传文件",
+    group: "应用",
+    newTab: false,
+    color: "#0369a1",
   },
 ];
