@@ -739,34 +739,25 @@ section{margin-top:22px}
 
 /* ---------- 首页状态卡 ---------- */
 .hero{margin-top:0;border-radius:18px;color:#fff;background:linear-gradient(140deg,#35184f 0%,#51247a 52%,#7a3c9f 100%);box-shadow:0 10px 30px rgba(60,25,100,.28);overflow:hidden}
-.hero-main{padding:18px 18px 16px}
-.hero-eyebrow{font-size:13.5px;opacity:.85;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-.hero-title{font-size:34px;line-height:1.2;font-weight:800;margin-top:6px;letter-spacing:.01em}
+.hero-main{padding:15px 18px 12px}
+.hero-eyebrow{font-size:13px;opacity:.85;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.hero-head{display:flex;align-items:baseline;gap:2px 12px;flex-wrap:wrap;margin-top:3px}
+.hero-title{font-size:27px;line-height:1.25;font-weight:800;letter-spacing:.01em}
 .hero-title .unit{font-size:.55em;font-weight:600;opacity:.85;margin-left:6px}
-.hero-en{font-size:14px;opacity:.8;margin-top:2px}
-.hero-sub{font-size:14.5px;margin-top:10px;opacity:.95}
+.hero-en{font-size:13.5px;opacity:.8}
+.hero-sub{font-size:14px;margin-top:6px;opacity:.95}
 .hero-sub b{font-weight:700}
-.weeks{display:flex;gap:3px;margin-top:12px;align-items:center;flex-wrap:wrap}
+.weeks{display:flex;gap:3px;margin-top:9px;align-items:center;flex-wrap:wrap}
 .weeks i{display:block;width:16px;height:7px;border-radius:3px;background:rgba(255,255,255,.26)}
 .weeks i.done{background:rgba(255,255,255,.62)}
 .weeks i.now{background:#fff;box-shadow:0 0 0 2px rgba(255,255,255,.35)}
 .weeks i.brk{width:7px;border-radius:50%;background:transparent;border:1.5px solid rgba(255,255,255,.6)}
 .weeks i.brk.now{background:#fff}
 .weeks span{font-size:12px;opacity:.8;margin-left:6px}
-.hero-alt{margin-top:10px;font-size:13px;background:rgba(255,255,255,.13);border-radius:10px;padding:8px 10px}
+.hero-alt{margin-top:9px;font-size:13px;background:rgba(255,255,255,.13);border-radius:10px;padding:7px 10px}
 .hero-alt button{border:0;background:none;color:#fff;text-decoration:underline;padding:0;font-size:13px}
-.hero-next{background:rgba(0,0,0,.2);padding:14px 18px;display:flex;gap:14px;align-items:center}
-.hero-count{flex:none;text-align:center;min-width:76px}
-.hero-count,.hero-next-t,.hero-next-t>span,.hero-count>span{display:block}
-.hero-next{font:inherit;cursor:pointer}
-.hero-count b{display:block;font-size:34px;line-height:1.05;font-weight:800}
-.hero-count span{font-size:12.5px;opacity:.85}
-.hero-next-t{min-width:0}
-.hero-next-t .k{font-size:12.5px;opacity:.8}
-.hero-next-t .zh{font-size:16px;font-weight:700;line-height:1.35;margin-top:1px}
-.hero-next-t .d{font-size:13.5px;opacity:.9;margin-top:2px}
-.hero-next-t .why{font-size:13px;margin-top:4px;opacity:.95}
-.hero-foot{padding:10px 18px 14px;font-size:12.5px;opacity:.88;display:flex;gap:6px 14px;flex-wrap:wrap}
+.hero-foot{padding:7px 18px 9px;font-size:12.5px;background:rgba(0,0,0,.2);display:flex;gap:4px 14px;flex-wrap:wrap}
+@media (min-width:700px){.hero-title{font-size:30px}}
 .test-flag{background:#ffd666;color:#3b2a00;border-radius:5px;padding:0 6px;font-weight:700}
 
 .who{padding:12px 14px;margin-top:12px;display:grid;gap:8px}
@@ -786,8 +777,14 @@ section{margin-top:22px}
 .up-days b{display:block;font-size:22px;line-height:1.1;font-weight:800;color:var(--c)}
 .up-days span{font-size:11.5px;color:var(--muted)}
 .up-t{min-width:0}
-.up-t .zh{font-size:14.5px;font-weight:700;line-height:1.35}
-.up-t .d{font-size:12.5px;color:var(--muted)}
+.up-t .zh{display:block;font-size:14.5px;font-weight:700;line-height:1.35}
+.up-t .d{display:block;font-size:12.5px;color:var(--muted)}
+.up-item.dl{grid-column:1/-1;background:var(--cbg);border-color:var(--c)}
+.up-item.dl .up-days{width:70px}
+.up-item.dl .up-days b{font-size:28px}
+.up-item.dl .zh{font-size:16px}
+.up-kicker{display:block;font-size:12px;font-weight:700;color:var(--c);line-height:1.4}
+.up-why{display:block;font-size:13px;color:var(--text);margin-top:2px}
 
 /* ---------- 回国规划 ---------- */
 .trip{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x proximity;margin:0 -16px;padding:2px 16px 10px}
@@ -1399,31 +1396,19 @@ function renderHero() {
     }
   }
 
-  var nd = nextDeadline(), nextHtml;
-  if (nd) {
-    var left = evS(nd) - TODAY;
-    nextHtml = '<span class="hero-count num">' + (left === 0 ? '<b>今天</b><span>截止</span>' : '<b>' + left + '</b><span>天后截止</span>') + '</span>' +
-      '<span class="hero-next-t"><span class="k">下一个重要截止日</span><span class="zh">' + esc(nd.titleZh) + '</span>' +
-      '<span class="d num">' + ymdw(evS(nd)) + (nd.time ? ' ' + nd.time : '') + ' · ' + esc(PMAP[nd.period].short) + '</span>' +
-      '<span class="why">' + esc(RISKS[nd.risk].short) + '</span></span>';
-  } else {
-    nextHtml = '<span class="hero-next-t"><span class="k">下一个重要截止日</span><span class="zh">官网暂时没有已公布的后续截止日</span></span>';
-  }
-
   $('hero').innerHTML =
     '<div class="hero-main">' +
       '<div class="hero-eyebrow">' + eyebrow + '</div>' +
-      '<h1 class="hero-title">' + title + (unit ? '<span class="unit">' + unit + '</span>' : '') + '</h1>' +
-      (en ? '<div class="hero-en" lang="en">' + esc(en) + '</div>' : '') +
+      '<div class="hero-head"><h1 class="hero-title">' + title + (unit ? '<span class="unit">' + unit + '</span>' : '') + '</h1>' +
+      (en ? '<span class="hero-en" lang="en">' + esc(en) + '</span>' : '') + '</div>' +
       '<p class="hero-sub">' + sub + '</p>' + bar +
       (alt ? '<p class="hero-alt">' + alt + '</p>' : '') +
     '</div>' +
-    '<button type="button" class="hero-next" data-act="jump" data-id="' + (nd ? nd.id : '') + '" style="width:100%;border:0;color:inherit;text-align:left">' + nextHtml + '</button>' +
     '<div class="hero-foot num">' +
       (TEST_TODAY ? '<span class="test-flag">测试日期</span>' : '') +
       '<span>布里斯班 ' + mdw(d) + (TEST_TODAY ? '' : ' ' + now.hm) + '</span>' +
       (TEST_TODAY ? '' : '<span>北京 ' + (bj.day !== d ? md(bj.day) + ' ' : '') + bj.hm + '</span>') +
-      '<span>布里斯班比北京早 2 小时，全年不变</span>' +
+      '<span>布里斯班比北京早 2 小时</span>' +
     '</div>';
 }
 
@@ -1442,18 +1427,29 @@ function renderWho() {
 }
 
 /* ---------- 接下来的重要日期 ---------- */
+function upLine(ev) {
+  var s = evS(ev), e = evE(ev);
+  return (s === e ? ymdw(s) : rangeText(s, e)) + (ev.time ? ' ' + ev.time + '（北京 ' + toBeijing(ev.time) + '）' : '') +
+    ' · ' + CATS[ev.category].zh + ' · ' + esc(PMAP[ev.period].short) + (ev.provisional ? ' · 暂定' : '');
+}
 function renderUp() {
-  var list = EVENTS.filter(function (ev) { return !ev.tbd && ev.importance === 'high' && inMain(ev) && evE(ev) >= TODAY; }).sort(byDate).slice(0, 4);
-  if (!list.length) { $('up').innerHTML = '<div class="empty card">官网暂时没有已公布的后续重要日期。</div>'; return; }
-  $('up').innerHTML = list.map(function (ev) {
+  var nd = nextDeadline(), html = '';
+  if (nd) {
+    var left = evS(nd) - TODAY;
+    html += '<button type="button" class="up-item dl" ' + cvar(nd.category) + ' data-act="jump" data-id="' + nd.id + '">' +
+      '<span class="up-days num">' + (left === 0 ? '<b>今天</b><span>截止</span>' : '<b>' + left + '</b><span>天后截止</span>') + '</span>' +
+      '<span class="up-t"><span class="up-kicker">下一个重要截止日</span><span class="zh">' + esc(nd.titleZh) + '</span>' +
+      '<span class="d num">' + upLine(nd) + '</span><span class="up-why">' + esc(RISKS[nd.risk].short) + '</span></span></button>';
+  }
+  var list = EVENTS.filter(function (ev) { return !ev.tbd && ev !== nd && ev.importance === 'high' && inMain(ev) && evE(ev) >= TODAY; }).sort(byDate).slice(0, 4);
+  html += list.map(function (ev) {
     var s = evS(ev), e = evE(ev), left = s - TODAY, big, small;
     if (left > 0) { big = left; small = '天后'; } else if (e > TODAY) { big = e - TODAY; small = '天后结束'; } else { big = '今天'; small = s === e ? '' : '结束'; }
     return '<button type="button" class="up-item" ' + cvar(ev.category) + ' data-act="jump" data-id="' + ev.id + '">' +
       '<span class="up-days num"><b>' + big + '</b><span>' + small + '</span></span>' +
-      '<span class="up-t"><span class="zh">' + esc(ev.titleZh) + '</span><br><span class="d num">' +
-      (s === e ? mdw(s) : rangeText(s, e)) + (ev.time ? ' ' + ev.time + '（北京 ' + toBeijing(ev.time) + '）' : '') +
-      ' · ' + CATS[ev.category].zh + ' · ' + esc(PMAP[ev.period].short) + (ev.provisional ? ' · 暂定' : '') + '</span></span></button>';
+      '<span class="up-t"><span class="zh">' + esc(ev.titleZh) + '</span><span class="d num">' + upLine(ev) + '</span></span></button>';
   }).join('');
+  $('up').innerHTML = html || '<div class="empty card">官网暂时没有已公布的后续重要日期。</div>';
 }
 
 /* ---------- 假期与回国规划 ---------- */
