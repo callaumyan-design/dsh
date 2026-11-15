@@ -28,8 +28,13 @@ export const searchHistory = {
 /** 打开一个网址：新标签页或当前页 */
 export function openUrl(url, newTab) {
   // 被嵌在别的页面里时一律开新标签页：搜索引擎不允许自己被嵌在别的页面里显示
-  if (newTab || isFramed()) window.open(url, "_blank", "noopener,noreferrer");
-  else window.location.assign(url);
+  if (!newTab && !isFramed()) return window.location.assign(url);
+  // 用"点一下真正的链接"的方式开新标签页：比脚本弹窗更不容易被浏览器或内嵌环境拦截
+  const link = h("a", { href: url, target: "_blank", rel: "noopener noreferrer", hidden: true });
+  // 有弹窗开着时要放进弹窗里（弹窗外面的内容此时是"不可操作"的）
+  ([...document.querySelectorAll("dialog[open]")].pop() || document.body).append(link);
+  link.click();
+  link.remove();
 }
 
 /** AI 用不了时"改用搜索引擎搜"用哪个引擎：默认引擎，如果默认就是 AI 则用第一个普通引擎 */

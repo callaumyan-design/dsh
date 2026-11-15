@@ -6,7 +6,7 @@ import { initClock } from "./widgets.js";
 import { initSearch, openUrl } from "./search.js";
 import { initNav } from "./nav.js";
 import { aiMode, catgptUrl } from "./ai/link.js";
-import { $, h, toast } from "./ui.js";
+import { $, h, toast, isFramed } from "./ui.js";
 
 const root = document.documentElement;
 
@@ -79,7 +79,8 @@ import("../../config/nav.js")
 // ---------- PWA：注册 Service Worker（支持"添加到主屏幕"和离线打开） ----------
 // 浏览器只允许在 https 网站（或本机调试）上使用
 const isSecure = location.protocol === "https:" || ["localhost", "127.0.0.1"].includes(location.hostname);
-if ("serviceWorker" in navigator && isSecure) {
+// 被嵌在别的页面里（比如预览窗格）时不注册：那种环境本来就不支持
+if ("serviceWorker" in navigator && isSecure && !isFramed()) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("sw.js").catch(() => {
       /* 注册失败不影响正常使用 */
