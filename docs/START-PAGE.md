@@ -52,28 +52,41 @@
 
 默认背景只影响“还没自己设置过背景”的访客；每个人在设置面板里选的背景只存在他自己的浏览器里。
 
-## 接入 AI（catgpt）
+## 接入 AI（CatGPT）
 
-`config/site.js` 里的 `AI`：
+起始页这边已经做好三种工作方式，由 `config/site.js` 里的 `AI` 决定用哪一种：
 
 | 填法 | 效果 |
 | --- | --- |
 | 两个地址都空着（现在的状态） | AI 模式提示“还没有接入”，并提供“改用搜索引擎搜” |
-| 只填 `pageUrl` | 提问后带着 `?q=问题` 跳转到 catgpt 页面 |
-| 填了 `apiUrl` | 在起始页里弹出对话面板，直接调用 catgpt 后端，流式显示 |
+| 只填 `pageUrl` | 提问后带着 `?q=问题` 跳转到 CatGPT 页面 |
+| 填了 `apiUrl` | 在起始页里弹出对话面板，直接调用后端接口，流式显示 |
 
-**这里只能填地址。API Key 绝不能写进这个仓库的任何文件**，它只应该存在于 catgpt 的服务端。
+**这里只能填地址。API Key 绝不能写进这个仓库的任何文件**，它只存在于 CatGPT 的服务端。
 
-要让“弹出对话面板”能用，catgpt 的后端需要满足（接口格式不同的话，只需改 `assets/js/ai/client.js` 这一个文件）：
+### CatGPT 目前的情况（代码在本仓库的 `claude/omnichat-webapp` 分支，目录 `omnichat/`）
 
-1. **对话接口**：`POST`，请求体 `{ "messages": [{ "role": "user", "content": "..." }], "stream": true }`；
-   回复是 SSE 流（OpenAI 兼容格式），也接受纯文本流或一次性 JSON。
-2. **跨域白名单**：允许起始页所在的域名访问——
-   `Access-Control-Allow-Origin: <起始页域名>`，`Access-Control-Allow-Headers: Content-Type, Authorization`，并正确回应 `OPTIONS` 预检请求。
-3. **访问密码**（建议）：从服务端环境变量读取；请求头里带 `Authorization: Bearer <密码>`，没带或不对时返回 `401`。
-   起始页会弹出密码输入框，验证通过后在本机记住 30 天。
-4. **限流**（建议）：按 IP 做简单限流，超限返回 `429`，起始页会提示“问得太快了”。
-5. **`?q=` 参数**：catgpt 的网页读到 `?q=问题` 时自动填入并发送，“在 catgpt 中打开”按钮才有意义。
+- 前端是 React 单页应用，后端是 Hono（可以跑在 Docker / Node 上，也可以跑在 Cloudflare Workers 上）。
+- 用**账号登录**（用户名 + 密码），登录后拿到令牌，所有接口都要带令牌；登录失败有按 IP 的限速。
+- 对话走 `/api/proxy/<服务商编号>/…`，由服务器代为调用各家模型接口，支持流式输出。
+- API Key 加密后保存在服务器的数据库里，浏览器拿不到明文。
+- **没有跨域白名单**，所以别的网站（包括起始页）不能直接调用它的接口。
+- 网页**不认 `?q=` 参数**。
+
+### 所以现在该怎么接
+
+推荐用“跳转”方式（登录、模型选择、历史记录都沿用 CatGPT 自己的，不重复造一套）：
+
+1. 在 `config/site.js` 里把 `pageUrl` 填成 CatGPT 的网址。
+2. 给 CatGPT 的网页加一个小功能：打开时如果网址带 `?q=问题`，就自动填入并发送
+   （没登录就先登录，登录后再发）。不带 `?q=` 时一切照旧，不影响它单独使用。
+
+如果以后想用“弹出对话面板”，CatGPT 还需要再加两样东西（接口格式不同的话，只改 `assets/js/ai/client.js` 这一个文件）：
+
+1. 一个简单的对话接口：`POST`，请求体 `{ "messages": [{ "role": "user", "content": "..." }], "stream": true }`，
+   用账号默认的模型回答，按 SSE（OpenAI 兼容格式）流式返回；没带凭证返回 `401`，太频繁返回 `429`。
+2. 跨域白名单：`Access-Control-Allow-Origin: <起始页域名>`，`Access-Control-Allow-Headers: Content-Type, Authorization`，
+   并正确回应 `OPTIONS` 预检请求。如果起始页和 CatGPT 部署在同一个域名下，就不需要这一条。
 
 ## 部署
 
