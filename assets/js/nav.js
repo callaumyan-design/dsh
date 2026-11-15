@@ -1,0 +1,176 @@
+// 功能导航：按分组显示图标卡片，每个入口带一个"能不能访问"的小圆点。
+// 默认入口来自 config/nav.js；用户在编辑模式里的改动存在浏览器本地，两者合并显示。
+import { store, readJSON, writeJSON, removeKey, safeUrl } from "./store.js";
+import { buildGroups, normalizeNavState } from "./nav-model.js";
+import { checkStatus, STATUS_TEXT } from "./status.js";
+import { $, h, icon, hasIcon } from "./ui.js";
+
+const NAV_KEY = "sp:nav";
+
+let defaults = [];
+let state = normalizeNavState(readJSON(NAV_KEY));
+let editor = null; // 编辑模式下由 nav-edit.js 提供
+const statusCache = new Map(); // 入口 id → 检测结果
+let lastCheck = 0;
+
+// ---------- 本地改动的读写 ----------
+export const navState = {
+  get: () => state,
+  /** rerender 为 false 时只保存、不重画（拖动排序时页面上已经是新顺序了） */
+  set(next, { rerender = true } = {}) {
+    state = normalizeNavState(next);
+    writeJSON(NAV_KEY, state);
+    if (rerender) render();
+  },
+  reset() {
+    state = normalizeNavState(null);
+    removeKey(NAV_KEY);
+    render();
+  },
+};
+
+/** 现有的全部分组名（添加入口时用来做下拉提示） */
+export function groupNames() {
+  return buildGroups(defaults, state, { includeHidden: true }).map((g) => g.name);
+}
+
+// ---------- 图标 ----------
+/** 入口图标：本地图标库的名字 / 图片地址 / 一个表情或一两个字 / 都没有就用名称首字 */
+export function entryIcon(entry) {
+  const box = h("span", { class: "card-icon", "aria-hidden": "true" });
+  const value = entry.icon;
+  const firstChar = Array.from(entry.name)[0].toUpperCase();
+  if (hasIcon(value)) {
+    box.append(icon(value));
+  } else if (/[/.]|^data:image\//.test(value)) {
+    const src = /^data:image\/(png|jpeg|webp|gif);base64,/.test(value) ? value : safeUrl(value, { allowRelative: true });
+    if (src) {
+      const img = h("img", { src, alt: "", loading: "lazy", decoding: "async" });
+      img.addEventListener("error", () => box.replaceChildren(firstChar)); // 图片坏了就退回首字
+      box.append(img);
+    } else box.append(firstChar);
+  } else {
+    box.append(value ? Array.from(value).slice(0, 2).join("") : firstChar);
+  }
+  return box;
+}
+
+// ---------- 渲染 ----------
+function shouldOpenInNewTab(entry) {
+  const mode = store.get().linkTarget;
+  return mode === "new" ? true : mode === "same" ? false : entry.newTab;
+}
+
+function paintStatus(dot, value) {
+  dot.dataset.state = value;
+  dot.setAttribute("aria-label", `状态：${STATUS_TEXT[value]}`);
+  dot.title = `状态：${STATUS_TEXT[value]}`;
+}
+
+function renderCard(entry) {
+  const link = h(
+    "a",
+    { class: "card glass", href: entry.url },
+    entryIcon(entry),
+    h("span", { class: "card-text" }, h("span", { class: "card-name" }, entry.name), entry.desc && h("span", { class: "card-desc" }, entry.desc))
+  );
+  if (entry.desc) link.title = entry.desc;
+  if (shouldOpenInNewTab(entry)) {
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+  }
+  const li = h("li", { class: `card-wrap${entry.custom ? " is-custom" : ""}${entry.hidden ? " is-hidden" : ""}`, dataset: { id: entry.id } }, link);
+  if (entry.status && !editor) {
+    const dot = h("span", { class: "status", role: "img" });
+    paintStatus(dot, statusCache.get(entry.id) || "checking");
+    link.append(dot);
+  }
+  if (editor) editor.decorate(li, link, entry);
+  return li;
+}
+
+export function render() {
+  const root = $("#nav");
+  const groups = buildGroups(defaults, state, { includeHidden: !!editor });
+  const sections = groups.map((group) =>
+    h(
+      "section",
+      { class: "nav-group", "aria-label": group.name },
+      h("h2", { class: "group-title glass" }, group.name),
+      h("ul", { class: "nav-grid", dataset: { group: group.name } }, group.items.map(renderCard))
+    )
+  );
+  if (!sections.length && !editor) {
+    sections.push(h("p", { class: "notice glass" }, "还没有导航入口。点右上角的铅笔按钮可以添加。"));
+  }
+  root.replaceChildren(...(editor ? [editor.bar] : []), ...sections);
+  document.body.classList.toggle("editing", !!editor);
+}
+
+// ---------- 状态检测 ----------
+async function checkAll() {
+  lastCheck = Date.now();
+  const entries = buildGroups(defaults, state).flatMap((g) => g.items).filter((e) => e.status);
+  await Promise.all(
+    entries.map(async (entry) => {
+      const value = await checkStatus(entry);
+      statusCache.set(entry.id, value);
+      // 检测期间页面可能重画过，所以每次都按 id 重新找圆点
+      const dot = $(`#nav .card-wrap[data-id="${CSS.escape(entry.id)}"] .status`);
+      if (dot) paintStatus(dot, value);
+    })
+  );
+}
+
+// ---------- 启动 ----------
+export function initNav(defaultEntries) {
+  defaults = defaultEntries;
+  render();
+
+  // 等首屏画完、浏览器空闲时再检测，不拖慢打开速度
+  (window.requestIdleCallback || ((fn) => setTimeout(fn, 300)))(() => checkAll());
+  window.addEventListener("online", checkAll);
+  document.addEventListener("visibilitychange", () => {
+    // 页面放了很久又切回来时，重新检测一次
+    if (!document.hidden && Date.now() - lastCheck > 10 * 60 * 1000) checkAll();
+  });
+
+  // "链接打开方式"变了要重画
+  let lastTarget = store.get().linkTarget;
+  store.subscribe((settings) => {
+    if (settings.linkTarget !== lastTarget) {
+      lastTarget = settings.linkTarget;
+      render();
+    }
+  });
+
+  // 别的标签页里改了导航，这边同步
+  window.addEventListener("storage", (e) => {
+    if (e.key === NAV_KEY) {
+      state = normalizeNavState(readJSON(NAV_KEY));
+      render();
+    }
+  });
+
+  // 编辑模式（代码用到时才加载）
+  const editBtn = $("#btn-edit");
+  editBtn.addEventListener("click", async () => {
+    if (editor) return exitEdit();
+    const { createEditor } = await import("./nav-edit.js");
+    editor = createEditor({ exit: exitEdit });
+    editBtn.setAttribute("aria-pressed", "true");
+    editBtn.setAttribute("aria-label", "完成编辑");
+    editBtn.title = "完成编辑";
+    render();
+    $("#nav").scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+
+  function exitEdit() {
+    editor = null;
+    editBtn.setAttribute("aria-pressed", "false");
+    editBtn.setAttribute("aria-label", "编辑导航");
+    editBtn.title = "编辑导航";
+    render();
+    checkAll(); // 可能新加了入口
+  }
+}

@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content"
+    />
+    <title>起始页</title>
+    <meta name="description" content="个人导航起始页：搜索、AI 问答和常用入口。" />
+    <!-- 隐私：跳转到搜索引擎或其他网站时，不把本页地址带过去 -->
+    <meta name="referrer" content="no-referrer" />
+    <!-- 安全：只允许运行本站自己的脚本和样式 -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https: http:; connect-src *; font-src 'self'; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'"
+    />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="theme-color" content="#0f172a" />
+
+    <!-- PWA：可以"添加到主屏幕" -->
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="assets/icons/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="assets/icons/icon-192.png" type="image/png" sizes="192x192" />
+    <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="起始页" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+    <!-- 先定主题和背景占位（同步、很小），再加载样式，避免闪烁 -->
+    <script src="assets/js/boot.js"></script>
+    <link rel="stylesheet" href="assets/css/main.css" />
+
+    <link rel="modulepreload" href="assets/js/main.js" />
+    <link rel="modulepreload" href="assets/js/store.js" />
+    <link rel="modulepreload" href="assets/js/ui.js" />
+    <link rel="modulepreload" href="assets/js/icons.js" />
+    <link rel="modulepreload" href="assets/js/background.js" />
+    <link rel="modulepreload" href="assets/js/search.js" />
+    <link rel="modulepreload" href="assets/js/engines.js" />
+    <link rel="modulepreload" href="assets/js/nav.js" />
+    <link rel="modulepreload" href="assets/js/nav-model.js" />
+    <link rel="modulepreload" href="assets/js/status.js" />
+    <link rel="modulepreload" href="assets/js/widgets.js" />
+    <link rel="modulepreload" href="assets/js/idb.js" />
+    <link rel="modulepreload" href="assets/js/ai/link.js" />
+    <link rel="modulepreload" href="config/site.js" />
+    <link rel="modulepreload" href="config/nav.js" />
+    <script type="module" src="assets/js/main.js"></script>
+  </head>
+  <body>
+    <!-- 背景：纯色占位 → 两层图片（用来淡入淡出）→ 暗度遮罩 -->
+    <div id="bg" aria-hidden="true">
+      <div class="bg-layer" id="bg-a"></div>
+      <div class="bg-layer" id="bg-b"></div>
+      <div id="bg-dim"></div>
+    </div>
+
+    <a class="skip-link" href="#nav">跳到功能导航</a>
+
+    <header class="topbar">
+      <button type="button" class="icon-btn glass" id="btn-edit" aria-pressed="false" aria-label="编辑导航" title="编辑导航">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" />
+          <path d="m15 5 4 4" />
+        </svg>
+      </button>
+      <button type="button" class="icon-btn glass" id="btn-settings" aria-haspopup="dialog" aria-label="设置" title="设置">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+          <circle cx="12" cy="12" r="3" />
+        </svg>
+      </button>
+    </header>
+
+    <main>
+      <section class="hero" aria-label="搜索">
+        <!-- 时间、日期、问候语（小组件，可在设置里关掉） -->
+        <div class="clock" id="clock" hidden>
+          <time class="clock-time" id="clock-time"></time>
+          <p class="clock-sub" id="clock-sub"></p>
+        </div>
+
+        <!-- 搜索框：页面的视觉中心 -->
+        <form class="search" id="search" role="search" autocomplete="off" novalidate>
+          <div class="search-box glass">
+            <button type="button" class="engine-badge" id="engine-badge" aria-label="切换搜索引擎" title="切换搜索引擎">
+              <span class="badge-mark" id="badge-mark" aria-hidden="true"></span>
+            </button>
+            <label class="sr-only" for="q">搜索内容</label>
+            <input
+              id="q"
+              name="q"
+              type="text"
+              inputmode="search"
+              enterkeyhint="search"
+              autocomplete="off"
+              autocapitalize="off"
+              autocorrect="off"
+              spellcheck="false"
+              placeholder="搜索…"
+              role="combobox"
+              aria-expanded="false"
+              aria-controls="history"
+              aria-autocomplete="list"
+              aria-describedby="kbd-hints"
+            />
+            <button type="button" class="search-clear" id="q-clear" aria-label="清空输入" hidden>
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M18 6 6 18" />
+                <path d="m6 6 12 12" />
+              </svg>
+            </button>
+            <button type="submit" class="search-go" id="q-go" aria-label="搜索">
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.3-4.3" />
+              </svg>
+            </button>
+          </div>
+
+          <!-- 本地搜索历史 -->
+          <div class="history" id="history-pop" hidden>
+            <ul id="history" role="listbox" aria-label="搜索历史"></ul>
+            <div class="history-foot">
+              <span>搜索历史只保存在本机</span>
+              <button type="button" class="btn btn-ghost" id="history-clear">清空</button>
+            </div>
+          </div>
+        </form>
+
+        <!-- 搜索引擎切换 -->
+        <div class="engines" id="engines" role="radiogroup" aria-label="搜索引擎"></div>
+
+        <p class="kbd-hints glass" id="kbd-hints">
+          <kbd>/</kbd>聚焦 <kbd>Tab</kbd>切换引擎 <kbd>Enter</kbd>搜索 <kbd>Esc</kbd>离开输入框
+          <kbd>!g</kbd><kbd>!bd</kbd><kbd>!ai</kbd>前缀直达
+        </p>
+        <p class="sr-only" id="live" aria-live="polite"></p>
+      </section>
+
+      <!-- 功能导航：内容来自 config/nav.js -->
+      <nav class="nav" id="nav" aria-label="功能导航"></nav>
+
+      <footer class="site-foot">
+        <p class="glass"><a href="about/">关于本站</a></p>
+      </footer>
+    </main>
+
+    <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+
+    <noscript>
+      <p class="notice glass">这个页面需要开启 JavaScript 才能使用。你也可以直接查看 <a href="about/">关于本站</a>。</p>
+    </noscript>
+  </body>
+</html>
