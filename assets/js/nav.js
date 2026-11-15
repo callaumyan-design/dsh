@@ -1,4 +1,5 @@
-// 功能导航：按分组显示图标卡片，每个入口带一个"能不能访问"的小圆点。
+// 功能导航：页面下方的一排"小应用图标"，每个入口带一个"能不能访问"的小圆点。
+// 进入编辑模式后展开成带描述的列表，方便拖动排序、隐藏和修改。
 // 默认入口来自 config/nav.js；用户在编辑模式里的改动存在浏览器本地，两者合并显示。
 import { store, readJSON, writeJSON, removeKey, safeUrl } from "./store.js";
 import { buildGroups, normalizeNavState } from "./nav-model.js";
@@ -36,8 +37,13 @@ export function groupNames() {
 
 // ---------- 图标 ----------
 /** 入口图标：本地图标库的名字 / 图片地址 / 一个表情或一两个字 / 都没有就用名称首字 */
-export function entryIcon(entry) {
-  const box = h("span", { class: "card-icon", "aria-hidden": "true" });
+export function entryIcon(entry, cls = "card-icon") {
+  const box = h("span", { class: cls, "aria-hidden": "true" });
+  // 指定了底色的入口：底色用它，图标用白色
+  if (entry.color) {
+    box.style.background = entry.color;
+    box.style.color = "#fff";
+  }
   const value = entry.icon;
   const firstChar = Array.from(entry.name)[0].toUpperCase();
   if (hasIcon(value)) {
@@ -77,6 +83,22 @@ function paintStatus(dot, value) {
   dot.title = `状态：${STATUS_TEXT[value]}`;
 }
 
+/** 平时的样子：一个小应用图标 + 下面的名字 */
+function renderApp(entry) {
+  const link = h("a", { class: "app", href: entry.url, title: entry.desc ? `${entry.name}：${entry.desc}` : entry.name }, entryIcon(entry, "app-icon"), h("span", { class: "app-name" }, entry.name));
+  if (shouldOpenInNewTab(entry)) {
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+  }
+  if (entry.status) {
+    const dot = h("span", { class: "status", role: "img" });
+    paintStatus(dot, statusCache.get(entry.id) || "checking");
+    link.append(dot);
+  }
+  return h("li", { class: "card-wrap", dataset: { id: entry.id } }, link);
+}
+
+/** 编辑模式的样子：带描述的一行，旁边有拖动把手和操作按钮 */
 function renderCard(entry) {
   const link = h(
     "a",
@@ -90,27 +112,27 @@ function renderCard(entry) {
     link.rel = "noopener noreferrer";
   }
   const li = h("li", { class: `card-wrap${entry.custom ? " is-custom" : ""}${entry.hidden ? " is-hidden" : ""}`, dataset: { id: entry.id } }, link);
-  if (entry.status && !editor) {
-    const dot = h("span", { class: "status", role: "img" });
-    paintStatus(dot, statusCache.get(entry.id) || "checking");
-    link.append(dot);
-  }
-  if (editor) editor.decorate(li, link, entry);
+  editor.decorate(li, link, entry);
   return li;
 }
 
 export function render() {
   const root = $("#nav");
   const groups = buildGroups(defaults, state, { includeHidden: !!editor });
+  // 只有一个分组时不显示分组名，保持简洁
+  const showTitles = !!editor || groups.length > 1;
   const sections = groups.map((group) =>
     h(
       "section",
       { class: "nav-group", "aria-label": group.name },
-      h("h2", { class: "group-title glass" }, group.name),
-      h("ul", { class: "nav-grid", dataset: { group: group.name } }, group.items.map(renderCard))
+      showTitles && h("h2", { class: editor ? "group-title glass" : "group-title" }, group.name),
+      editor
+        ? h("ul", { class: "nav-grid", dataset: { group: group.name } }, group.items.map(renderCard))
+        : h("ul", { class: "app-grid", dataset: { group: group.name } }, group.items.map(renderApp))
     )
   );
-  root.replaceChildren(...(editor ? [editor.bar] : []), ...sections);
+  // 平时所有图标装在一个毛玻璃底座里；编辑模式是普通的列表
+  root.replaceChildren(...(editor ? [editor.bar, ...sections] : sections.length ? [h("div", { class: "dock glass" }, sections)] : []));
   // 一个入口都没有时，导航区（和"跳到功能导航"的快捷链接）整个不显示，页面保持干净
   const empty = !editor && !sections.length;
   root.hidden = empty;

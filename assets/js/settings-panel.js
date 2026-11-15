@@ -1,8 +1,9 @@
 // 设置面板（右上角齿轮）：背景、搜索、链接、主题、小组件、数据导出/导入/恢复默认。
 // 所有改动立刻生效，并保存在浏览器本地。
 import { BACKGROUND_PRESETS, AI } from "../../config/site.js";
-import { store, safeTemplate, uid } from "./store.js";
-import { addUploads, addImageUrl, removeImage, selectImage, shownImageId, shuffleBackground, thumbFor } from "./background.js";
+import { store, safeTemplate, safeUrl, uid, defaultSettings } from "./store.js";
+import { addUploads, addImageUrl, removeImage, selectImage, shownImageId, shuffleBackground, thumbFor, nextOnlineWallpaper } from "./background.js";
+import { FONT_CHOICES, WEIGHT_NAMES } from "./typography.js";
 import { listEngines } from "./engines.js";
 import { searchHistory } from "./search.js";
 import { buildExport, applyImport, pruneImages } from "./backup.js";
@@ -44,24 +45,25 @@ function segmented(label, options, get, onPick) {
   return h("div", { class: "segmented", role: "radiogroup", "aria-label": label }, inputs.map((i) => i.el));
 }
 
-/** 滑块一行 */
-function rangeRow(label, min, max, unit, get, set) {
+/** 滑块一行。unit 可以是单位（如 "px"），也可以是一个"把数值变成显示文字"的函数 */
+function rangeRow(label, min, max, unit, get, set, step = 1) {
   const id = nextId("rg");
   const out = h("output", { for: id });
+  const show = (value) => (typeof unit === "function" ? unit(value) : value + unit);
   const input = h("input", {
     type: "range",
     id,
     min: String(min),
     max: String(max),
-    step: "1",
+    step: String(step),
     oninput: () => {
-      out.textContent = input.value + unit;
+      out.textContent = show(Number(input.value));
       store.update((s) => set(s, Number(input.value)));
     },
   });
   syncers.push((s) => {
     input.value = String(get(s));
-    out.textContent = get(s) + unit;
+    out.textContent = show(get(s));
   });
   return h("div", { class: "range-row" }, h("div", { class: "range-head" }, h("label", { for: id }, label), out), input);
 }
@@ -177,9 +179,61 @@ function backgroundSection() {
     randomBox
   );
 
-  // 三种类型切换。切到"图片"但一张图都没有时，先停在这个页签等用户添加
+  // 在线随机壁纸
+  let wantCustom = false; // 用户选了"自定义接口"但还没填地址
+  const sourceId = nextId("sel");
+  const sourceSelect = h(
+    "select",
+    {
+      class: "input",
+      id: sourceId,
+      onchange: () => {
+        wantCustom = sourceSelect.value === "custom" && !store.get().bg.online.url;
+        if (wantCustom) return refresh(); // 先让用户填地址，填好了再生效
+        store.update((s) => (s.bg.online.source = sourceSelect.value));
+      },
+    },
+    h("option", { value: "picsum" }, "随机摄影（Picsum）"),
+    h("option", { value: "custom" }, "自定义接口")
+  );
+  const apiInput = h("input", { class: "input", type: "url", inputMode: "url", placeholder: "https://…（打开就返回一张图片的地址）", "aria-label": "壁纸接口地址", autocomplete: "off", autocapitalize: "off", spellcheck: false });
+  const apiForm = h("form", { class: "inline-form", novalidate: true }, apiInput, h("button", { type: "submit", class: "btn" }, "使用"));
+  apiForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const url = safeUrl(apiInput.value);
+    if (!url) return toast("接口地址需要以 http:// 或 https:// 开头");
+    wantCustom = false;
+    store.update((s) => {
+      s.bg.online.source = "custom";
+      s.bg.online.url = url;
+    });
+    toast("已切换到自定义壁纸接口");
+  });
+  const apiBox = h("div", { class: "field" }, apiForm, h("p", { class: "hint" }, "填一个“每次打开都返回一张图片”的地址。地址里可以用 {w}、{h} 代表需要的宽和高。"));
+  syncers.push((s) => {
+    sourceSelect.value = wantCustom ? "custom" : s.bg.online.source;
+    apiBox.hidden = sourceSelect.value !== "custom";
+    if (document.activeElement !== apiInput) apiInput.value = s.bg.online.url;
+  });
+  const onlinePane = h(
+    "div",
+    { class: "bg-pane" },
+    h("div", { class: "set-row" }, h("label", { for: sourceId }, "壁纸来源"), sourceSelect),
+    apiBox,
+    selectRow(
+      "多久换一张",
+      null,
+      () => [["open", "每次打开页面"], ["hour", "每小时"], ["day", "每天"], ["manual", "只在我点“换一张”时"]],
+      (s) => s.bg.online.every,
+      (s, v) => (s.bg.online.every = v)
+    ),
+    h("div", { class: "btn-row" }, h("button", { type: "button", class: "btn", onclick: nextOnlineWallpaper }, icon("shuffle"), "换一张")),
+    h("p", { class: "hint" }, "壁纸从网上加载：提供图片的服务器能看到你的网络地址，但看不到你搜索的内容。连不上时会自动显示内置背景。")
+  );
+
+  // 几种类型切换。切到"图片"但一张图都没有时，先停在这个页签等用户添加
   let pane = "";
-  const tabs = segmented("背景类型", [["preset", "内置"], ["color", "纯色 / 渐变"], ["image", "图片"]], null, (value) => {
+  const tabs = segmented("背景类型", [["preset", "内置"], ["color", "纯色渐变"], ["image", "图片"], ["online", "在线"]], null, (value) => {
     pane = value;
     if (pane !== "image" || store.get().bg.images.length) store.update((s) => (s.bg.type = pane));
     else showPane();
@@ -188,6 +242,7 @@ function backgroundSection() {
     presetPane.hidden = pane !== "preset";
     colorPane.hidden = pane !== "color";
     imagePane.hidden = pane !== "image";
+    onlinePane.hidden = pane !== "online";
     tabs.querySelectorAll("input").forEach((i) => (i.checked = i.value === pane));
   }
   let lastType = "";
@@ -208,9 +263,80 @@ function backgroundSection() {
     presetPane,
     colorPane,
     imagePane,
+    onlinePane,
     rangeRow("模糊", 0, 30, "px", (s) => s.bg.blur, (s, v) => (s.bg.blur = v)),
     rangeRow("暗度遮罩", 0, 80, "%", (s) => s.bg.dim, (s, v) => (s.bg.dim = v)),
-    h("p", { class: "hint" }, "“必应每日一图”需要服务器中转，本站是纯静态网站，暂不提供。")
+    h("p", { class: "hint" }, "“必应每日一图”需要服务器中转，本站是纯静态网站，暂不提供；可以用上面的“在线”壁纸。")
+  );
+}
+
+// ---------- 文字 ----------
+function textSection() {
+  const customId = nextId("font");
+  const customInput = h("input", {
+    class: "input",
+    id: customId,
+    maxLength: 40,
+    placeholder: "例如：霞鹜文楷、LXGW WenKai",
+    autocomplete: "off",
+    autocapitalize: "off",
+    spellcheck: false,
+  });
+  const customBox = h("label", { class: "field", for: customId }, h("span", null, "字体名称（要用这台设备上已经安装的字体）"), customInput);
+  let wantCustomFont = false; // 选了"自定义"但还没填字体名
+  const familyId = nextId("sel");
+  const family = h("select", {
+    class: "input",
+    id: familyId,
+    onchange: () => {
+      wantCustomFont = family.value === "custom" && !store.get().font.custom;
+      if (wantCustomFont) {
+        refresh();
+        return customInput.focus();
+      }
+      store.update((s) => (s.font.family = family.value));
+    },
+  }, FONT_CHOICES.map(([value, text]) => h("option", { value }, text)));
+  customInput.addEventListener("change", () => {
+    const name = customInput.value.trim();
+    wantCustomFont = !name; // 清空了就回到系统默认字体，但输入框先留着
+    store.update((s) => {
+      s.font.custom = name;
+      s.font.family = name ? "custom" : "system";
+    });
+  });
+  syncers.push((s) => {
+    family.value = wantCustomFont ? "custom" : s.font.family;
+    customBox.hidden = family.value !== "custom";
+    if (document.activeElement !== customInput) customInput.value = s.font.custom;
+  });
+
+  const resetBtn = h(
+    "button",
+    {
+      type: "button",
+      class: "btn",
+      onclick: () => {
+        wantCustomFont = false;
+        store.update((s) => (s.font = defaultSettings().font));
+        toast("文字设置已恢复默认");
+      },
+    },
+    icon("rotate-ccw"),
+    "恢复默认文字"
+  );
+
+  return section(
+    "text",
+    "type",
+    "文字",
+    h("div", { class: "set-row" }, h("label", { for: familyId }, "字体", h("small", null, "用的是设备自带的字体，不同设备看到的可能不一样")), family),
+    customBox,
+    rangeRow("字号", 85, 130, "%", (s) => s.font.scale, (s, v) => (s.font.scale = v), 5),
+    rangeRow("粗细", 300, 700, (v) => WEIGHT_NAMES[v] || v, (s) => s.font.weight, (s, v) => (s.font.weight = v), 100),
+    rangeRow("时钟大小", 60, 160, "%", (s) => s.font.clockScale, (s, v) => (s.font.clockScale = v), 10),
+    rangeRow("时钟粗细", 100, 900, (v) => WEIGHT_NAMES[v] || v, (s) => s.font.clockWeight, (s, v) => (s.font.clockWeight = v), 100),
+    h("div", { class: "btn-row" }, resetBtn)
   );
 }
 
@@ -422,6 +548,7 @@ function build() {
       segmented("主题", [["system", "跟随系统", "monitor"], ["light", "浅色", "sun"], ["dark", "深色", "moon"]], (s) => s.theme, (v) => store.update((s) => (s.theme = v)))
     ),
     backgroundSection(),
+    textSection(),
     searchSection(),
     section(
       "links",
@@ -437,7 +564,8 @@ function build() {
     ),
     section("widgets", "layout-dashboard", "小组件", switchRow("时间、日期和问候语", null, (s) => s.widgets.clock, (s, v) => (s.widgets.clock = v))),
     aiSection(),
-    dataSection()
+    dataSection(),
+    h("p", { class: "hint panel-foot" }, h("a", { href: "about/index.html" }, "关于本站"))
   );
   dialog = h(
     "dialog",

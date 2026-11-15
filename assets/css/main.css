@@ -27,6 +27,15 @@
 
   /* 手机软键盘弹出后的可见高度，由 main.js 写入 */
   --vvh: 100dvh;
+
+  /* 文字设置：由 typography.js / boot.js 写入（设置面板 → 文字） */
+  --fs: 1; /* 整体字号倍数 */
+  --fw: 400; /* 整体粗细 */
+  --fw-medium: calc(var(--fw) + 100); /* 稍粗（按钮、小标题） */
+  --fw-bold: calc(var(--fw) + 200); /* 加粗（名称、标题） */
+  --fw-heavy: calc(var(--fw) + 300); /* 特粗（圆形标记里的字） */
+  --clock-scale: 1; /* 时钟大小倍数 */
+  --clock-weight: 600; /* 时钟粗细 */
 }
 
 /* 深色（默认） */
@@ -99,7 +108,7 @@ body {
   margin: 0;
   min-height: 100vh;
   min-height: 100dvh;
-  font: 15px/1.5 var(--font);
+  font: var(--fw) calc(15px * var(--fs)) / 1.5 var(--font);
   color: var(--text);
   background: var(--bg-base); /* 图片没出来之前的纯色占位，避免白屏 */
   -webkit-font-smoothing: antialiased;
@@ -116,6 +125,17 @@ select,
 textarea {
   font: inherit;
   color: inherit;
+}
+
+/* 标题和强调文字的粗细跟着"文字 → 粗细"设置走 */
+h1,
+h2,
+h3,
+h4,
+strong,
+b,
+th {
+  font-weight: var(--fw-heavy);
 }
 
 button {
@@ -205,6 +225,15 @@ svg.icon {
   opacity: 0;
   transition: opacity 0.6s ease;
 }
+.bg-layer img {
+  display: block;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  object-fit: cover;
+}
 .bg-layer.is-on {
   opacity: 1;
 }
@@ -278,16 +307,16 @@ main {
 }
 .clock-time {
   display: block;
-  font-size: clamp(52px, 13vw, 88px);
-  font-weight: 600;
+  font-size: calc(clamp(52px, 13vw, 88px) * var(--clock-scale));
+  font-weight: var(--clock-weight);
   line-height: 1.05;
   letter-spacing: 0.01em;
   font-variant-numeric: tabular-nums;
 }
 .clock-sub {
   margin: 6px 0 0;
-  font-size: clamp(15px, 3.6vw, 18px);
-  font-weight: 500;
+  font-size: calc(clamp(15px, 3.6vw, 18px) * var(--fs));
+  font-weight: var(--fw-medium);
 }
 
 /* ---------- 6. 搜索 ---------- */
@@ -369,8 +398,8 @@ main {
   border-radius: 50%;
   background: var(--accent-soft);
   color: var(--accent-fg);
-  font-size: 14px;
-  font-weight: 700;
+  font-size: calc(14px * var(--fs));
+  font-weight: var(--fw-heavy);
 }
 .search[data-ai="true"] .badge-mark {
   background: linear-gradient(135deg, var(--ai-1), var(--ai-2));
@@ -390,7 +419,7 @@ main {
   outline: 0;
   box-shadow: none;
   background: none;
-  font-size: 17px; /* 不小于 16px，iPhone 点输入框时不会自动放大页面 */
+  font-size: max(16px, calc(17px * var(--fs))); /* 不小于 16px，iPhone 点输入框时不会自动放大页面 */
   color: var(--text);
 }
 .search-box input::placeholder {
@@ -480,7 +509,7 @@ main {
   justify-content: space-between;
   padding: 4px 8px 4px 18px;
   border-top: 1px solid var(--border);
-  font-size: 13px;
+  font-size: calc(13px * var(--fs));
   color: var(--text-3);
 }
 
@@ -516,7 +545,7 @@ main {
   padding: 0 12px 0 8px;
   border-radius: 12px;
   color: var(--text);
-  font-size: 15px;
+  font-size: calc(15px * var(--fs));
   text-align: left;
 }
 .engine-item:hover,
@@ -538,7 +567,7 @@ main {
   color: var(--accent-fg);
 }
 .engine-item[aria-checked="true"] {
-  font-weight: 600;
+  font-weight: var(--fw-bold);
 }
 .engine-item[aria-checked="true"] > svg.icon {
   visibility: visible;
@@ -555,8 +584,8 @@ main {
   border-radius: 50%;
   background: var(--accent-soft);
   color: var(--accent-fg);
-  font-size: 13px;
-  font-weight: 700;
+  font-size: calc(13px * var(--fs));
+  font-weight: var(--fw-heavy);
 }
 .engine-mark svg.icon {
   width: 15px;
@@ -569,16 +598,118 @@ main {
 }
 .engine-item.is-ai .engine-name {
   color: var(--ai-fg);
-  font-weight: 600;
+  font-weight: var(--fw-bold);
 }
 
 /* ---------- 7. 导航 ---------- */
+/* 平时：导航贴在页面最下面，像手机主屏幕底部的那一排应用 */
 .nav {
-  margin-top: clamp(28px, 6vh, 56px);
+  margin-top: auto;
+  padding-top: clamp(28px, 6vh, 56px);
 }
 .nav:focus {
   outline: 0;
   box-shadow: none;
+}
+/* 编辑模式：展开成列表，紧跟在搜索框下面 */
+.editing .nav {
+  margin-top: 0;
+}
+
+.dock {
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 12px 14px 10px;
+  border-radius: 28px;
+}
+.dock .nav-group + .nav-group {
+  margin-top: 6px;
+}
+.dock .group-title {
+  display: block;
+  margin: 2px 8px 4px;
+  padding: 0;
+  font-size: calc(12px * var(--fs));
+  color: var(--text-3);
+}
+.app-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.app {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 78px;
+  padding: 6px 2px 4px;
+  border-radius: 18px;
+  color: var(--text);
+  text-decoration: none;
+}
+.app-icon {
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  border-radius: 15px;
+  background: var(--accent-soft);
+  color: var(--accent-fg);
+  font-size: 24px;
+  font-weight: var(--fw-heavy);
+  line-height: 1;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.18);
+  transition: transform 0.15s;
+}
+.app-icon svg.icon {
+  width: 26px;
+  height: 26px;
+}
+.app-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.app-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: calc(12.5px * var(--fs));
+  line-height: 1.3;
+}
+@media (hover: hover) {
+  .app:hover .app-icon {
+    transform: translateY(-3px) scale(1.04);
+  }
+}
+.app:active .app-icon {
+  transform: scale(0.94);
+}
+/* 状态小圆点：在图标的右上角，外面一圈底色把它和图标隔开 */
+.app .status {
+  top: 2px;
+  right: 8px;
+  width: 8px;
+  height: 8px;
+  box-sizing: content-box;
+  border: 2px solid var(--panel);
+  box-shadow: none;
+}
+.app .status[data-state="unknown"] {
+  width: 4px;
+  height: 4px;
+  border: 2px solid var(--text-3);
+  background: var(--panel);
+  outline: 2px solid var(--panel);
 }
 .nav-group + .nav-group {
   margin-top: 22px;
@@ -588,8 +719,8 @@ main {
   margin: 0 0 10px;
   padding: 3px 12px;
   border-radius: 999px;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: calc(13px * var(--fs));
+  font-weight: var(--fw-bold);
   color: var(--text-2);
 }
 
@@ -644,8 +775,8 @@ main {
   border-radius: 12px;
   background: var(--accent-soft);
   color: var(--accent-fg);
-  font-size: 19px;
-  font-weight: 700;
+  font-size: calc(19px * var(--fs));
+  font-weight: var(--fw-heavy);
   line-height: 1;
   overflow: hidden;
 }
@@ -664,8 +795,8 @@ main {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 15px;
-  font-weight: 600;
+  font-size: calc(15px * var(--fs));
+  font-weight: var(--fw-bold);
 }
 .card-desc {
   /* 描述最多显示两行，超出的用省略号 */
@@ -674,7 +805,7 @@ main {
   -webkit-line-clamp: 2;
   line-clamp: 2;
   overflow: hidden;
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--fs));
   line-height: 1.35;
   color: var(--text-2);
 }
@@ -710,21 +841,6 @@ main {
   }
 }
 
-/* 页脚始终贴在页面最下面，不挤在搜索框旁边 */
-.site-foot {
-  display: flex;
-  justify-content: center;
-  margin-top: auto;
-  padding-top: 36px;
-}
-.site-foot p {
-  margin: 0;
-  padding: 6px 16px;
-  border-radius: 999px;
-  font-size: 13px;
-  color: var(--text-2);
-}
-
 .notice {
   margin: 18px auto 0;
   padding: 12px 16px;
@@ -749,7 +865,7 @@ main {
 .edit-bar p {
   flex: 1 1 200px;
   margin: 0;
-  font-size: 13.5px;
+  font-size: calc(13.5px * var(--fs));
   color: var(--text-2);
 }
 
@@ -844,8 +960,8 @@ main {
   border: 1px solid var(--border-strong);
   background: var(--panel-2);
   color: var(--text);
-  font-size: 14px;
-  font-weight: 500;
+  font-size: calc(14px * var(--fs));
+  font-weight: var(--fw-medium);
   text-decoration: none;
   white-space: nowrap;
 }
@@ -891,8 +1007,8 @@ main {
 .field-label {
   display: block;
   margin-bottom: 5px;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: calc(13px * var(--fs));
+  font-weight: var(--fw-medium);
   color: var(--text-2);
 }
 .input,
@@ -904,7 +1020,7 @@ select.input {
   border: 1px solid var(--border-strong);
   background: var(--field);
   color: var(--text);
-  font-size: 16px;
+  font-size: max(16px, calc(16px * var(--fs)));
 }
 .input::placeholder {
   color: var(--text-3);
@@ -912,12 +1028,12 @@ select.input {
 }
 .hint {
   margin: 6px 0 0;
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--fs));
   color: var(--text-3);
 }
 .error-text {
   margin: 6px 0 0;
-  font-size: 13px;
+  font-size: calc(13px * var(--fs));
   color: #f87171;
 }
 :root[data-theme="light"] .error-text {
@@ -946,7 +1062,7 @@ dialog::backdrop {
 }
 .modal h2 {
   margin: 0 0 12px;
-  font-size: 18px;
+  font-size: calc(18px * var(--fs));
 }
 .modal p {
   margin: 0 0 12px;
@@ -1006,7 +1122,7 @@ dialog::backdrop {
   border: 1px solid var(--border-strong);
   color: var(--text);
   box-shadow: var(--shadow);
-  font-size: 14px;
+  font-size: calc(14px * var(--fs));
 }
 
 /* ---------- 10. 设置面板（右侧抽屉，手机上全屏） ---------- */
@@ -1045,7 +1161,7 @@ dialog::backdrop {
 .panel-head h2 {
   flex: 1;
   margin: 0;
-  font-size: 18px;
+  font-size: calc(18px * var(--fs));
 }
 .panel-head .icon-btn:hover {
   background: var(--hover);
@@ -1071,12 +1187,16 @@ dialog::backdrop {
 .set-section h4 {
   margin: 16px 0 8px;
 }
+.panel-foot {
+  padding: 14px 0 0;
+  text-align: center;
+}
 .set-section h3 {
   display: flex;
   align-items: center;
   gap: 8px;
   margin: 0 0 14px;
-  font-size: 15px;
+  font-size: calc(15px * var(--fs));
 }
 .set-section h3 svg.icon {
   width: 18px;
@@ -1094,17 +1214,16 @@ dialog::backdrop {
 .set-row > label:not(.switch) {
   flex: 1;
   min-width: 0;
-  font-size: 14px;
+  font-size: calc(14px * var(--fs));
 }
 .set-row small {
   display: block;
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--fs));
   color: var(--text-3);
 }
 .set-row select.input {
   width: auto;
   max-width: 55%;
-  font-size: 15px;
 }
 .btn-row {
   display: flex;
@@ -1142,7 +1261,7 @@ dialog::backdrop {
   min-height: 38px;
   padding: 0 8px;
   border-radius: 9px;
-  font-size: 14px;
+  font-size: calc(14px * var(--fs));
   color: var(--text-2);
   white-space: nowrap;
 }
@@ -1153,7 +1272,7 @@ dialog::backdrop {
 .segmented input:checked + span {
   background: var(--accent);
   color: var(--accent-text);
-  font-weight: 600;
+  font-weight: var(--fw-bold);
 }
 .segmented input:focus-visible + span {
   outline: 2px solid var(--focus);
@@ -1232,7 +1351,7 @@ input[type="color"] {
 .range-row .range-head {
   display: flex;
   justify-content: space-between;
-  font-size: 14px;
+  font-size: calc(14px * var(--fs));
 }
 .range-row output {
   color: var(--text-2);
@@ -1258,8 +1377,8 @@ input[type="color"] {
   background-size: cover;
   background-position: center;
   color: #fff;
-  font-size: 12.5px;
-  font-weight: 600;
+  font-size: calc(12.5px * var(--fs));
+  font-weight: var(--fw-bold);
   text-shadow: 0 1px 3px rgb(0 0 0 / 0.7);
   overflow: hidden;
 }
@@ -1282,7 +1401,7 @@ input[type="color"] {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 14px;
+  font-size: calc(14px * var(--fs));
 }
 
 .thumbs {
@@ -1351,7 +1470,7 @@ input[type="color"] {
   margin-bottom: 6px;
   border-radius: var(--radius-sm);
   background: var(--panel-2);
-  font-size: 14px;
+  font-size: calc(14px * var(--fs));
 }
 .engine-list .engine-meta {
   flex: 1;
@@ -1363,7 +1482,7 @@ input[type="color"] {
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--text-3);
-  font-size: 12px;
+  font-size: calc(12px * var(--fs));
 }
 .engine-list .icon-btn {
   width: 40px;
@@ -1413,13 +1532,13 @@ input[type="color"] {
   flex: 1;
   min-width: 0;
   margin: 0;
-  font-size: 16px;
+  font-size: max(16px, calc(16px * var(--fs)));
   white-space: nowrap;
 }
 .ai-head-btn {
   min-height: 36px;
   padding: 0 10px;
-  font-size: 13px;
+  font-size: calc(13px * var(--fs));
 }
 /* 手机上标题只留"AI"，把位置让给"在 catgpt 中打开"按钮 */
 @media (max-width: 480px) {
@@ -1467,7 +1586,7 @@ input[type="color"] {
 .msg-tools .btn {
   min-height: 32px;
   padding: 0 8px;
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--fs));
   color: var(--text-3);
 }
 .typing {
@@ -1491,12 +1610,12 @@ input[type="color"] {
   align-items: center;
   gap: 8px;
   margin: 0 0 6px;
-  font-size: 15px;
+  font-size: calc(15px * var(--fs));
 }
 .ai-card p {
   margin: 0 0 10px;
   color: var(--text-2);
-  font-size: 14px;
+  font-size: calc(14px * var(--fs));
 }
 
 .ai-form {
@@ -1516,7 +1635,7 @@ input[type="color"] {
   border-radius: 14px;
   border: 1px solid var(--border-strong);
   background: var(--field);
-  font-size: 16px;
+  font-size: max(16px, calc(16px * var(--fs)));
   line-height: 1.45;
   resize: none;
 }
@@ -1605,7 +1724,7 @@ input[type="color"] {
   padding: 0;
   border: 0;
   background: none;
-  font-size: 13px;
+  font-size: calc(13px * var(--fs));
   line-height: 1.55;
   white-space: pre;
 }
@@ -1626,7 +1745,7 @@ input[type="color"] {
 .md table {
   margin: 0;
   border-collapse: collapse;
-  font-size: 14px;
+  font-size: calc(14px * var(--fs));
 }
 .md th,
 .md td {
@@ -1671,7 +1790,7 @@ input[type="color"] {
   margin: 30px 0 10px;
   padding-top: 18px;
   border-top: 1px solid var(--border);
-  font-size: 19px;
+  font-size: calc(19px * var(--fs));
 }
 .prose p,
 .prose ul {

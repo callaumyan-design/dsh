@@ -79,6 +79,24 @@ test("设置校验：乱七八糟的数据会被洗成合法设置", () => {
   assert.equal(normalizeSettings({ bg: { type: "image" } }).bg.type, "preset");
 });
 
+test("设置校验：文字和在线壁纸", () => {
+  const d = defaultSettings();
+  assert.deepEqual(d.font, { family: "system", custom: "", scale: 100, weight: 400, clockScale: 100, clockWeight: 600 });
+  assert.deepEqual(d.bg.online, { source: "picsum", url: "", every: "open" });
+  // 越界的数值被拉回范围内，粗细取整到 100 的倍数
+  const s = normalizeSettings({ font: { family: "kai", scale: 500, weight: 449, clockScale: 1, clockWeight: 951 }, bg: { type: "online", online: { source: "custom", url: "https://wall.example/a?w={w}", every: "hour" } } });
+  assert.deepEqual(s.font, { family: "kai", custom: "", scale: 130, weight: 400, clockScale: 60, clockWeight: 900 });
+  assert.equal(s.bg.type, "online");
+  assert.deepEqual(s.bg.online, { source: "custom", url: "https://wall.example/a?w={w}", every: "hour" });
+  // 自定义字体名里会破坏样式的字符被去掉；没填名字就退回系统默认
+  assert.equal(normalizeSettings({ font: { family: "custom", custom: 'A"B\';} body{x:y' } }).font.custom, "AB bodyxy");
+  assert.equal(normalizeSettings({ font: { family: "custom", custom: "  " } }).font.family, "system");
+  assert.equal(normalizeSettings({ font: { family: "comic" } }).font.family, "system");
+  // 自定义壁纸接口：地址不安全或没填 → 退回默认来源
+  assert.equal(normalizeSettings({ bg: { online: { source: "custom", url: "javascript:alert(1)" } } }).bg.online.source, "picsum");
+  assert.equal(normalizeSettings({ bg: { online: { every: "weekly" } } }).bg.online.every, "open");
+});
+
 test("导航：合并默认入口和本地改动", () => {
   const defaults = [
     { name: "甲", url: "https://a.example/", group: "一" },
@@ -113,6 +131,9 @@ test("导航：合并默认入口和本地改动", () => {
   assert.deepEqual(names(buildGroups(later, state))[0], "一:丙,甲,我的,新");
   assert.equal(normalizeEntry({ name: "x", url: "./about/" }).newTab, true);
   assert.equal(normalizeEntry({ name: "x", url: "./about/", newTab: false }).newTab, false);
+  // 图标底色：只接受 #rrggbb
+  assert.equal(normalizeEntry({ name: "x", url: "./a/", color: "#5B5BD6" }).color, "#5b5bd6");
+  assert.equal(normalizeEntry({ name: "x", url: "./a/", color: "red; background:url(x)" }).color, "");
 });
 
 test("配置文件本身没有问题", () => {

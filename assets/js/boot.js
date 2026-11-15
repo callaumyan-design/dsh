@@ -4,10 +4,12 @@
   var root = document.documentElement;
   var theme = "system";
   var cache = null;
+  var type = null;
   try {
     var saved = JSON.parse(localStorage.getItem("sp:settings") || "null");
     if (saved && (saved.theme === "light" || saved.theme === "dark")) theme = saved.theme;
     cache = JSON.parse(localStorage.getItem("sp:bg-cache") || "null");
+    type = JSON.parse(localStorage.getItem("sp:type-cache") || "null");
   } catch (e) {
     /* 读不到本地存储就用默认值 */
   }
@@ -15,6 +17,13 @@
     theme = window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
   }
   root.setAttribute("data-theme", theme);
+
+  // 文字设置（字体、字号、粗细）：提前套用，避免先闪一下默认样式
+  if (type && typeof type === "object") {
+    ["--font", "--fs", "--fw", "--clock-scale", "--clock-weight"].forEach(function (name) {
+      if (typeof type[name] === "string") root.style.setProperty(name, type[name]);
+    });
+  }
 
   if (cache && typeof cache === "object") {
     // 占位纯色：图片还没出来之前先显示它

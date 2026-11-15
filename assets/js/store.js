@@ -83,13 +83,24 @@ export function defaultSettings() {
       custom: [], // 自定义引擎 [{id, name, url, bang}]
     },
     widgets: { clock: true },
+    // 文字：字体、字号、粗细，以及时钟单独的大小和粗细
+    font: {
+      family: "system", // system | serif | kai | round | mono | custom
+      custom: "", // family 为 custom 时用的字体名（需要设备上装了这个字体）
+      scale: 100, // 整体字号 %
+      weight: 400, // 整体粗细 300~700
+      clockScale: 100, // 时钟大小 %
+      clockWeight: 600, // 时钟粗细 100~900
+    },
     bg: {
-      type: "preset", // preset | color | image
+      type: "preset", // preset | color | image | online
       preset: DEFAULT_BACKGROUND,
       color: { c1: "#1e3a8a", c2: "#7c3aed", gradient: true, angle: 135 },
       images: [], // [{id, kind: "upload" | "url", url?, color?, lum?}]  图片本体在 IndexedDB
       current: "", // 当前选中的图片 id
       random: false, // 每次打开随机换一张
+      // 在线随机壁纸：source 是壁纸来源，url 是自定义接口地址，every 是多久换一张
+      online: { source: "picsum", url: "", every: "open" }, // every: open | hour | day | manual
       blur: 0, // 模糊 px
       dim: 25, // 暗度 %
     },
@@ -127,6 +138,19 @@ export function normalizeSettings(raw) {
 
   out.widgets = { clock: bool(isObj(raw.widgets) ? raw.widgets.clock : undefined, d.widgets.clock) };
 
+  const f = isObj(raw.font) ? raw.font : {};
+  const step100 = (v, min, max, dflt) => Math.round(num(v, min, max, dflt) / 100) * 100;
+  out.font = {
+    family: oneOf(f.family, ["system", "serif", "kai", "round", "mono", "custom"], d.font.family),
+    // 字体名里去掉引号、分号、括号这类会破坏样式的字符
+    custom: str(f.custom, 40).replace(/["';:{}()<>\\]/g, "").trim(),
+    scale: Math.round(num(f.scale, 85, 130, d.font.scale)),
+    weight: step100(f.weight, 300, 700, d.font.weight),
+    clockScale: Math.round(num(f.clockScale, 60, 160, d.font.clockScale)),
+    clockWeight: step100(f.clockWeight, 100, 900, d.font.clockWeight),
+  };
+  if (out.font.family === "custom" && !out.font.custom) out.font.family = "system";
+
   const b = isObj(raw.bg) ? raw.bg : {};
   const c = isObj(b.color) ? b.color : {};
   const images = [];
@@ -142,8 +166,15 @@ export function normalizeSettings(raw) {
     } else continue;
     imageIds.add(item.id);
   }
+  const o = isObj(b.online) ? b.online : {};
+  const online = {
+    source: oneOf(o.source, ["picsum", "custom"], d.bg.online.source),
+    url: safeUrl(o.url),
+    every: oneOf(o.every, ["open", "hour", "day", "manual"], d.bg.online.every),
+  };
+  if (online.source === "custom" && !online.url) online.source = "picsum"; // 选了自定义接口但没填地址
   out.bg = {
-    type: oneOf(b.type, ["preset", "color", "image"], d.bg.type),
+    type: oneOf(b.type, ["preset", "color", "image", "online"], d.bg.type),
     preset: BACKGROUND_PRESETS.some((p) => p.id === b.preset) ? b.preset : d.bg.preset,
     color: {
       c1: hex(c.c1, d.bg.color.c1),
@@ -154,6 +185,7 @@ export function normalizeSettings(raw) {
     images,
     current: imageIds.has(b.current) ? b.current : images[0]?.id || "",
     random: bool(b.random, d.bg.random),
+    online,
     blur: num(b.blur, 0, 30, d.bg.blur),
     dim: num(b.dim, 0, 80, d.bg.dim),
   };

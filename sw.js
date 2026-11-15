@@ -1,7 +1,8 @@
 // Service Worker：让起始页可以"添加到主屏幕"，并在断网时也能打开。
-// 策略：本站文件"网络优先"——有网就拿最新的，没网才用上次存下的。
-// 站外请求（搜索引擎、AI 接口、状态检测）完全不经手。
-const CACHE = "start-page-v1";
+// 策略：起始页自己的文件"网络优先"——有网就拿最新的，没网才用上次存下的。
+// 其他一律不经手：站外请求（搜索引擎、壁纸、AI 接口、状态检测），
+// 以及同一个域名下别的应用（如 /duo/、/uq/、/yanlu/）的页面和接口。
+const CACHE = "start-page-v2";
 
 // 首次安装时预先存好的核心文件
 const CORE = [
@@ -19,6 +20,7 @@ const CORE = [
   "assets/js/idb.js",
   "assets/js/background.js",
   "assets/js/widgets.js",
+  "assets/js/typography.js",
   "assets/js/engines.js",
   "assets/js/search.js",
   "assets/js/nav.js",
@@ -57,11 +59,20 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   const request = event.request;
-  // 只处理本站的普通读取请求；"不要缓存"的请求（状态检测）也放行
+  // 只处理普通读取请求；"不要缓存"的请求（状态检测）放行
   if (request.method !== "GET" || request.cache === "no-store") return;
-  if (new URL(request.url).origin !== self.location.origin) return;
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin || !isOwnFile(url.pathname)) return;
   event.respondWith(networkFirst(request));
 });
+
+// 起始页自己的文件：首页、/about/、assets/、config/ 和清单文件。别的路径属于其他应用，不碰。
+const BASE = new URL("./", self.location).pathname; // 起始页所在的目录，如 "/" 或 "/dsh/"
+function isOwnFile(pathname) {
+  if (!pathname.startsWith(BASE)) return false;
+  const rest = pathname.slice(BASE.length);
+  return rest === "" || rest === "index.html" || rest === "manifest.webmanifest" || /^(assets|config|about)\//.test(rest) || rest === "about";
+}
 
 async function networkFirst(request) {
   const cache = await caches.open(CACHE);

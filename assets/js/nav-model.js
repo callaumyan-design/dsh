@@ -25,6 +25,8 @@ export function normalizeEntry(raw, { custom = false } = {}) {
     name,
     url,
     icon: text(raw.icon, 300),
+    // 图标底色（可选），如 "#5b5bd6"；不写就用默认的淡蓝色
+    color: typeof raw.color === "string" && /^#[0-9a-f]{6}$/i.test(raw.color.trim()) ? raw.color.trim().toLowerCase() : "",
     desc: text(raw.desc, 80),
     group: text(raw.group, 20) || DEFAULT_GROUP,
     newTab: raw.newTab !== false,

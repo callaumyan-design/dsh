@@ -3,6 +3,7 @@
 import { store } from "./store.js";
 import { initBackground } from "./background.js";
 import { initClock } from "./widgets.js";
+import { initTypography } from "./typography.js";
 import { initSearch, openUrl } from "./search.js";
 import { initNav } from "./nav.js";
 import { aiMode, catgptUrl } from "./ai/link.js";
@@ -29,7 +30,8 @@ syncViewport();
 window.visualViewport?.addEventListener("resize", syncViewport);
 window.addEventListener("resize", syncViewport);
 
-// ---------- 背景、时钟 ----------
+// ---------- 文字、背景、时钟 ----------
+initTypography();
 initBackground();
 initClock();
 
