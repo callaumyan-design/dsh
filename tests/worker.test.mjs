@@ -47,7 +47,7 @@ test("不存在的地址返回 404 页面，不会报错", async () => {
 
 test("缓存：页面和脚本每次确认，图片缓存一天；内容没变时返回 304", async () => {
   const page = await get("/");
-  assert.equal(page.headers.get("cache-control"), "no-cache");
+  assert.equal(page.headers.get("cache-control"), "no-cache, no-transform");
   assert.equal((await get("/assets/icons/icon-192.png")).headers.get("cache-control"), "public, max-age=86400");
   const again = await get("/", { headers: { "If-None-Match": page.headers.get("etag") } });
   assert.equal(again.status, 304);

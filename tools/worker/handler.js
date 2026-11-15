@@ -52,8 +52,10 @@ export function createHandler(files, redirects = {}) {
     const headers = {
       "Content-Type": file.type,
       ETag: file.etag,
-      // 图片很少变，可以多缓存一会儿；页面、样式、脚本每次都向服务器确认一下有没有新版本（没变就不重新下载）
-      "Cache-Control": file.type.startsWith("image/") ? "public, max-age=86400" : "no-cache",
+      // 图片很少变，可以多缓存一会儿；页面、样式、脚本每次都向服务器确认一下有没有新版本（没变就不重新下载）。
+      // no-transform：告诉 Cloudflare 不要改动内容——否则它会往网页里自动塞一段统计脚本，
+      // 而起始页的安全策略只允许运行自己的脚本，会被拦下并在控制台报错。
+      "Cache-Control": file.type.startsWith("image/") ? "public, max-age=86400" : "no-cache, no-transform",
       "X-Content-Type-Options": "nosniff",
       "Referrer-Policy": "no-referrer",
     };
