@@ -100,10 +100,12 @@ export function render() {
       h("ul", { class: "nav-grid", dataset: { group: group.name } }, group.items.map(renderCard))
     )
   );
-  if (!sections.length && !editor) {
-    sections.push(h("p", { class: "notice glass" }, "还没有导航入口。点右上角的铅笔按钮可以添加。"));
-  }
   root.replaceChildren(...(editor ? [editor.bar] : []), ...sections);
+  // 一个入口都没有时，导航区（和"跳到功能导航"的快捷链接）整个不显示，页面保持干净
+  const empty = !editor && !sections.length;
+  root.hidden = empty;
+  const skip = $(".skip-link");
+  if (skip) skip.hidden = empty;
   document.body.classList.toggle("editing", !!editor);
 }
 

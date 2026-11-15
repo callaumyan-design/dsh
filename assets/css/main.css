@@ -13,7 +13,7 @@
   --accent: #2563eb;
   --accent-text: #ffffff;
   --ai-1: #7c3aed;
-  --ai-2: #0891b2;
+  --ai-2: #0e7490;
   --danger: #dc2626;
 
   --radius: 16px;
@@ -45,7 +45,7 @@
   --border-strong: rgb(255 255 255 / 0.3);
   --hover: rgb(255 255 255 / 0.1);
   --accent-soft: rgb(96 165 250 / 0.2);
-  --accent-fg: #93c5fd;
+  --accent-fg: #bfdbfe;
   --ai-fg: #c4b5fd;
   --focus: #ffffff;
   --focus-halo: #2563eb;
@@ -66,7 +66,7 @@
   --border-strong: rgb(15 23 42 / 0.34);
   --hover: rgb(15 23 42 / 0.07);
   --accent-soft: rgb(37 99 235 / 0.12);
-  --accent-fg: #1d4ed8;
+  --accent-fg: #1e40af;
   --ai-fg: #6d28d9;
   --focus: #1d4ed8;
   --focus-halo: #ffffff;
@@ -138,14 +138,6 @@ svg.icon {
   stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
-}
-
-kbd {
-  font: 12px/1 var(--mono);
-  padding: 3px 6px;
-  border-radius: 6px;
-  border: 1px solid var(--border-strong);
-  background: var(--hover);
 }
 
 .sr-only {
@@ -264,9 +256,13 @@ kbd {
 
 /* ---------- 5. 时钟 / 问候 ---------- */
 main {
+  display: flex;
+  flex-direction: column;
   width: min(1120px, 100%);
+  min-height: 100vh;
+  min-height: 100dvh;
   margin: 0 auto;
-  padding: 0 max(16px, env(safe-area-inset-right)) calc(40px + env(safe-area-inset-bottom))
+  padding: 0 max(16px, env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom))
     max(16px, env(safe-area-inset-left));
 }
 
@@ -335,7 +331,6 @@ main {
   pointer-events: none;
 }
 
-.engine-badge,
 .search-clear,
 .search-go {
   flex: none;
@@ -345,6 +340,21 @@ main {
   height: 44px;
   border-radius: 50%;
   color: var(--text-2);
+}
+/* 左边的引擎标记：带一个小箭头，提示可以点开切换 */
+.engine-badge {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  height: 44px;
+  padding: 0 5px 0 7px;
+  border-radius: 22px;
+  color: var(--text-3);
+}
+.badge-caret {
+  width: 14px;
+  height: 14px;
 }
 .engine-badge:hover,
 .search-clear:hover {
@@ -362,8 +372,7 @@ main {
   font-size: 14px;
   font-weight: 700;
 }
-.search[data-ai="true"] .badge-mark,
-.chip-mark.is-ai {
+.search[data-ai="true"] .badge-mark {
   background: linear-gradient(135deg, var(--ai-1), var(--ai-2));
   color: #fff;
 }
@@ -475,96 +484,101 @@ main {
   color: var(--text-3);
 }
 
-/* 搜索引擎切换 */
-.engines {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 8px;
-  width: min(680px, 100%);
-  min-height: 44px;
-  margin: 14px auto 0;
-}
-.chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  min-height: 44px;
-  padding: 0 14px 0 8px;
-  border-radius: 22px;
-  color: var(--text);
-  font-size: 14px;
-  font-weight: 500;
-  white-space: nowrap;
-  transition: background-color 0.15s;
-}
-.chip:hover {
+/* 搜索引擎菜单：点搜索框左边的标记弹出 */
+.engine-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 21;
+  width: min(250px, 100%);
+  max-height: 60vh;
+  padding: 6px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-radius: 20px;
   background: var(--glass-strong);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
 }
-.chip-mark {
+.engine-menu hr {
+  margin: 6px 8px;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+.engine-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px 0 8px;
+  border-radius: 12px;
+  color: var(--text);
+  font-size: 15px;
+  text-align: left;
+}
+.engine-item:hover,
+.engine-item:focus-visible {
+  background: var(--hover);
+}
+.engine-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 对勾只在当前选中的那一项上显示 */
+.engine-item > svg.icon {
+  width: 18px;
+  height: 18px;
+  visibility: hidden;
+  color: var(--accent-fg);
+}
+.engine-item[aria-checked="true"] {
+  font-weight: 600;
+}
+.engine-item[aria-checked="true"] > svg.icon {
+  visibility: visible;
+}
+.engine-add {
+  color: var(--text-2);
+}
+.engine-mark {
+  flex: none;
   display: grid;
   place-items: center;
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   background: var(--accent-soft);
   color: var(--accent-fg);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
 }
-.chip-mark svg.icon {
-  width: 14px;
-  height: 14px;
+.engine-mark svg.icon {
+  width: 15px;
+  height: 15px;
 }
-.chip[aria-checked="true"] {
-  background: var(--accent);
-  border-color: transparent;
-  color: var(--accent-text);
-}
-.chip[aria-checked="true"] .chip-mark {
-  background: rgb(255 255 255 / 0.24);
+/* AI：渐变色标记，和普通搜索引擎明显区分 */
+.engine-mark.is-ai {
+  background: linear-gradient(135deg, var(--ai-1), var(--ai-2));
   color: #fff;
 }
-/* AI 选项：平时就带渐变描边，选中后整块渐变 */
-.chip.is-ai {
-  border-color: #a78bfa;
-}
-.chip.is-ai[aria-checked="true"] {
-  background: linear-gradient(120deg, var(--ai-1), var(--ai-2));
-}
-.chip.chip-add {
-  padding: 0;
-  width: 44px;
-  justify-content: center;
-  color: var(--text-2);
-}
-
-.kbd-hints {
-  display: none;
-  width: fit-content;
-  max-width: 100%;
-  margin: 14px auto 0;
-  padding: 6px 14px;
-  border-radius: 999px;
-  font-size: 12.5px;
-  color: var(--text-2);
-}
-.kbd-hints kbd {
-  margin: 0 2px 0 8px;
-}
-.kbd-hints kbd:first-child {
-  margin-left: 0;
-}
-/* 快捷键提示只给有键盘鼠标的设备看 */
-@media (hover: hover) and (pointer: fine) {
-  .kbd-hints {
-    display: block;
-  }
+.engine-item.is-ai .engine-name {
+  color: var(--ai-fg);
+  font-weight: 600;
 }
 
 /* ---------- 7. 导航 ---------- */
 .nav {
   margin-top: clamp(28px, 6vh, 56px);
+}
+.nav:focus {
+  outline: 0;
+  box-shadow: none;
 }
 .nav-group + .nav-group {
   margin-top: 22px;
@@ -696,10 +710,12 @@ main {
   }
 }
 
+/* 页脚始终贴在页面最下面，不挤在搜索框旁边 */
 .site-foot {
   display: flex;
   justify-content: center;
-  margin-top: 36px;
+  margin-top: auto;
+  padding-top: 36px;
 }
 .site-foot p {
   margin: 0;
@@ -1399,9 +1415,6 @@ input[type="color"] {
   margin: 0;
   font-size: 16px;
   white-space: nowrap;
-}
-.ai-title .chip-mark {
-  flex: none;
 }
 .ai-head-btn {
   min-height: 36px;

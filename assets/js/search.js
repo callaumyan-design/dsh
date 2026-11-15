@@ -45,7 +45,7 @@ export function initSearch({ onAsk, onAddEngine }) {
   const goBtn = $("#q-go");
   const badge = $("#engine-badge");
   const badgeMark = $("#badge-mark");
-  const chips = $("#engines");
+  const menu = $("#engine-menu");
   const pop = $("#history-pop");
   const listEl = $("#history");
 
@@ -56,7 +56,9 @@ export function initSearch({ onAsk, onAddEngine }) {
 
   const current = () => engines.find((e) => e.id === currentId) || engines[0];
 
-  // ---------- 引擎 ----------
+  // ---------- 引擎：点搜索框左边的标记，弹出菜单切换 ----------
+  const isDesktop = () => matchMedia("(hover: hover) and (pointer: fine)").matches;
+
   function markFor(engine) {
     return engine.ai ? icon("sparkles") : engine.mark;
   }
@@ -67,54 +69,48 @@ export function initSearch({ onAsk, onAddEngine }) {
     const wanted = settings.search.remember && settings.search.last ? settings.search.last : settings.search.engine;
     if (!engines.some((e) => e.id === currentId)) currentId = engines.some((e) => e.id === wanted) ? wanted : engines[0].id;
 
-    chips.replaceChildren(
+    menu.replaceChildren(
       ...engines.map((engine) =>
         h(
           "button",
           {
             type: "button",
-            class: `chip glass${engine.ai ? " is-ai" : ""}`,
-            role: "radio",
-            "aria-checked": String(engine.id === currentId),
-            tabindex: engine.id === currentId ? "0" : "-1",
+            class: `engine-item${engine.ai ? " is-ai" : ""}`,
+            role: "menuitemradio",
+            "aria-checked": "false",
+            tabindex: "-1",
             dataset: { id: engine.id },
-            title: engine.bangs.length ? `前缀直达：!${engine.bangs[0]} 关键词` : null,
+            title: engine.bangs.length ? `也可以直接输入：!${engine.bangs[0]} 关键词` : null,
           },
-          h("span", { class: `chip-mark${engine.ai ? " is-ai" : ""}`, "aria-hidden": "true" }, markFor(engine)),
-          engine.name
+          h("span", { class: `engine-mark${engine.ai ? " is-ai" : ""}`, "aria-hidden": "true" }, markFor(engine)),
+          h("span", { class: "engine-name" }, engine.name),
+          icon("check")
         )
       ),
-      h(
-        "button",
-        { type: "button", class: "chip chip-add glass", "aria-label": "添加自定义搜索引擎", title: "添加自定义搜索引擎", onclick: onAddEngine },
-        icon("plus")
-      )
+      h("hr", { role: "separator" }),
+      h("button", { type: "button", class: "engine-item engine-add", role: "menuitem", tabindex: "-1", dataset: { add: "1" } }, h("span", { class: "engine-mark", "aria-hidden": "true" }, icon("plus")), h("span", { class: "engine-name" }, "添加搜索引擎…"))
     );
     paintCurrent();
   }
 
   function paintCurrent() {
     const engine = current();
-    for (const chip of chips.querySelectorAll('[role="radio"]')) {
-      const on = chip.dataset.id === engine.id;
-      chip.setAttribute("aria-checked", String(on));
-      chip.tabIndex = on ? 0 : -1;
-    }
+    for (const item of menu.querySelectorAll('[role="menuitemradio"]')) item.setAttribute("aria-checked", String(item.dataset.id === engine.id));
     form.dataset.ai = String(!!engine.ai);
     badgeMark.replaceChildren(markFor(engine));
-    badge.setAttribute("aria-label", `当前：${engine.name}，点击切换搜索引擎`);
+    badge.setAttribute("aria-label", `搜索引擎：${engine.name}，点击切换`);
     input.placeholder = engine.ai ? "问 AI 任何问题…" : `用 ${engine.name} 搜索…`;
     goBtn.setAttribute("aria-label", engine.ai ? "问 AI" : "搜索");
     goBtn.replaceChildren(icon(engine.ai ? "sparkles" : "search"));
   }
 
-  function setEngine(id, { silent = false } = {}) {
+  function setEngine(id) {
     if (!engines.some((e) => e.id === id)) return;
     currentId = id;
     paintCurrent();
     // 记住上次的选择（包括 AI）
     if (store.get().search.last !== id) store.update((s) => (s.search.last = id));
-    if (!silent) announce(`已切换到 ${current().name}`);
+    announce(`已切换到 ${current().name}`);
   }
 
   function cycleEngine(step) {
@@ -122,26 +118,67 @@ export function initSearch({ onAsk, onAddEngine }) {
     setEngine(engines[(i + step + engines.length) % engines.length].id);
   }
 
-  chips.addEventListener("click", (e) => {
-    const chip = e.target.closest('[role="radio"]');
-    if (!chip) return;
-    setEngine(chip.dataset.id);
-    // 有键盘鼠标的设备上，选完引擎直接回到输入框；手机上不要弹键盘
-    if (matchMedia("(hover: hover) and (pointer: fine)").matches) input.focus();
+  const menuOpen = () => !menu.hidden;
+  const menuItems = () => [...menu.querySelectorAll(".engine-item")];
+
+  function openMenu() {
+    closeHistory();
+    menu.hidden = false;
+    badge.setAttribute("aria-expanded", "true");
+    // 菜单不要超出可见区域（手机软键盘弹出时可见区域会变小）
+    const visible = window.visualViewport ? visualViewport.height : window.innerHeight;
+    menu.style.maxHeight = Math.max(180, visible - form.getBoundingClientRect().bottom - 16) + "px";
+    (menu.querySelector('[aria-checked="true"]') || menuItems()[0]).focus();
+  }
+
+  /** focusTarget：关闭后把焦点交给谁（不传就不动焦点） */
+  function closeMenu(focusTarget) {
+    if (!menuOpen()) return;
+    menu.hidden = true;
+    badge.setAttribute("aria-expanded", "false");
+    focusTarget?.focus();
+  }
+
+  badge.addEventListener("click", () => (menuOpen() ? closeMenu(badge) : openMenu()));
+  badge.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowDown" && !menuOpen()) {
+      e.preventDefault();
+      openMenu();
+    }
   });
 
-  // 单选组的键盘操作：方向键切换
-  chips.addEventListener("keydown", (e) => {
-    const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
-    if (!step || !e.target.matches('[role="radio"]')) return;
-    e.preventDefault();
-    cycleEngine(step);
-    chips.querySelector('[aria-checked="true"]').focus();
+  menu.addEventListener("click", (e) => {
+    const item = e.target.closest(".engine-item");
+    if (!item) return;
+    if (item.dataset.add) {
+      closeMenu();
+      return onAddEngine();
+    }
+    setEngine(item.dataset.id);
+    // 有键盘鼠标的设备上，选完直接回到输入框；手机上不主动弹键盘
+    closeMenu(isDesktop() ? input : badge);
   });
 
-  badge.addEventListener("click", () => {
-    cycleEngine(1);
-    input.focus();
+  // 菜单的键盘操作：上下键移动，Home/End 到首尾，Esc 关闭
+  menu.addEventListener("keydown", (e) => {
+    const list = menuItems();
+    const index = list.indexOf(document.activeElement);
+    const move = { ArrowDown: index + 1, ArrowUp: index - 1, Home: 0, End: list.length - 1 }[e.key];
+    if (move !== undefined) {
+      e.preventDefault();
+      list[(move + list.length) % list.length].focus();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      e.stopPropagation();
+      closeMenu(badge);
+    } else if (e.key === "Tab") {
+      closeMenu(); // 让 Tab 照常把焦点移走
+    }
+  });
+
+  // 点菜单以外的地方、或焦点离开搜索区域时，收起菜单
+  document.addEventListener("pointerdown", (e) => {
+    if (menuOpen() && !menu.contains(e.target) && !badge.contains(e.target)) closeMenu();
   });
 
   // ---------- 历史下拉 ----------
@@ -157,6 +194,7 @@ export function initSearch({ onAsk, onAddEngine }) {
   }
 
   function openHistory() {
+    closeMenu();
     if (!store.get().search.history) return closeHistory();
     const typed = input.value.trim().toLowerCase();
     items = searchHistory
@@ -271,7 +309,9 @@ export function initSearch({ onAsk, onAddEngine }) {
     if (!isOpen()) openHistory();
   });
   form.addEventListener("focusout", (e) => {
-    if (!form.contains(e.relatedTarget)) closeHistory();
+    if (form.contains(e.relatedTarget)) return;
+    closeHistory();
+    closeMenu();
   });
 
   input.addEventListener("keydown", (e) => {
@@ -319,7 +359,7 @@ export function initSearch({ onAsk, onAddEngine }) {
   // 从搜索结果页"后退"回来时，选中上次的关键词，方便直接改
   window.addEventListener("pageshow", (e) => {
     syncClear();
-    if (e.persisted && input.value && matchMedia("(hover: hover) and (pointer: fine)").matches) input.select();
+    if (e.persisted && input.value && isDesktop()) input.select();
   });
 
   // ---------- 启动 ----------
@@ -340,7 +380,7 @@ export function initSearch({ onAsk, onAddEngine }) {
   syncClear();
 
   // 桌面端打开页面自动聚焦；手机端不自动聚焦，避免一打开就弹出键盘
-  if (matchMedia("(hover: hover) and (pointer: fine)").matches) input.focus({ preventScroll: true });
+  if (isDesktop()) input.focus({ preventScroll: true });
 
   return {
     focus: () => input.focus(),

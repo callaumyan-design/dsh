@@ -70,6 +70,7 @@ import("../../config/nav.js")
   .then((mod) => initNav(mod.default))
   .catch((err) => {
     console.error("config/nav.js 加载失败：", err);
+    $("#nav").hidden = false;
     $("#nav").replaceChildren(
       h("p", { class: "notice glass", role: "alert" }, "导航配置文件 config/nav.js 有格式错误（常见原因：漏了逗号或引号），请检查最近的修改。")
     );

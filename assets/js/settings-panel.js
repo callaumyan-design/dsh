@@ -147,7 +147,7 @@ function backgroundSection() {
     const { ok, failed } = await addUploads(files);
     uploadBtn.disabled = false;
     if (ok) toast(`已添加 ${ok} 张图片（已自动压缩）` + (failed ? `，${failed} 张无法识别` : ""));
-    else toast("这些文件不是浏览器能识别的图片");
+    else toast("图片没能添加：可能是格式不支持，或浏览器不允许网站保存数据");
   });
 
   const urlInput = h("input", { class: "input", type: "url", inputMode: "url", placeholder: "https://…/图片.jpg", "aria-label": "图片链接", autocomplete: "off", autocapitalize: "off", spellcheck: false });
@@ -297,6 +297,7 @@ function searchSection() {
     switchRow("按 Tab 切换引擎", "在搜索框里按 Tab 换引擎，按 Esc 离开搜索框", (s) => s.search.tabSwitch, (s, v) => (s.search.tabSwitch = v)),
     switchRow("记录搜索历史", "只保存在这台设备上，不会上传", (s) => s.search.history, (s, v) => (s.search.history = v)),
     h("div", { class: "btn-row" }, clearBtn),
+    h("p", { class: "hint" }, "快捷键：按 / 聚焦搜索框，Enter 搜索。输入“!g 关键词”直接用 Google 搜，“!b”Bing，“!bd”百度，“!d”DuckDuckGo，“!ai 问题”直接问 AI。"),
     h("h4", { class: "field-label" }, "自定义搜索引擎"),
     list,
     form
@@ -371,7 +372,7 @@ function dataSection() {
       await applyImport(data);
       toast("导入完成");
     } catch {
-      toast("这个文件不是起始页导出的设置文件");
+      toast("导入失败：这不是起始页导出的设置文件，或浏览器不允许网站保存数据");
     }
   });
   const importBtn = h("button", { type: "button", class: "btn", onclick: () => fileInput.click() }, icon("upload"), "导入设置");

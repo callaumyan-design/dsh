@@ -57,7 +57,7 @@
       <div id="bg-dim"></div>
     </div>
 
-    <a class="skip-link" href="#nav">跳到功能导航</a>
+    <a class="skip-link" href="#nav" hidden>跳到功能导航</a>
 
     <header class="topbar">
       <button type="button" class="icon-btn glass" id="btn-edit" aria-pressed="false" aria-label="编辑导航" title="编辑导航">
@@ -85,8 +85,19 @@
         <!-- 搜索框：页面的视觉中心 -->
         <form class="search" id="search" role="search" autocomplete="off" novalidate>
           <div class="search-box glass">
-            <button type="button" class="engine-badge" id="engine-badge" aria-label="切换搜索引擎" title="切换搜索引擎">
+            <!-- 点这里弹出菜单，切换搜索引擎 -->
+            <button
+              type="button"
+              class="engine-badge"
+              id="engine-badge"
+              aria-haspopup="menu"
+              aria-expanded="false"
+              aria-controls="engine-menu"
+              aria-label="切换搜索引擎"
+              title="切换搜索引擎"
+            >
               <span class="badge-mark" id="badge-mark" aria-hidden="true"></span>
+              <svg class="icon badge-caret" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
             </button>
             <label class="sr-only" for="q">搜索内容</label>
             <input
@@ -120,6 +131,9 @@
             </button>
           </div>
 
+          <!-- 搜索引擎菜单（内容由 search.js 填入） -->
+          <div class="engine-menu" id="engine-menu" role="menu" aria-label="搜索引擎" hidden></div>
+
           <!-- 本地搜索历史 -->
           <div class="history" id="history-pop" hidden>
             <ul id="history" role="listbox" aria-label="搜索历史"></ul>
@@ -130,18 +144,13 @@
           </div>
         </form>
 
-        <!-- 搜索引擎切换 -->
-        <div class="engines" id="engines" role="radiogroup" aria-label="搜索引擎"></div>
-
-        <p class="kbd-hints glass" id="kbd-hints">
-          <kbd>/</kbd>聚焦 <kbd>Tab</kbd>切换引擎 <kbd>Enter</kbd>搜索 <kbd>Esc</kbd>离开输入框
-          <kbd>!g</kbd><kbd>!bd</kbd><kbd>!ai</kbd>前缀直达
-        </p>
+        <!-- 快捷键说明：页面上不显示（设置面板里有），只读给读屏软件 -->
+        <p class="sr-only" id="kbd-hints">按 Tab 切换搜索引擎，按 Enter 搜索，按 Esc 离开输入框。</p>
         <p class="sr-only" id="live" aria-live="polite"></p>
       </section>
 
       <!-- 功能导航：内容来自 config/nav.js -->
-      <nav class="nav" id="nav" aria-label="功能导航"></nav>
+      <nav class="nav" id="nav" aria-label="功能导航" tabindex="-1" hidden></nav>
 
       <footer class="site-foot">
         <p class="glass"><a href="about/">关于本站</a></p>

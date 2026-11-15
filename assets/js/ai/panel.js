@@ -53,7 +53,7 @@ function build() {
   const head = h(
     "div",
     { class: "panel-head" },
-    h("h2", { class: "ai-title", id: "ai-title" }, h("span", { class: "chip-mark is-ai", "aria-hidden": "true" }, icon("sparkles")), "AI", h("span", { class: "label-long" }, ` · ${aiConfig.name}`))
+    h("h2", { class: "ai-title", id: "ai-title" }, h("span", { class: "engine-mark is-ai", "aria-hidden": "true" }, icon("sparkles")), "AI", h("span", { class: "label-long" }, ` · ${aiConfig.name}`))
   );
   if (aiConfig.pageUrl) {
     // 把当前问题带到 catgpt 页面（?q=问题），在那边继续
