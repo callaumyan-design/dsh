@@ -78,3 +78,10 @@ test("搬走的旧地址会跳到新地址，并保留后面的路径和参数",
   assert.equal((await go("/dropbox")).status, 404); // 只是开头几个字母相同的不算
   assert.equal((await go("/")).status, 200);
 });
+
+test("带 www 的地址转到不带 www 的，路径和参数不变", async () => {
+  const res = await fetch(new Request("https://www.example.test/uq/?a=1"));
+  assert.equal(res.status, 301);
+  assert.equal(res.headers.get("location"), "https://example.test/uq/?a=1");
+  assert.equal((await fetch(new Request("https://example.test/uq/"))).status, 200);
+});

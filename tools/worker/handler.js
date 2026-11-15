@@ -34,6 +34,11 @@ function movedTo(redirects, url) {
 export function createHandler(files, redirects = {}) {
   return async function fetch(request) {
     const url = new URL(request.url);
+    // 带 www 的地址统一转到不带 www 的：两个地址在浏览器眼里是两个网站，设置和自己加的入口不互通
+    if (url.hostname.startsWith("www.")) {
+      url.hostname = url.hostname.slice(4);
+      return new Response(null, { status: 301, headers: { Location: url.href } });
+    }
     // 搬走的旧地址：不管是什么请求，都指到新地址去（307 会保留原来的请求方式）
     const moved = movedTo(redirects, url);
     if (moved) return new Response(null, { status: 307, headers: { Location: moved, "Cache-Control": "no-store" } });
