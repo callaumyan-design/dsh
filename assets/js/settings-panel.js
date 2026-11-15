@@ -341,7 +341,8 @@ function dataSection() {
         exportBtn.disabled = true;
         try {
           const data = await buildExport(withImages.checked);
-          downloadText(`起始页设置-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(data));
+          // 文件名只用英文和数字，避免个别系统把中文文件名弄乱
+          downloadText(`start-page-settings-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(data));
           toast("已导出。搜索历史和 AI 访问密码不会包含在文件里");
         } catch {
           toast("导出失败，请重试");

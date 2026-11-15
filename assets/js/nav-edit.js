@@ -6,6 +6,10 @@ import { ICONS } from "./icons.js";
 import { uid } from "./store.js";
 import { $, h, icon, iconButton, toast, announce, openDialog, confirmDialog } from "./ui.js";
 
+// 图标选择器里不列出纯界面用的图标（关闭、箭头之类），只留适合做入口图标的
+const UI_ONLY = new Set(["x", "plus", "check", "grip-vertical", "eye", "eye-off", "arrow-up", "arrow-right", "chevron-left", "chevron-right", "chevron-down", "square", "copy", "rotate-ccw", "refresh-cw", "triangle-alert", "circle-help", "upload", "shuffle", "pencil", "external-link"]);
+const PICKER_ICONS = Object.keys(ICONS).filter((key) => !UI_ONLY.has(key));
+
 export function createEditor({ exit }) {
   // ---------- 顶部工具条 ----------
   const bar = h(
@@ -108,27 +112,28 @@ export function createEditor({ exit }) {
   }
 
   // ---------- 拖动排序（鼠标和手指都能用） ----------
+  // 做法：被拖的卡片脱离网格、跟着指针走；网格里放一个虚线"占位框"表示它会落在哪。
+  // 拖动过程中只移动占位框，不移动卡片本身 —— 卡片一旦被挪动，浏览器就会丢掉对这次按压的跟踪。
   function startDrag(e, li, handle) {
     if (e.pointerType === "mouse" && e.button !== 0) return;
     e.preventDefault();
+    const pointerId = e.pointerId;
     const grid = li.parentElement;
     const rect = li.getBoundingClientRect();
     const offsetX = e.clientX - rect.left;
     const offsetY = e.clientY - rect.top;
 
-    // 跟着手指走的"影子"
-    const ghost = li.cloneNode(true);
-    ghost.classList.add("drag-ghost");
-    ghost.style.width = rect.width + "px";
-    ghost.style.height = rect.height + "px";
-    ghost.setAttribute("aria-hidden", "true");
-    document.body.append(ghost);
-    li.classList.add("is-dragging");
+    const placeholder = h("li", { class: "drag-placeholder", "aria-hidden": "true" });
+    placeholder.style.height = rect.height + "px";
+    grid.insertBefore(placeholder, li);
+    li.style.width = rect.width + "px";
+    li.style.height = rect.height + "px";
+    li.classList.add("drag-ghost");
 
     let x = e.clientX;
     let y = e.clientY;
     let frame = 0;
-    const place = () => (ghost.style.transform = `translate(${x - offsetX}px, ${y - offsetY}px)`);
+    const place = () => (li.style.transform = `translate(${x - offsetX}px, ${y - offsetY}px)`);
     place();
 
     function reorder() {
@@ -138,7 +143,7 @@ export function createEditor({ exit }) {
       // 一列（手机）按上下判断，多列按左右判断
       const singleColumn = r.width > grid.clientWidth * 0.75;
       const before = singleColumn ? y < r.top + r.height / 2 : x < r.left + r.width / 2;
-      grid.insertBefore(li, before ? target : target.nextSibling);
+      grid.insertBefore(placeholder, before ? target : target.nextSibling);
     }
 
     // 拖到屏幕上下边缘时自动滚动页面
@@ -152,23 +157,33 @@ export function createEditor({ exit }) {
     frame = requestAnimationFrame(tick);
 
     function onMove(ev) {
+      if (ev.pointerId !== pointerId) return;
       x = ev.clientX;
       y = ev.clientY;
       place();
     }
-    function onEnd() {
+    function onEnd(ev) {
+      if (ev.pointerId !== pointerId) return;
       cancelAnimationFrame(frame);
-      handle.removeEventListener("pointermove", onMove);
-      handle.removeEventListener("pointerup", onEnd);
-      handle.removeEventListener("pointercancel", onEnd);
-      ghost.remove();
-      li.classList.remove("is-dragging");
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onEnd);
+      window.removeEventListener("pointercancel", onEnd);
+      // 卡片落到占位框的位置
+      li.classList.remove("drag-ghost");
+      li.style.width = li.style.height = li.style.transform = "";
+      grid.insertBefore(li, placeholder);
+      placeholder.remove();
       saveOrder();
+      handle.focus();
     }
-    handle.setPointerCapture(e.pointerId);
-    handle.addEventListener("pointermove", onMove);
-    handle.addEventListener("pointerup", onEnd);
-    handle.addEventListener("pointercancel", onEnd);
+    try {
+      handle.setPointerCapture(pointerId);
+    } catch {
+      /* 个别浏览器不支持也没关系，下面在整个窗口上监听 */
+    }
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onEnd);
+    window.addEventListener("pointercancel", onEnd);
   }
 
   // ---------- 添加 / 修改入口的表单 ----------
@@ -211,7 +226,7 @@ export function createEditor({ exit }) {
     const picker = h(
       "div",
       { class: "icon-picker", role: "group", "aria-label": "选择图标" },
-      Object.keys(ICONS).map((key) =>
+      PICKER_ICONS.map((key) =>
         h("button", { type: "button", "aria-label": key, title: key, "aria-pressed": String(key === iconInput.value), dataset: { icon: key } }, icon(key))
       )
     );

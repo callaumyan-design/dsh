@@ -797,20 +797,23 @@ main {
   color: var(--text);
 }
 
-.card-wrap.is-dragging {
-  opacity: 0.35;
-}
-.drag-ghost {
+/* 正在被拖动的卡片：脱离网格，跟着指针走 */
+.card-wrap.drag-ghost {
   position: fixed;
   z-index: 60;
   left: 0;
   top: 0;
   margin: 0;
   pointer-events: none;
-  list-style: none;
   box-shadow: 0 18px 40px rgb(0 0 0 / 0.35);
   border-radius: var(--radius);
-  cursor: grabbing;
+}
+/* 虚线占位框：表示松手后卡片会落在这里 */
+.drag-placeholder {
+  min-width: 0;
+  border: 2px dashed var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--hover);
 }
 
 /* ---------- 9. 按钮 / 表单 / 弹窗 ---------- */
@@ -1072,8 +1075,7 @@ dialog::backdrop {
   min-height: 44px;
   margin-bottom: 8px;
 }
-.set-row > label,
-.set-row > .set-label {
+.set-row > label:not(.switch) {
   flex: 1;
   min-width: 0;
   font-size: 14px;
@@ -1396,6 +1398,7 @@ input[type="color"] {
   min-width: 0;
   margin: 0;
   font-size: 16px;
+  white-space: nowrap;
 }
 .ai-title .chip-mark {
   flex: none;
@@ -1405,8 +1408,9 @@ input[type="color"] {
   padding: 0 10px;
   font-size: 13px;
 }
+/* 手机上标题只留"AI"，把位置让给"在 catgpt 中打开"按钮 */
 @media (max-width: 480px) {
-  .ai-head-btn .label-long {
+  .ai-title .label-long {
     display: none;
   }
 }

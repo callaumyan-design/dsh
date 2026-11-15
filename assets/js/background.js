@@ -137,7 +137,9 @@ async function showImage(src, mine, onDone) {
 async function apply() {
   const bg = store.get().bg;
   const view = describe(bg);
-  const tone = view.lum * (1 - bg.dim / 100) >= LIGHT_TONE_FROM ? "light" : "dark";
+  // 暗度遮罩是按"颜色值"压暗的，换算到亮度上大约是 (1 - 暗度) 的 2.4 次方
+  const effectiveLum = view.lum * (1 - bg.dim / 100) ** 2.4;
+  const tone = effectiveLum >= LIGHT_TONE_FROM ? "light" : "dark";
 
   root.style.setProperty("--blur", bg.blur + "px");
   root.style.setProperty("--dim", String(bg.dim / 100));
@@ -206,7 +208,8 @@ export function shuffleBackground() {
   if (bg.images.length < 2) return;
   writeJSON(LAST_KEY, shownImageId());
   sessionPick = pickRandom(bg.images);
-  apply();
+  // 通过设置仓库更新，这样背景和设置面板里的高亮会一起刷新
+  store.update((s) => (s.bg.current = sessionPick));
 }
 
 /** 指定显示某张图片 */

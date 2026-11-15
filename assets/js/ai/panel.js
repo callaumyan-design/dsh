@@ -24,7 +24,8 @@ function build() {
 
   textarea = h("textarea", {
     rows: 1,
-    placeholder: "继续追问…（Enter 发送，Shift+Enter 换行）",
+    placeholder: "继续追问…",
+    title: "Enter 发送，Shift+Enter 换行",
     "aria-label": "输入问题",
     enterKeyHint: "send",
     autocomplete: "off",
