@@ -3,7 +3,7 @@
 import { store, readJSON, writeJSON, removeKey, safeUrl } from "./store.js";
 import { buildGroups, normalizeNavState } from "./nav-model.js";
 import { checkStatus, STATUS_TEXT } from "./status.js";
-import { $, h, icon, hasIcon } from "./ui.js";
+import { $, h, icon, hasIcon, isFramed } from "./ui.js";
 
 const NAV_KEY = "sp:nav";
 
@@ -57,8 +57,18 @@ export function entryIcon(entry) {
 
 // ---------- 渲染 ----------
 function shouldOpenInNewTab(entry) {
+  // 被嵌在别的页面里时，站外入口一律开新标签页（很多网站不允许被嵌入显示）
+  if (isFramed() && !isSameOrigin(entry.url)) return true;
   const mode = store.get().linkTarget;
   return mode === "new" ? true : mode === "same" ? false : entry.newTab;
+}
+
+function isSameOrigin(url) {
+  try {
+    return new URL(url, location.href).origin === location.origin;
+  } catch {
+    return false;
+  }
 }
 
 function paintStatus(dot, value) {

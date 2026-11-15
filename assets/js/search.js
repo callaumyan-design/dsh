@@ -1,7 +1,7 @@
 // 搜索框：引擎切换、快捷键、"!前缀"直达、本地搜索历史
 import { store, readJSON, writeJSON, removeKey } from "./store.js";
 import { listEngines, buildSearchUrl, parseBang } from "./engines.js";
-import { $, h, icon, iconButton, announce, isModalOpen } from "./ui.js";
+import { $, h, icon, iconButton, announce, isModalOpen, isFramed } from "./ui.js";
 
 const HISTORY_KEY = "sp:history";
 const HISTORY_MAX = 50; // 最多保存多少条
@@ -27,7 +27,8 @@ export const searchHistory = {
 
 /** 打开一个网址：新标签页或当前页 */
 export function openUrl(url, newTab) {
-  if (newTab) window.open(url, "_blank", "noopener,noreferrer");
+  // 被嵌在别的页面里时一律开新标签页：搜索引擎不允许自己被嵌在别的页面里显示
+  if (newTab || isFramed()) window.open(url, "_blank", "noopener,noreferrer");
   else window.location.assign(url);
 }
 

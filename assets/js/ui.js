@@ -110,6 +110,15 @@ export function confirmDialog({ title, message, okText = "确定", danger = fals
   });
 }
 
+/** 本页是不是被嵌在别的页面里（比如预览窗格）。嵌着的时候，站外网页只能在新标签页打开 */
+export function isFramed() {
+  try {
+    return window.self !== window.top;
+  } catch {
+    return true;
+  }
+}
+
 /** 是否正有弹窗开着（全局快捷键要避开） */
 export const isModalOpen = () => !!document.querySelector("dialog[open]");
 
