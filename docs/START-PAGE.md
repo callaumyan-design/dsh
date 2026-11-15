@@ -116,7 +116,7 @@
 | --- | --- | --- |
 | Duo 适配 | `./duo/`（本网站的子目录） | 仓库里的 `duo/index.html`，是用 Duo 追踪器分支里的数据生成的报告 |
 | UQ 校历 | `./uq/`（本网站的子目录） | 仓库里的 `uq/index.html`，是 UQ 校历分支上那个网页文件的副本 |
-| CatGPT | `https://callaum.com/` | 另外部署在微软（Azure）的服务器上 |
+| CatGPT | `https://omnichat-28701.japaneast.cloudapp.azure.com/` | 另外部署在微软（Azure）的服务器上，用的是那台服务器自带的网址 |
 | 砚录 | `https://ocr.callaum.com/` | 另外部署在 Cloudflare 上 |
 
 `duo/` 和 `uq/` 是副本，不会自动跟着原项目更新。原项目更新后，在仓库根目录运行：
@@ -138,19 +138,28 @@ node tools/deploy-cloudflare.mjs
 ```
 
 它把网站文件（首页、`about/`、`assets/`、`config/`、`uq/`、`duo/` 等）打成一个 Cloudflare Worker 上传，
-发布到 `https://start-page.<账户名>.workers.dev/`。需要一个有“Workers Scripts 编辑”权限的 Cloudflare API 令牌
+发布到 `https://start-page.<账户名>.workers.dev/`（`callaum.com` 绑的就是它，发布后两个地址同时更新）。需要一个有“Workers Scripts 编辑”权限的 Cloudflare API 令牌
 （环境变量 `CLOUDFLARE_API_TOKEN`；在 Claude 的云端会话里如果令牌已经保存在环境里就不用设）。
 加 `--dry-run` 只打包不上传。每次改了网站内容，重新运行一次就是更新。
 
-### 把 callaum.com 换成起始页
+### callaum.com 和 CatGPT 的地址
 
-`callaum.com` 现在指向微软服务器上的 CatGPT，所以要分两步：
+`callaum.com` 原来是 CatGPT 的地址。起始页接管这个域名时，CatGPT（以及同一台服务器上的 WiFi Drop）
+搬到了那台微软服务器自带的网址：`https://omnichat-28701.japaneast.cloudapp.azure.com/`。
 
-1. **先给 CatGPT 换个地址**（比如 `chat.callaum.com`）：在 Cloudflare 的 DNS 里加一条 `chat` 记录指向那台服务器，
-   再按 CatGPT 的部署说明（`omnichat/deploy/azure/README.md` 的“使用自己的域名”）把服务器上的域名改成新地址。
-   CatGPT 的数据都在服务器上不会丢，只是换了地址后要重新登录一次，装在主屏幕上的也要重新装。
-2. **再把 `callaum.com` 绑到起始页**：Cloudflare → Workers & Pages → `start-page` → Settings → Domains & Routes →
-   Add → Custom domain → 填 `callaum.com`。然后把 `config/nav.js` 里 CatGPT 的地址改成新地址，重新发布。
+- `callaum.com` 绑在 Cloudflare 的 `start-page` 项目上（Workers & Pages → `start-page` → Settings → Domains & Routes）。
+- 旧的 `callaum.com/drop/…` 会自动跳到新地址，规则写在 `tools/worker/redirects.json` 里。
+- 那台服务器按虚拟机的 `domain` 标签决定自己接受哪些地址（多个地址用逗号隔开）。
+
+**以后想给 CatGPT 换一个好看的地址**（比如 `chat.callaum.com`）：
+1. 在 Cloudflare 的 DNS 里加一条 `chat` 的 A 记录，指向那台服务器的 IP（不开代理）。
+2. 把虚拟机的 `domain` 标签改成新地址，并让服务器上的网关按新地址重新启动
+   （做法见 CatGPT 的 `omnichat/deploy/azure/README.md`）。
+3. 把 `config/nav.js` 里 CatGPT 的地址和 `tools/worker/redirects.json` 里的地址改成新的，重新发布。
+
+注意：那台服务器上的网关配置文件里有一段手工加的 WiFi Drop 设置，不在 CatGPT 的代码仓库里。
+服务器重启或运行它的更新脚本时，这个文件会被仓库里的版本覆盖，WiFi Drop 会因此打不开——
+想避免的话，需要把那段设置提交进 CatGPT 的仓库。
 
 起始页的离线缓存（`sw.js`）只管它自己的文件（首页、`about/`、`assets/`、`config/`），不会拦截或缓存同域名下其他应用的页面和接口。
 
