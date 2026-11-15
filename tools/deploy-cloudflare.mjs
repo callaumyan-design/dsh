@@ -86,22 +86,31 @@ if (DRY_RUN) process.exit(0);
 
 // ---------- 上传 ----------
 // 用 curl 发请求：它会自动走系统设置的网络代理，也方便一次上传很多文件
+const sleep = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+
 function cf(method, endpoint, extra = []) {
-  const args = ["-sS", "--fail-with-body", "-m", "120", "-X", method, API + endpoint];
+  const args = ["-sS", "-m", "120", "-X", method, API + endpoint];
   if (process.env.CLOUDFLARE_API_TOKEN) args.push("-H", `Authorization: Bearer ${process.env.CLOUDFLARE_API_TOKEN}`);
-  let text;
-  try {
-    text = execFileSync("curl", [...args, ...extra], { cwd: OUT, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
-  } catch (err) {
-    console.error(`请求失败：${method} ${endpoint}\n${err.stdout || err.message}`);
+  for (let attempt = 1; ; attempt++) {
+    let text = "";
+    let data = null;
+    try {
+      text = execFileSync("curl", [...args, ...extra], { cwd: OUT, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+      data = JSON.parse(text);
+    } catch (err) {
+      text = text || err.stdout || err.message;
+    }
+    if (data?.success) return data.result;
+    // Cloudflare 说"请求太频繁"时，等一会儿再试，最多试 6 次
+    const throttled = /"code":\s*(971|10429)|rate.?limit|throttl/i.test(text);
+    if (throttled && attempt < 6) {
+      console.log(`Cloudflare 提示请求太频繁，${attempt * 20} 秒后重试…`);
+      sleep(attempt * 20000);
+      continue;
+    }
+    console.error(`请求失败：${method} ${endpoint}\n${text.slice(0, 600)}`);
     process.exit(1);
   }
-  const data = JSON.parse(text);
-  if (!data.success) {
-    console.error(`Cloudflare 返回错误：${method} ${endpoint}\n${JSON.stringify(data.errors)}`);
-    process.exit(1);
-  }
-  return data.result;
 }
 
 let account = process.env.CLOUDFLARE_ACCOUNT_ID;
