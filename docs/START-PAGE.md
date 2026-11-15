@@ -15,6 +15,8 @@
 | 样式 | `assets/css/main.css` |
 | 功能代码 | `assets/js/`（每个文件开头有一句话说明它管什么） |
 | /about 页面 | `about/index.html`（README 改了要手动同步这里） |
+| Duo 报告、UQ 校历的副本 | `duo/`、`uq/`（用 `tools/refresh-apps.sh` 更新，不要手改） |
+| 发布到 Cloudflare | `tools/deploy-cloudflare.mjs`、`tools/worker/handler.js` |
 
 ## 新增一个导航入口
 
@@ -108,32 +110,53 @@
 2. 跨域白名单：`Access-Control-Allow-Origin: <起始页域名>`，`Access-Control-Allow-Headers: Content-Type, Authorization`，
    并正确回应 `OPTIONS` 预检请求。如果起始页和 CatGPT 部署在同一个域名下，就不需要这一条。
 
-## 挂到 callaum.com
-
-`config/nav.js` 里四个应用的地址是按下面这个方案先填的，实际放在别处就把地址改掉：
+## 四个应用在哪
 
 | 应用 | 地址 | 说明 |
 | --- | --- | --- |
-| 起始页 | `callaum.com/` | 本分支的全部文件 |
-| Duo 适配 | `callaum.com/duo/` | 每天生成的那份单文件网页，放成 `duo/index.html` |
-| UQ 校历 | `callaum.com/uq/` | `uq-chinese-calendar.html`，放成 `uq/index.html` |
-| 砚录 | `callaum.com/yanlu/` | 砚录的网页版（`yanlu-pwa.zip` 解压后的内容） |
-| CatGPT | `chat.callaum.com` | 见下 |
+| Duo 适配 | `./duo/`（本网站的子目录） | 仓库里的 `duo/index.html`，是用 Duo 追踪器分支里的数据生成的报告 |
+| UQ 校历 | `./uq/`（本网站的子目录） | 仓库里的 `uq/index.html`，是 UQ 校历分支上那个网页文件的副本 |
+| CatGPT | `https://callaum.com/` | 另外部署在微软（Azure）的服务器上 |
+| 砚录 | `https://ocr.callaum.com/` | 另外部署在 Cloudflare 上 |
 
-CatGPT 现在占着 `callaum.com` 的根目录，而且它的页面和接口都假定自己在根目录，所以不能直接挪进子目录。
-最省事的办法是给它换一个子域名（如 `chat.callaum.com`）：在 Cloudflare 里给 CatGPT 的 Worker 加上这个域名，
-再把 `callaum.com` 指向起始页。CatGPT 的代码不用改，数据都在服务器上不会丢，只是换了地址后要重新登录一次；
-装在主屏幕上的 CatGPT 也要从新地址重新装一次。
+`duo/` 和 `uq/` 是副本，不会自动跟着原项目更新。原项目更新后，在仓库根目录运行：
 
-起始页的离线缓存（`sw.js`）只管它自己的文件（首页、`about/`、`assets/`、`config/`），不会拦截或缓存同域名下其他应用的页面和接口。
+```bash
+bash tools/refresh-apps.sh
+```
+
+它会从那两个分支取最新内容，重新生成这两个文件。检查改动后提交，再重新发布。
 
 ## 部署
 
-没有构建步骤。用 GitHub Pages 的话：仓库 Settings → Pages → Source 选 “Deploy from a branch”，
-Branch 选 `main`、目录选 `/ (root)`，保存即可。之后每次合并到 `main` 都会自动更新。
+网站没有构建步骤，所有路径都是相对路径，放在域名根目录或子目录下都能用。
 
-所有路径都是相对路径，放在域名根目录或子目录（如 `用户名.github.io/dsh/`）下都能用。
-“添加到主屏幕”和离线打开需要 https（GitHub Pages 自带）。
+### 发布到 Cloudflare（现在用的方式）
+
+```bash
+node tools/deploy-cloudflare.mjs
+```
+
+它把网站文件（首页、`about/`、`assets/`、`config/`、`uq/`、`duo/` 等）打成一个 Cloudflare Worker 上传，
+发布到 `https://start-page.<账户名>.workers.dev/`。需要一个有“Workers Scripts 编辑”权限的 Cloudflare API 令牌
+（环境变量 `CLOUDFLARE_API_TOKEN`；在 Claude 的云端会话里如果令牌已经保存在环境里就不用设）。
+加 `--dry-run` 只打包不上传。每次改了网站内容，重新运行一次就是更新。
+
+### 把 callaum.com 换成起始页
+
+`callaum.com` 现在指向微软服务器上的 CatGPT，所以要分两步：
+
+1. **先给 CatGPT 换个地址**（比如 `chat.callaum.com`）：在 Cloudflare 的 DNS 里加一条 `chat` 记录指向那台服务器，
+   再按 CatGPT 的部署说明（`omnichat/deploy/azure/README.md` 的“使用自己的域名”）把服务器上的域名改成新地址。
+   CatGPT 的数据都在服务器上不会丢，只是换了地址后要重新登录一次，装在主屏幕上的也要重新装。
+2. **再把 `callaum.com` 绑到起始页**：Cloudflare → Workers & Pages → `start-page` → Settings → Domains & Routes →
+   Add → Custom domain → 填 `callaum.com`。然后把 `config/nav.js` 里 CatGPT 的地址改成新地址，重新发布。
+
+起始页的离线缓存（`sw.js`）只管它自己的文件（首页、`about/`、`assets/`、`config/`），不会拦截或缓存同域名下其他应用的页面和接口。
+
+### 其他静态托管
+
+也可以用 GitHub Pages：仓库 Settings → Pages → Source 选 “Deploy from a branch”，选分支和 `/ (root)`。
 
 ## 检查
 

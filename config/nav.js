@@ -26,13 +26,14 @@
 //     请在页面右上角的"编辑"模式里添加（只保存在你自己的浏览器里）。
 
 export default [
-  // 下面四个应用的网址是按"都放在 callaum.com 下面"的方案先填的：
-  // 相对路径 ./duo/ 表示"起始页所在网站的 /duo/ 目录"。应用实际放在别处的话，把 url 改成真实地址即可。
+  // 页面最下面的四个应用。
+  // ./duo/ 和 ./uq/ 是本网站自己的子目录（文件就在仓库的 duo/ 和 uq/ 文件夹里）；
+  // CatGPT 和砚录是另外部署的，写的是它们现在的真实地址。
   {
     name: "Duo 适配",
     icon: "smartphone",
     url: "./duo/",
-    desc: "iPhone Duo 折叠屏 App 适配进度，每天更新",
+    desc: "iPhone Duo 折叠屏 App 适配进度",
     group: "应用",
     newTab: false,
     color: "#0f766e",
@@ -40,7 +41,7 @@ export default [
   {
     name: "CatGPT",
     icon: "cat",
-    url: "https://chat.callaum.com/",
+    url: "https://callaum.com/",
     desc: "多模型 AI 聊天",
     group: "应用",
     newTab: false,
@@ -58,7 +59,7 @@ export default [
   {
     name: "砚录",
     icon: "scan-text",
-    url: "./yanlu/",
+    url: "https://ocr.callaum.com/",
     desc: "离线文字识别，图片不上传",
     group: "应用",
     newTab: false,

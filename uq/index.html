@@ -1,0 +1,2113 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#51247a">
+<meta name="description" content="非官方整理的昆士兰大学（UQ）中文校历：教学周、Census date、缴费与退课截止日、考试周、假期与回国规划。一切以 UQ 官网为准。">
+<title>UQ 中文校历</title>
+
+<script>
+/* =====================================================================
+ * UQ 中文校历（非官方）—— 数据区
+ * ---------------------------------------------------------------------
+ * 每年更新时只需要改这一个 <script> 里的内容：
+ *   1. META        数据核对日期
+ *   2. SRC         官方来源链接
+ *   3. PERIODS     学期骨架（用来计算「第几教学周」「现在是什么阶段」）
+ *   4. RESEARCH_QUARTERS / TEACHING_PERIODS  次要内容的紧凑表
+ *   5. EVENTS      ★ 所有校历日期都在这一个数组里
+ *   6. QLD_HOLIDAYS / CN_HOLIDAYS  两个可开关的叠加层
+ *   7. GLOSSARY    术语表
+ *
+ * 规则：
+ *   - 所有日期都是布里斯班日期（AEST，UTC+10，昆州没有夏令时），格式 'YYYY-MM-DD'。
+ *   - time 是布里斯班 24 小时制 'HH:MM'；页面会自动换算北京时间（早 2 小时）。
+ *   - 官网查不到的日期写成 { tbd: true }，不要按往年推算。
+ *   - titleEn 必须逐字照抄官网。来自「Important exam dates」页面的条目，
+ *     括号里附上它所在的小标题（例如 End-of-semester exams）。
+ * ===================================================================== */
+
+const META = {
+  checkedOn: '2026-11-15',                 // 数据核对日期（布里斯班时间）
+  coverage: ['2026-11-01', '2028-03-31']   // 月历视图可翻阅的范围
+};
+
+const SRC = {
+  A: 'https://about.uq.edu.au/academic-calendar',
+  E: 'https://my.uq.edu.au/information-and-services/manage-my-program/exams-and-assessment/exam-timetables-and-venues/important-exam-dates',
+  P: 'https://about.uq.edu.au/sites/default/files/2024-12/academic-calendar.pdf',
+  S: 'https://study.uq.edu.au/university-life/getting-prepared-to-come-to-australia/important-dates-international-students',
+  W: 'https://my.uq.edu.au/information-and-services/manage-my-program/classes-timetables-and-coursework/withdrawing-course-or-program',
+  F: 'https://my.uq.edu.au/information-and-services/manage-my-program/fees-payments-and-refunds/fees-international-students/coursework-tuition-fees-international-students',
+  L: 'https://my.uq.edu.au/late-enrolment-fees',
+  T: 'https://my.uq.edu.au/information-and-services/manage-my-program/exams-and-assessment/exam-timetables-and-venues',
+  Q: 'https://www.qld.gov.au/recreation/travel/holidays/public',
+  G: 'https://www.gov.cn/zhengce/zhengceku/202611/content_7085102.htm'
+};
+
+/* ---------------------------------------------------------------------
+ * PERIODS：学期骨架。日期全部来自官方校历（SRC.A）。
+ * 教学周的算法（与官方 2026 PDF 挂历的标法一致）：
+ *   - 从 classesStart 所在的周一开始数，一周一个编号；
+ *   - 完全落在期中假期里的那一周不计数；
+ *   - 复课那一周即使周一是公假，也算新一周的开始。
+ * breakStart 为 null 表示官网没有单独列出「假期开始」这一条。
+ * --------------------------------------------------------------------- */
+const PERIODS = [
+  { id: 'S2-2026', type: 'semester', nameZh: '2026 第二学期', nameEn: 'Semester 2, 2026', short: '26 S2',
+    classesStart: '2026-07-27', lastClassBeforeBreak: '2026-09-25', breakStart: '2026-09-28',
+    classesResume: '2026-10-06', classesEnd: '2026-10-30',
+    revision: ['2026-11-02', '2026-11-06'], exams: ['2026-11-07', '2026-11-21'], end: '2026-11-21',
+    breakAfterZh: '暑假', breakAfterEn: 'Summer break' },
+
+  { id: 'SUM-2026', type: 'summer', nameZh: '2026–27 暑期学期', nameEn: 'Summer Semester (2026–27)', short: '26–27 暑期',
+    classesStart: '2026-11-30', lastClassBeforeBreak: '2026-12-24', breakStart: '2026-12-25',
+    classesResume: '2027-01-04', classesEnd: '2027-01-29',
+    revision: ['2027-02-01', '2027-02-05'], exams: ['2027-02-06', '2027-02-13'], end: '2027-02-13',
+    breakAfterZh: '开学前', breakAfterEn: 'Before Semester 1' },
+
+  { id: 'S1-2027', type: 'semester', nameZh: '2027 第一学期', nameEn: 'Semester 1, 2027', short: '27 S1',
+    orientation: ['2027-02-15', '2027-02-19'],
+    classesStart: '2027-02-22', lastClassBeforeBreak: '2027-03-25', breakStart: '2027-03-26',
+    classesResume: '2027-04-05', classesEnd: '2027-05-28',
+    revision: ['2027-05-31', '2027-06-04'], exams: ['2027-06-05', '2027-06-19'], end: '2027-06-19',
+    breakAfterZh: '寒假', breakAfterEn: 'Winter break' },
+
+  { id: 'S2-2027', type: 'semester', nameZh: '2027 第二学期', nameEn: 'Semester 2, 2027', short: '27 S2',
+    orientation: ['2027-07-19', '2027-07-23'],
+    classesStart: '2027-07-26', lastClassBeforeBreak: '2027-09-24', breakStart: '2027-09-27',
+    classesResume: '2027-10-05', classesEnd: '2027-10-29',
+    revision: ['2027-11-01', '2027-11-05'], exams: ['2027-11-06', '2027-11-20'], end: '2027-11-20',
+    breakAfterZh: '暑假', breakAfterEn: 'Summer break' },
+
+  { id: 'SUM-2027', type: 'summer', nameZh: '2027–28 暑期学期', nameEn: 'Summer Semester (2027–28)', short: '27–28 暑期',
+    classesStart: '2027-11-29', lastClassBeforeBreak: '2027-12-24', breakStart: null,
+    classesResume: '2028-01-04', classesEnd: '2028-01-28',
+    revision: ['2028-01-31', '2028-02-04'], exams: ['2028-02-05', '2028-02-12'], end: '2028-02-12',
+    breakAfterZh: '开学前', breakAfterEn: 'Before Semester 1' },
+
+  { id: 'RQ', type: 'rq', nameZh: '研究季度', nameEn: 'Research Quarters', short: 'RQ' },
+  { id: 'TP', type: 'tp', nameZh: '教学段', nameEn: 'Teaching Periods', short: 'TP' }
+];
+
+/* ---------------------------------------------------------------------
+ * Research Quarters（HDR 研究型学位）。来源 SRC.A，四栏依次照抄官网。
+ * --------------------------------------------------------------------- */
+const RESEARCH_QUARTERS = [
+  { year: 2026, q: 4, start: '2026-10-01', feeDue: '2026-10-15', census: '2026-11-01', end: '2026-12-31' },
+  { year: 2027, q: 1, start: '2027-01-01', feeDue: '2027-01-15', census: '2027-02-01', end: '2027-03-31' },
+  { year: 2027, q: 2, start: '2027-04-01', feeDue: '2027-04-15', census: '2027-05-01', end: '2027-06-30' },
+  { year: 2027, q: 3, start: '2027-07-01', feeDue: '2027-07-15', census: '2027-08-01', end: '2027-09-30' },
+  { year: 2027, q: 4, start: '2027-10-01', feeDue: '2027-10-15', census: '2027-11-01', end: '2027-12-31' }
+];
+
+/* ---------------------------------------------------------------------
+ * Teaching Periods（部分课程使用的非标准教学段）。来源 SRC.A。
+ * start = "Enrolments close" 与 "Classes start"（官网这两条是同一天）。
+ * --------------------------------------------------------------------- */
+const TEACHING_PERIODS = [
+  { year: 2026, n: 8, linked: 'Summer Semester', start: '2026-11-23', feeDue: '2026-11-30', census: '2026-11-30', end: '2026-12-19' },
+  { year: 2027, n: 1, linked: 'Summer Semester', start: '2027-01-04', feeDue: '2027-01-11', census: '2027-01-11', end: '2027-01-30' },
+  { year: 2027, n: 2, linked: 'Semester 1',      start: '2027-02-01', feeDue: '2027-02-08', census: '2027-02-12', end: '2027-03-27' },
+  { year: 2027, n: 3, linked: 'Semester 1',      start: '2027-04-05', feeDue: '2027-04-12', census: '2027-04-16', end: '2027-05-29' },
+  { year: 2027, n: 4, linked: 'Semester 1',      start: '2027-05-31', feeDue: '2027-06-07', census: '2027-06-07', end: '2027-06-26' },
+  { year: 2027, n: 5, linked: 'Semester 2',      start: '2027-06-28', feeDue: '2027-07-05', census: '2027-07-09', end: '2027-08-21' },
+  { year: 2027, n: 6, linked: 'Semester 2',      start: '2027-08-23', feeDue: '2027-08-30', census: '2027-09-06', end: '2027-10-23' },
+  { year: 2027, n: 7, linked: 'Semester 2',      start: '2027-10-25', feeDue: '2027-11-01', census: '2027-11-01', end: '2027-11-20' },
+  { year: 2027, n: 8, linked: 'Summer Semester', start: '2027-11-22', feeDue: '2027-11-29', census: '2027-11-29', end: '2027-12-18' }
+];
+
+/* ---------------------------------------------------------------------
+ * audience 的取值：身份 'intl'（国际生）/'dom'（本地生） + 学位 'ug'（本科）/
+ * 'pgcw'（授课型硕士）/'hdr'（研究型学位）。事件只对同时包含所选身份和学位的人显示。
+ * --------------------------------------------------------------------- */
+const A_ALL     = ['intl', 'dom', 'ug', 'pgcw', 'hdr'];   // 所有人
+const A_CW      = ['intl', 'dom', 'ug', 'pgcw'];          // 授课型（本科 + 授课型硕士）
+const A_CW_INTL = ['intl', 'ug', 'pgcw'];                 // 授课型 · 仅国际生
+const A_CW_DOM  = ['dom', 'ug', 'pgcw'];                  // 授课型 · 仅本地生
+const A_UG_DOM  = ['dom', 'ug'];                          // 本地本科（QTAC）
+const A_HDR     = ['intl', 'dom', 'hdr'];                 // 研究型学位
+
+/* =====================================================================
+ * EVENTS —— 所有校历日期
+ * 字段：
+ *   id          唯一标识（也用作 .ics 的 UID，不要随意改）
+ *   titleZh     中文名
+ *   titleEn     官网英文原名（逐字）
+ *   start, end  布里斯班日期；单日事件省略 end
+ *   time        具体时刻 'HH:MM'（布里斯班）；timeEnd 可选
+ *   period      所属学期，对应 PERIODS 的 id
+ *   category    enrol 选课 | fees 缴费 | withdraw 退课 | teaching 上课 |
+ *               exam 考试 | grades 成绩 | break 假期 | event 活动
+ *   audience    见上
+ *   importance  'high' | 'normal' | 'low'（「只看重要」只显示 high）
+ *   provisional 官网标注 (Provisional) 的写 true
+ *   risk        高风险截止日的类型，页面据此显示大白话后果（见应用区 RISKS）
+ *   tip         出行/考试提醒（显示在条目下方）
+ *   note        补充说明
+ *   doubt       官网自身存疑之处（显示「存疑」标签）
+ *   role        'examTT' = 期末考试时间表发布；'deferred' = 缓考/补考（回国规划用）
+ *   keywords    额外的搜索关键词
+ *   sourceUrl   官方来源
+ *   tbd         true = 官网尚未公布（此时没有 start）
+ * ===================================================================== */
+const EVENTS = [
+
+  /* ---------- 2026 第二学期（只保留今天之后的收尾部分） ---------- */
+  { id: 's2-26-exams', titleZh: '期末考试周', titleEn: 'Examination period',
+    start: '2026-11-07', end: '2026-11-21', period: 'S2-2026', category: 'exam', audience: A_CW, importance: 'high',
+    tip: '个人考试安排以 my.UQ 和学生邮箱里的个人考试时间表为准，考完最后一门再走。缓考/补考周是 12月15–18日：如果申请了缓考或需要补考，这几天必须能参加，不能再延期。',
+    sourceUrl: SRC.A },
+  { id: 's2-26-end', titleZh: '第二学期结束（考试周最后一天）', titleEn: 'Semester 2 ends',
+    start: '2026-11-21', period: 'S2-2026', category: 'teaching', audience: A_CW, importance: 'normal',
+    note: '校历网页没有单独列这一条，日期来自官方 2026 PDF 挂历和国际生重要日期页面。', sourceUrl: SRC.P },
+  { id: 's2-26-enrol-2027', titleZh: '2027 年第一、二学期选课开放（在读生）', titleEn: 'Enrolments for Semesters 1 and 2, 2027 open for continuing students',
+    start: '2026-11-23', period: 'S2-2026', category: 'enrol', audience: A_CW, importance: 'high',
+    note: '在读生从这天起可以在 mySI-net 选 2027 年两个学期的课。', sourceUrl: SRC.A },
+  { id: 's2-26-summer-break', titleZh: '暑假开始', titleEn: 'Summer break commences',
+    start: '2026-11-23', end: '2027-02-21', period: 'S2-2026', category: 'break', audience: A_CW, importance: 'normal',
+    note: '官网只给了开始日。结束日按 2027 第一学期开课日（2月22日）的前一天计算。', sourceUrl: SRC.A },
+  { id: 's2-26-grades', titleZh: '成绩最终公布', titleEn: 'Finalisation of grades',
+    start: '2026-12-02', period: 'S2-2026', category: 'grades', audience: A_CW, importance: 'high',
+    note: '成绩在 mySI-net 公布，第一、二学期还会发短信（需在 mySI-net 填写澳洲手机号）。想申请补考（Supplementary assessment）要在 12月6日 23:59 前提交。', sourceUrl: SRC.A },
+  { id: 's2-26-supp-deadline', titleZh: '补考申请截止', titleEn: 'Deadline for supplementary assessment requests (End-of-semester exams)',
+    start: '2026-12-06', time: '23:59', period: 'S2-2026', category: 'exam', audience: A_CW, importance: 'normal',
+    note: '成绩为 3 分（或不计分课程得 N）才可能有补考资格。', sourceUrl: SRC.E },
+  { id: 's2-26-grad', titleZh: '毕业典礼', titleEn: 'Graduations',
+    start: '2026-12-09', end: '2026-12-23', period: 'S2-2026', category: 'event', audience: A_ALL, importance: 'low', sourceUrl: SRC.A },
+  { id: 's2-26-defer-tt', titleZh: '缓考/补考时间表发布', titleEn: 'Release of exam timetable (Deferred and supplementary exams)',
+    start: '2026-12-10', time: '17:00', period: 'S2-2026', category: 'exam', audience: A_CW, importance: 'normal', sourceUrl: SRC.E },
+  { id: 's2-26-defer', titleZh: '缓考与补考周', titleEn: 'Deferred and supplementary examination period',
+    start: '2026-12-15', end: '2026-12-18', period: 'S2-2026', category: 'exam', audience: A_CW, importance: 'high', role: 'deferred',
+    tip: '获批缓考或有补考的同学必须在这几天参加，缓考和补考都不能再延期。', sourceUrl: SRC.A },
+
+  /* ---------- 2026–27 暑期学期 Summer Semester ---------- */
+  { id: 'sum-26-enrol-open', titleZh: '暑期学期选课开放', titleEn: 'Enrolments open for Summer Semester',
+    start: '2026-06-01', period: 'SUM-2026', category: 'enrol', audience: A_CW, importance: 'low', sourceUrl: SRC.A },
+  { id: 'sum-26-mt-available', titleZh: 'My Timetable 可查看课程时间表', titleEn: 'My Timetable course timetables available',
+    start: '2026-10-06', period: 'SUM-2026', category: 'enrol', audience: A_CW, importance: 'low', provisional: true, sourceUrl: SRC.A },
+  { id: 'sum-26-mt-open', titleZh: 'My Timetable 开放填报上课时间偏好', titleEn: 'My Timetable opens for preferencing at 12pm',
+    start: '2026-10-26', time: '12:00', period: 'SUM-2026', category: 'enrol', audience: A_CW, importance: 'normal', provisional: true, sourceUrl: SRC.A },
+  { id: 'sum-26-cross', titleZh: '暑期学期跨校及非学位学习申请截止', titleEn: 'Applications for cross-institutional and non-award study in Summer Semester due',
+    start: '2026-10-31', period: 'SUM-2026', category: 'enrol', audience: A_CW, importance: 'low', sourceUrl: SRC.A },
+  { id: 'sum-26-mt-close', titleZh: 'My Timetable 偏好填报截止', titleEn: 'My Timetable preferencing closes at 9am',
+    start: '2026-11-09', time: '09:00', period: 'SUM-2026', category: 'enrol', audience: A_CW, importance: 'normal', provisional: true, sourceUrl: SRC.A },
+  { id: 'sum-26-enrol-due', titleZh: '暑期学期注册（选课）截止日', titleEn: 'Due date to enrol',
+    start: '2026-11-13', period: 'SUM-2026', category: 'enrol', audience: A_CW, importance: 'high', risk: 'enrolDue', sourceUrl: SRC.A },
+  { id: 'sum-26-mt-closed', titleZh: 'My Timetable 暂停使用', titleEn: 'My Timetable is closed from 8am to midday',
+    start: '2026-11-16', time: '08:00', timeEnd: '12:00', period: 'SUM-2026', category: 'enrol', audience: A_CW, importance: 'low', provisional: true, sourceUrl: SRC.A },
+  { id: 'sum-26-mt-release', titleZh: 'My Timetable 个人课表公布，开放调课', titleEn: 'My Timetable personal timetable released at 12pm, and open for allocation adjustment',
+    start: '2026-11-16', time: '12:00', period: 'SUM-2026', category: 'enrol', audience: A_CW, importance: 'normal', provisional: true,
+    note: '个人课表出来后可以自己调课，也可以补选偏好阶段没排上的课。', sourceUrl: SRC.A },
+  { id: 'sum-26-start', titleZh: '暑期学期开课（第 1 教学周）', titleEn: 'Classes start',
+    start: '2026-11-30', period: 'SUM-2026', category: 'teaching', audience: A_CW, importance: 'high', sourceUrl: SRC.A },
+  { id: 'sum-26-fees', titleZh: '暑期学期学费缴纳截止日', titleEn: 'Due date for payment of Summer Semester fees',
+    start: '2026-12-11', period: 'SUM-2026', category: 'fees', audience: A_CW, importance: 'high', risk: 'feeDue', keywords: '学费 tuition 付款 缴费', sourceUrl: SRC.A },
+  { id: 'sum-26-add', titleZh: '加课/改课截止日', titleEn: 'Last date for addition of courses or alteration of enrolment',
+    start: '2026-12-13', period: 'SUM-2026', category: 'enrol', audience: A_CW, importance: 'high', risk: 'addDue', sourceUrl: SRC.A },
+  { id: 'sum-26-census', titleZh: 'Census date：退课不收学费的最后一天', titleEn: 'Census date – Last date to withdraw from course(s) or cancel enrolment through mySI-net without financial liability',
+    start: '2026-12-18', period: 'SUM-2026', category: 'withdraw', audience: A_CW, importance: 'high', risk: 'census', keywords: '退课 退学费 drop', sourceUrl: SRC.A },
+  { id: 'sum-26-mt-adjust-end', titleZh: 'My Timetable 调课结束', titleEn: 'My Timetable allocation adjustment finishes at 9am',
+    start: '2026-12-21', time: '09:00', period: 'SUM-2026', category: 'enrol', audience: A_CW, importance: 'normal', provisional: true, sourceUrl: SRC.A },
+  { id: 'sum-26-last-before-break', titleZh: '期中假期前最后一天上课', titleEn: 'Last day of classes before in-semester break',
+    start: '2026-12-24', period: 'SUM-2026', category: 'teaching', audience: A_CW, importance: 'normal', sourceUrl: SRC.A },
+  { id: 'sum-26-break', titleZh: '期中假期开始', titleEn: 'In-semester break commences',
+    start: '2026-12-25', end: '2027-01-03', period: 'SUM-2026', category: 'break', audience: A_CW, importance: 'normal',
+    note: '官网只给了开始日。结束日按复课日（1月4日）的前一天计算。这一周不计入教学周。', sourceUrl: SRC.A },
+  { id: 'sum-26-resume', titleZh: '假期后复课', titleEn: 'Classes resume after in-semester break',
+    start: '2027-01-04', period: 'SUM-2026', category: 'teaching', audience: A_CW, importance: 'normal', sourceUrl: SRC.A },
+  { id: 'sum-26-no-penalty', titleZh: '无学术处罚退课截止日', titleEn: 'Last date to withdraw from courses or cancel your enrolment without academic penalty (financial liability remains)',
+    start: '2027-01-04', period: 'SUM-2026', category: 'withdraw', audience: A_CW, importance: 'high', risk: 'noPenalty', keywords: '退课 drop W K', sourceUrl: SRC.A },
+  { id: 'sum-26-exam-tt', titleZh: '期末考试时间表发布（含日期、时间、考场）', titleEn: 'Release of exam timetable with the date, time, venue. (End-of-semester exams)',
+    start: '2027-01-21', time: '17:00', period: 'SUM-2026', category: 'exam', audience: A_CW, importance: 'high', role: 'examTT',
+    note: '这天 17:00 之后才知道自己哪天考完，可以开始订回国机票。', sourceUrl: SRC.E },
+  { id: 'sum-26-alt', titleZh: '考试特殊安排申请截止', titleEn: 'Deadline for alternative arrangements (End-of-semester exams)',
+    start: '2027-01-22', period: 'SUM-2026', category: 'exam', audience: A_CW, importance: 'low', sourceUrl: SRC.E },
+  { id: 'sum-26-classes-end', titleZh: '暑期学期课程结束', titleEn: 'Classes end',
+    start: '2027-01-29', period: 'SUM-2026', category: 'teaching', audience: A_CW, importance: 'normal',
+    note: '官方 2026 PDF 挂历写的是 30 日（周六），本站以校历网页的 29 日为准。', sourceUrl: SRC.A },
+  { id: 'sum-26-revision', titleZh: '复习周', titleEn: 'Revision period',
+    start: '2027-02-01', end: '2027-02-05', period: 'SUM-2026', category: 'exam', audience: A_CW, importance: 'normal', keywords: 'swotvac', sourceUrl: SRC.A },
+  { id: 'sum-26-last-withdraw', titleZh: '考试周前最后退课日', titleEn: 'Last date to withdraw from courses in mySI-net (academic penalty and financial liability apply)',
+    start: '2027-02-05', period: 'SUM-2026', category: 'withdraw', audience: A_CW, importance: 'high', risk: 'lastWithdraw', sourceUrl: SRC.A },
+  { id: 'sum-26-exams', titleZh: '期末考试周', titleEn: 'Examination period',
+    start: '2027-02-06', end: '2027-02-13', period: 'SUM-2026', category: 'exam', audience: A_CW, importance: 'high',
+    tip: '个人考试时间表 1月21日 17:00 发布，出来之前别订回国机票。注意考试周和 2027 年春节（2月5–13日）重合。缓考/补考在 3月13日（暂定）。',
+    sourceUrl: SRC.A },
+  { id: 'sum-26-end', titleZh: '暑期学期结束', titleEn: 'Summer Semester ends',
+    start: '2027-02-13', period: 'SUM-2026', category: 'teaching', audience: A_CW, importance: 'normal', sourceUrl: SRC.A },
+  { id: 'sum-26-grades', titleZh: '成绩最终公布', titleEn: 'Finalisation of grades',
+    start: '2027-02-24', period: 'SUM-2026', category: 'grades', audience: A_CW, importance: 'high',
+    note: '成绩在 mySI-net 公布。想申请补考要在 2月28日 23:59 前提交。', sourceUrl: SRC.A },
+  { id: 'sum-26-supp-deadline', titleZh: '补考申请截止', titleEn: 'Deadline for supplementary assessment requests (End-of-semester exams)',
+    start: '2027-02-28', time: '23:59', period: 'SUM-2026', category: 'exam', audience: A_CW, importance: 'normal', sourceUrl: SRC.E },
+  { id: 'sum-26-defer', titleZh: '缓考与补考', titleEn: 'Deferred and supplementary examinations',
+    start: '2027-03-13', period: 'SUM-2026', category: 'exam', audience: A_CW, importance: 'high', provisional: true, role: 'deferred',
+    note: '校历页标注 Provisional；考试日期页写的是 Saturday 13 March 2027，未标暂定。这天已经是第一学期第 3 教学周的周六。', sourceUrl: SRC.A },
+  { id: 'sum-26-tbd-defer-tt', tbd: true, titleZh: '缓考/补考时间表发布日', titleEn: 'Release of exam timetable (Deferred and supplementary exams)',
+    period: 'SUM-2026', category: 'exam', audience: A_CW, importance: 'normal',
+    note: '考试日期页目前没有列出。官网说明：缓考/补考时间一般在考试前的周四公布在 my.UQ 首页。', sourceUrl: SRC.E },
+
+  /* ---------- 2027 第一学期 Semester 1 ---------- */
+  { id: 's1-27-pc-open', titleZh: '第一学期转专业（program change）申请开放', titleEn: 'Semester 1, 2027 first date to request a program change through mySI-net',
+    start: '2026-12-02', period: 'S1-2027', category: 'enrol', audience: A_CW, importance: 'low', keywords: '转专业 转项目', sourceUrl: SRC.A },
+  { id: 's1-27-pip', titleZh: '学业进展改进计划提交截止', titleEn: 'Progression improvement plan due today if you received a progression intervention notice in a previous semester and want to resume your studies',
+    start: '2027-01-05', period: 'S1-2027', category: 'enrol', audience: A_CW, importance: 'low', provisional: true,
+    note: '只和之前收到过 progression intervention notice、现在想复学的同学有关。', sourceUrl: SRC.A },
+  { id: 's1-27-mt-open', titleZh: 'My Timetable 开放填报上课时间偏好', titleEn: 'My Timetable opens for preferencing at 12pm',
+    start: '2027-01-11', time: '12:00', period: 'S1-2027', category: 'enrol', audience: A_CW, importance: 'normal',
+    note: '偏好填报不是先到先得：系统在填报窗口关闭后才开始分配，不用抢。', sourceUrl: SRC.A },
+  { id: 's1-27-qtac', titleZh: 'QTAC 主要录取轮次', titleEn: 'QTAC major offer round',
+    start: '2027-01-14', period: 'S1-2027', category: 'event', audience: A_UG_DOM, importance: 'low', sourceUrl: SRC.A },
+  { id: 's1-27-enrol-dom', titleZh: '本地生注册（选课）截止日', titleEn: 'Due date to enrol – domestic students',
+    start: '2027-01-29', period: 'S1-2027', category: 'enrol', audience: A_CW_DOM, importance: 'high', risk: 'enrolDue', sourceUrl: SRC.A },
+  { id: 's1-27-cross', titleZh: '第一学期跨校及非学位学习申请截止', titleEn: 'Due date to apply for cross-institutional and non-award study in Semester 1',
+    start: '2027-01-31', period: 'S1-2027', category: 'enrol', audience: A_CW, importance: 'low', sourceUrl: SRC.A },
+  { id: 's1-27-mt-release', titleZh: 'My Timetable 个人课表公布，开放调课', titleEn: 'My Timetable personal timetable released at 12pm, and open for allocation adjustment',
+    start: '2027-02-01', time: '12:00', period: 'S1-2027', category: 'enrol', audience: A_CW, importance: 'normal',
+    note: '个人课表出来后可以自己调课，也可以补选偏好阶段没排上的课。', sourceUrl: SRC.A },
+  { id: 's1-27-tbd-mt-close', tbd: true, titleZh: 'My Timetable 偏好填报截止时间', titleEn: 'My Timetable preferencing closes',
+    period: 'S1-2027', category: 'enrol', audience: A_CW, importance: 'normal',
+    note: '2026 年校历有这一条，2027 年的页面目前没有列出。应在 1月11日开放之后、2月1日个人课表公布之前。', sourceUrl: SRC.A },
+  { id: 's1-27-pc-last', titleZh: '转专业（program change）申请截止', titleEn: 'Last date to request a program change through mySI-net',
+    start: '2027-02-12', period: 'S1-2027', category: 'enrol', audience: A_CW, importance: 'normal', keywords: '转专业 转项目', sourceUrl: SRC.A },
+  { id: 's1-27-oweek', titleZh: '第一学期迎新周', titleEn: 'Semester 1 Orientation Week',
+    start: '2027-02-15', end: '2027-02-19', period: 'S1-2027', category: 'event', audience: A_ALL, importance: 'normal', keywords: 'o-week oweek 迎新', sourceUrl: SRC.A },
+  { id: 's1-27-enrol-intl', titleZh: '国际生注册（选课）截止日', titleEn: 'Due date to enrol – international students',
+    start: '2027-02-19', period: 'S1-2027', category: 'enrol', audience: A_CW_INTL, importance: 'high', risk: 'enrolDue', sourceUrl: SRC.A },
+  { id: 's1-27-start', titleZh: '第一学期开课（第 1 教学周）', titleEn: 'Classes start',
+    start: '2027-02-22', period: 'S1-2027', category: 'teaching', audience: A_CW, importance: 'high', sourceUrl: SRC.A },
+  { id: 's1-27-insem-tt', titleZh: '期中统一考试时间表发布（日期和时间）', titleEn: 'Release of exam timetable with the date and time information for all exams (Central in-semester exams)',
+    start: '2027-02-25', time: '17:00', period: 'S1-2027', category: 'exam', audience: A_CW, importance: 'normal', sourceUrl: SRC.E },
+  { id: 's1-27-fees', titleZh: '第一学期学费缴纳截止日', titleEn: 'Due date for payment of Semester 1 fees',
+    start: '2027-03-05', period: 'S1-2027', category: 'fees', audience: A_CW, importance: 'high', risk: 'feeDue', keywords: '学费 tuition 付款 缴费', sourceUrl: SRC.A },
+  { id: 's1-27-add', titleZh: '加课/改课截止日', titleEn: 'Last date for addition of courses or alteration of enrolment',
+    start: '2027-03-07', period: 'S1-2027', category: 'enrol', audience: A_CW, importance: 'high', risk: 'addDue', sourceUrl: SRC.A },
+  { id: 's1-27-mt-adjust-end', titleZh: 'My Timetable 调课结束', titleEn: 'My Timetable allocation adjustment finishes at 9am',
+    start: '2027-03-08', time: '09:00', period: 'S1-2027', category: 'enrol', audience: A_CW, importance: 'normal', sourceUrl: SRC.A },
+  { id: 's1-27-employ', titleZh: '就业力周', titleEn: 'Employability Week',
+    start: '2027-03-08', end: '2027-03-11', period: 'S1-2027', category: 'event', audience: A_ALL, importance: 'low', sourceUrl: SRC.A },
+  { id: 's1-27-insem-venue', titleZh: '期中统一考试考场公布', titleEn: 'Release of exam timetable with venue information for on-campus exams. (Central in-semester exams)',
+    start: '2027-03-18', time: '17:00', period: 'S1-2027', category: 'exam', audience: A_CW, importance: 'low', sourceUrl: SRC.E },
+  { id: 's1-27-last-before-break', titleZh: '期中假期前最后一天上课', titleEn: 'Last day of classes before in-semester break',
+    start: '2027-03-25', period: 'S1-2027', category: 'teaching', audience: A_CW, importance: 'normal', sourceUrl: SRC.A },
+  { id: 's1-27-break', titleZh: '期中假期开始', titleEn: 'In-semester break commences',
+    start: '2027-03-26', end: '2027-04-04', period: 'S1-2027', category: 'break', audience: A_CW, importance: 'normal',
+    note: '官网只给了开始日。结束日按复课日（4月5日）的前一天计算。假期含复活节公假；这一周不计入教学周。', sourceUrl: SRC.A },
+  { id: 's1-27-ua-week', titleZh: '全澳大学共同假期周', titleEn: 'Universities Australia Common Vacation Week',
+    start: '2027-03-29', end: '2027-04-02', period: 'S1-2027', category: 'break', audience: A_CW, importance: 'low', sourceUrl: SRC.A },
+  { id: 's1-27-census', titleZh: 'Census date：退课不收学费的最后一天', titleEn: 'Census date – Last date to withdraw from courses or cancel your enrolment through mySI-net without financial liability',
+    start: '2027-03-31', period: 'S1-2027', category: 'withdraw', audience: A_CW, importance: 'high', risk: 'census', keywords: '退课 退学费 drop',
+    note: '这一天落在期中假期（3月26日–4月4日）里。出游或回国也别忘了在 mySI-net 里处理。', sourceUrl: SRC.A },
+  { id: 's1-27-insem-exam-1', titleZh: '期中周六统一考试', titleEn: 'In-semester Saturday examinations',
+    start: '2027-04-03', period: 'S1-2027', category: 'exam', audience: A_CW, importance: 'normal',
+    note: '这个周六还在期中假期内。有没有你的课，以 2月25日发布的个人考试时间表为准，订假期行程前先确认。', sourceUrl: SRC.A },
+  { id: 's1-27-resume', titleZh: '假期后复课（第 6 教学周）', titleEn: 'Classes resume after in-semester break',
+    start: '2027-04-05', period: 'S1-2027', category: 'teaching', audience: A_CW, importance: 'normal', sourceUrl: SRC.A },
+  { id: 's1-27-insem-exam-2', titleZh: '期中周六统一考试', titleEn: 'In-semester Saturday examinations',
+    start: '2027-04-10', period: 'S1-2027', category: 'exam', audience: A_CW, importance: 'normal', sourceUrl: SRC.A },
+  { id: 's1-27-insem-exam-3', titleZh: '期中周六统一考试', titleEn: 'In-semester Saturday examinations',
+    start: '2027-04-17', period: 'S1-2027', category: 'exam', audience: A_CW, importance: 'normal', sourceUrl: SRC.A },
+  { id: 's1-27-alt', titleZh: '期末考试特殊安排申请截止', titleEn: 'Deadline for alternative arrangements (End-of-semester exams)',
+    start: '2027-04-23', period: 'S1-2027', category: 'exam', audience: A_CW, importance: 'low', sourceUrl: SRC.E },
+  { id: 's1-27-insem-exam-4', titleZh: '期中周六统一考试', titleEn: 'In-semester Saturday examinations',
+    start: '2027-04-24', period: 'S1-2027', category: 'exam', audience: A_CW, importance: 'normal', sourceUrl: SRC.A },
+  { id: 's1-27-exam-tt', titleZh: '期末考试时间表发布（日期和时间）', titleEn: 'Release of exam timetable with the date and time information for all exams (End-of-semester exams)',
+    start: '2027-04-29', time: '17:00', period: 'S1-2027', category: 'exam', audience: A_CW, importance: 'high', role: 'examTT',
+    note: '这天 17:00 之后才知道自己哪天考完，可以开始订回国机票。考场信息 5月27日另行公布。', sourceUrl: SRC.E },
+  { id: 's1-27-no-penalty', titleZh: '无学术处罚退课截止日', titleEn: 'Last date to withdraw from courses or cancel your enrolment without academic penalty (financial liability remains)',
+    start: '2027-04-30', period: 'S1-2027', category: 'withdraw', audience: A_CW, importance: 'high', risk: 'noPenalty', keywords: '退课 drop W K', sourceUrl: SRC.A },
+  { id: 's1-27-insem-def-1', titleZh: '期中周六缓考', titleEn: 'In-semester Saturday deferred examinations',
+    start: '2027-05-08', period: 'S1-2027', category: 'exam', audience: A_CW, importance: 'low', sourceUrl: SRC.A },
+  { id: 's1-27-insem-def-2', titleZh: '期中周六缓考', titleEn: 'In-semester Saturday deferred examinations',
+    start: '2027-05-15', period: 'S1-2027', category: 'exam', audience: A_CW, importance: 'low', sourceUrl: SRC.A },
+  { id: 's1-27-exam-venue', titleZh: '期末考试考场公布', titleEn: 'Release of exam timetable with venue information for on-campus exams (End-of-semester exams)',
+    start: '2027-05-27', time: '17:00', period: 'S1-2027', category: 'exam', audience: A_CW, importance: 'low', sourceUrl: SRC.E },
+  { id: 's1-27-classes-end', titleZh: '第一学期课程结束', titleEn: 'Semester 1 classes end',
+    start: '2027-05-28', period: 'S1-2027', category: 'teaching', audience: A_CW, importance: 'normal', sourceUrl: SRC.A },
+  { id: 's1-27-revision', titleZh: '复习周', titleEn: 'Revision period',
+    start: '2027-05-31', end: '2027-06-04', period: 'S1-2027', category: 'exam', audience: A_CW, importance: 'normal', keywords: 'swotvac', sourceUrl: SRC.A },
+  { id: 's1-27-last-withdraw', titleZh: '考试周前最后退课日', titleEn: 'Last day to withdraw from courses in mySI-net (academic penalty and financial liability apply)',
+    start: '2027-06-04', period: 'S1-2027', category: 'withdraw', audience: A_CW, importance: 'high', risk: 'lastWithdraw', sourceUrl: SRC.A },
+  { id: 's1-27-exams', titleZh: '期末考试周', titleEn: 'Examination period',
+    start: '2027-06-05', end: '2027-06-19', period: 'S1-2027', category: 'exam', audience: A_CW, importance: 'high',
+    tip: '个人考试时间表 4月29日 17:00 发布，出来之前别订回国机票——最后一门可能排到 6月19日。缓考/补考周是 7月19–23日，缓考和补考都不能再延期。',
+    sourceUrl: SRC.A },
+  { id: 's1-27-end', titleZh: '第一学期结束（考试周最后一天）', titleEn: 'Semester 1 ends',
+    start: '2027-06-19', period: 'S1-2027', category: 'teaching', audience: A_CW, importance: 'normal', sourceUrl: SRC.A },
+  { id: 's1-27-winter-break', titleZh: '寒假开始', titleEn: 'Winter break commences',
+    start: '2027-06-21', end: '2027-07-25', period: 'S1-2027', category: 'break', audience: A_CW, importance: 'normal',
+    note: '官网只给了开始日。结束日按第二学期开课日（7月26日）的前一天计算。', sourceUrl: SRC.A },
+  { id: 's1-27-grades', titleZh: '成绩最终公布', titleEn: 'Finalisation of grades',
+    start: '2027-06-30', period: 'S1-2027', category: 'grades', audience: A_CW, importance: 'high',
+    note: '成绩在 mySI-net 公布，还会发短信（需在 mySI-net 填写澳洲手机号）。想申请补考要在 7月4日 23:59 前提交。', sourceUrl: SRC.A },
+  { id: 's1-27-supp-deadline', titleZh: '补考申请截止', titleEn: 'Deadline for supplementary assessment requests (End-of-semester exams)',
+    start: '2027-07-04', time: '23:59', period: 'S1-2027', category: 'exam', audience: A_CW, importance: 'normal', sourceUrl: SRC.E },
+  { id: 's1-27-ua-week-jul', titleZh: '全澳大学共同假期周', titleEn: 'Universities Australia Common Vacation Week',
+    start: '2027-07-05', end: '2027-07-09', period: 'S1-2027', category: 'break', audience: A_CW, importance: 'low', sourceUrl: SRC.A },
+  { id: 's1-27-grad', titleZh: '毕业典礼', titleEn: 'Graduations',
+    start: '2027-07-08', end: '2027-07-18', period: 'S1-2027', category: 'event', audience: A_ALL, importance: 'low', provisional: true, sourceUrl: SRC.A },
+  { id: 's1-27-defer-tt', titleZh: '缓考/补考时间表发布', titleEn: 'Release of exam timetable (Deferred and supplementary exams)',
+    start: '2027-07-15', time: '17:00', period: 'S1-2027', category: 'exam', audience: A_CW, importance: 'normal', sourceUrl: SRC.E },
+  { id: 's1-27-defer', titleZh: '缓考与补考周', titleEn: 'Deferred and supplementary examination period',
+    start: '2027-07-19', end: '2027-07-23', period: 'S1-2027', category: 'exam', audience: A_CW, importance: 'high', role: 'deferred',
+    tip: '获批缓考或有补考的同学必须在这几天参加，不能再延期。这一周同时是第二学期迎新周。', sourceUrl: SRC.A },
+
+  /* ---------- 2027 第二学期 Semester 2 ---------- */
+  { id: 's2-27-qtac', titleZh: 'QTAC 主要录取轮次', titleEn: 'QTAC major offer round',
+    start: '2027-06-03', period: 'S2-2027', category: 'event', audience: A_UG_DOM, importance: 'low', sourceUrl: SRC.A },
+  { id: 's2-27-draft-tt', titleZh: '草拟课表向学生开放', titleEn: 'Draft Class Timetable available to students',
+    start: '2027-06-15', period: 'S2-2027', category: 'enrol', audience: A_CW, importance: 'low', sourceUrl: SRC.A },
+  { id: 's2-27-mt-open', titleZh: 'My Timetable 开放填报上课时间偏好', titleEn: 'My Timetable opens for preferencing at 12pm',
+    start: '2027-06-21', time: '12:00', period: 'S2-2027', category: 'enrol', audience: A_CW, importance: 'normal',
+    note: '偏好填报不是先到先得：系统在填报窗口关闭后才开始分配，不用抢。', sourceUrl: SRC.A },
+  { id: 's2-27-pip', titleZh: '学业进展改进计划提交截止', titleEn: 'Progression improvement plan due today if you received a progression intervention notice in a previous semester and want to resume your studies',
+    start: '2027-06-30', period: 'S2-2027', category: 'enrol', audience: A_CW, importance: 'low',
+    note: '只和之前收到过 progression intervention notice、现在想复学的同学有关。', sourceUrl: SRC.A },
+  { id: 's2-27-cross', titleZh: '第二学期跨校及非学位学习申请截止', titleEn: 'Due date to apply for cross-institutional and non-award study in Semester 2',
+    start: '2027-06-30', period: 'S2-2027', category: 'enrol', audience: A_CW, importance: 'low', sourceUrl: SRC.A },
+  { id: 's2-27-pc-open', titleZh: '第二学期转专业（program change）申请开放', titleEn: 'Semester 2, 2027 first date to request a program change through mySI-net',
+    start: '2027-06-30', period: 'S2-2027', category: 'enrol', audience: A_CW, importance: 'low', keywords: '转专业 转项目', sourceUrl: SRC.A },
+  { id: 's2-27-naidoc', titleZh: 'NAIDOC 周', titleEn: 'NAIDOC Week',
+    start: '2027-07-04', end: '2027-07-11', period: 'S2-2027', category: 'event', audience: A_ALL, importance: 'low', sourceUrl: SRC.A },
+  { id: 's2-27-mt-close', titleZh: 'My Timetable 偏好填报截止', titleEn: 'My Timetable preferencing closes at 9am',
+    start: '2027-07-05', time: '09:00', period: 'S2-2027', category: 'enrol', audience: A_CW, importance: 'normal', sourceUrl: SRC.A },
+  { id: 's2-27-mt-unavailable', titleZh: 'My Timetable 暂停使用', titleEn: 'My Timetable unavailable from 8am to 12pm',
+    start: '2027-07-12', time: '08:00', timeEnd: '12:00', period: 'S2-2027', category: 'enrol', audience: A_CW, importance: 'low', sourceUrl: SRC.A },
+  { id: 's2-27-mt-release', titleZh: 'My Timetable 个人课表公布，开放调课', titleEn: 'My Timetable personal timetable released at 12pm, and open for allocation adjustment',
+    start: '2027-07-12', time: '12:00', period: 'S2-2027', category: 'enrol', audience: A_CW, importance: 'normal',
+    note: '个人课表出来后可以自己调课，也可以补选偏好阶段没排上的课。', sourceUrl: SRC.A },
+  { id: 's2-27-enrol-dom', titleZh: '本地生注册（选课）截止日', titleEn: 'Due date to enrol – domestic students',
+    start: '2027-07-16', period: 'S2-2027', category: 'enrol', audience: A_CW_DOM, importance: 'high', risk: 'enrolDue', sourceUrl: SRC.A },
+  { id: 's2-27-pc-last', titleZh: '转专业（program change）申请截止', titleEn: 'Last date to request a program change through mySI-net',
+    start: '2027-07-16', period: 'S2-2027', category: 'enrol', audience: A_CW, importance: 'normal', keywords: '转专业 转项目', sourceUrl: SRC.A },
+  { id: 's2-27-oweek', titleZh: '第二学期迎新周', titleEn: 'Semester 2 Orientation Week',
+    start: '2027-07-19', end: '2027-07-23', period: 'S2-2027', category: 'event', audience: A_ALL, importance: 'normal', keywords: 'o-week oweek 迎新', sourceUrl: SRC.A },
+  { id: 's2-27-enrol-intl', titleZh: '国际生注册（选课）截止日', titleEn: 'Due date to enrol – international students',
+    start: '2027-07-23', period: 'S2-2027', category: 'enrol', audience: A_CW_INTL, importance: 'high', risk: 'enrolDue', sourceUrl: SRC.A },
+  { id: 's2-27-start', titleZh: '第二学期开课（第 1 教学周）', titleEn: 'Classes start',
+    start: '2027-07-26', period: 'S2-2027', category: 'teaching', audience: A_CW, importance: 'high', sourceUrl: SRC.A },
+  { id: 's2-27-open-day-stl', titleZh: 'UQ 开放日（St Lucia 校区）', titleEn: 'UQ Open Day (St Lucia campus)',
+    start: '2027-08-01', period: 'S2-2027', category: 'event', audience: A_ALL, importance: 'low', sourceUrl: SRC.A },
+  { id: 's2-27-fees', titleZh: '第二学期学费缴纳截止日', titleEn: 'Due date for payment of Semester 2 fees',
+    start: '2027-08-06', period: 'S2-2027', category: 'fees', audience: A_CW, importance: 'high', risk: 'feeDue', keywords: '学费 tuition 付款 缴费', sourceUrl: SRC.A },
+  { id: 's2-27-add', titleZh: '加课/改课截止日', titleEn: 'Last date for addition of courses or alteration of enrolment',
+    start: '2027-08-08', period: 'S2-2027', category: 'enrol', audience: A_CW, importance: 'high', risk: 'addDue', sourceUrl: SRC.A },
+  { id: 's2-27-mt-adjust-end', titleZh: 'My Timetable 调课结束', titleEn: 'My Timetable allocation adjustment finishes at 9am',
+    start: '2027-08-09', time: '09:00', period: 'S2-2027', category: 'enrol', audience: A_CW, importance: 'normal', sourceUrl: SRC.A },
+  { id: 's2-27-rqs-gatton', titleZh: 'Ekka 假日（仅 Gatton）：Gatton 校区关闭', titleEn: 'Royal Queensland Show for Gatton only – Gatton campus closed',
+    start: '2027-08-09', period: 'S2-2027', category: 'break', audience: A_ALL, importance: 'low', provisional: true, keywords: 'ekka show holiday', sourceUrl: SRC.A },
+  { id: 's2-27-rqs-bne', titleZh: 'Ekka 假日（布里斯班）：St Lucia 和 Herston 校区关闭', titleEn: 'Royal Queensland Show for Brisbane only – St Lucia and Herston campuses closed',
+    start: '2027-08-11', period: 'S2-2027', category: 'break', audience: A_ALL, importance: 'normal', keywords: 'ekka show holiday 公假',
+    note: '周三，仅布里斯班地区的公假，校区关闭、不上课。', sourceUrl: SRC.A },
+  { id: 's2-27-open-day-gatton', titleZh: 'UQ 开放日（Gatton 校区）', titleEn: 'UQ Open Day (Gatton campus)',
+    start: '2027-08-15', period: 'S2-2027', category: 'event', audience: A_ALL, importance: 'low', sourceUrl: SRC.A },
+  { id: 's2-27-census', titleZh: 'Census date：退课不收学费的最后一天', titleEn: 'Census date – Last date to withdraw from courses or cancel enrolment through mySI-net without financial penalty',
+    start: '2027-08-31', period: 'S2-2027', category: 'withdraw', audience: A_CW, importance: 'high', risk: 'census', keywords: '退课 退学费 drop', sourceUrl: SRC.A },
+  { id: 's2-27-insem-exam-1', titleZh: '期中周六统一考试', titleEn: 'In-semester Saturday examinations',
+    start: '2027-09-04', period: 'S2-2027', category: 'exam', audience: A_CW, importance: 'normal', sourceUrl: SRC.A },
+  { id: 's2-27-insem-exam-2', titleZh: '期中周六统一考试', titleEn: 'In-semester Saturday examinations',
+    start: '2027-09-11', period: 'S2-2027', category: 'exam', audience: A_CW, importance: 'normal', sourceUrl: SRC.A },
+  { id: 's2-27-ri-week', titleZh: '科研与创新周', titleEn: 'Research and Innovation Week',
+    start: '2027-09-13', end: '2027-09-17', period: 'S2-2027', category: 'event', audience: A_ALL, importance: 'low', sourceUrl: SRC.A },
+  { id: 's2-27-insem-exam-3', titleZh: '期中周六统一考试', titleEn: 'In-semester Saturday examinations',
+    start: '2027-09-18', period: 'S2-2027', category: 'exam', audience: A_CW, importance: 'normal', sourceUrl: SRC.A },
+  { id: 's2-27-last-before-break', titleZh: '期中假期前最后一天上课', titleEn: 'Last day of classes before in-semester break',
+    start: '2027-09-24', period: 'S2-2027', category: 'teaching', audience: A_CW, importance: 'normal', sourceUrl: SRC.A },
+  { id: 's2-27-insem-exam-4', titleZh: '期中周六统一考试', titleEn: 'In-semester Saturday examinations',
+    start: '2027-09-25', period: 'S2-2027', category: 'exam', audience: A_CW, importance: 'normal',
+    note: '这个周六紧接在假期前最后一个上课日之后。有没有你的课以个人考试时间表为准，订假期行程前先确认。', sourceUrl: SRC.A },
+  { id: 's2-27-break', titleZh: '期中假期开始', titleEn: 'In-semester break commences',
+    start: '2027-09-27', end: '2027-10-04', period: 'S2-2027', category: 'break', audience: A_CW, importance: 'normal',
+    note: '官网只给了开始日。结束日按复课日（10月5日，周二）的前一天计算；10月4日（周一）是 King’s Birthday 公假。假期那一周不计入教学周。', sourceUrl: SRC.A },
+  { id: 's2-27-ua-week', titleZh: '全澳大学共同假期周', titleEn: 'Universities Australia Common Vacation Week',
+    start: '2027-09-27', end: '2027-10-01', period: 'S2-2027', category: 'break', audience: A_CW, importance: 'low', sourceUrl: SRC.A },
+  { id: 's2-27-no-penalty', titleZh: '无学术处罚退课截止日', titleEn: 'Last date to withdraw from courses or cancel enrolment without academic penalty (financial liabilities remains)',
+    start: '2027-09-30', period: 'S2-2027', category: 'withdraw', audience: A_CW, importance: 'high', risk: 'noPenalty', keywords: '退课 drop W K',
+    note: '这一天落在期中假期里。出游或回国也别忘了在 mySI-net 里处理。', sourceUrl: SRC.A },
+  { id: 's2-27-resume', titleZh: '假期后复课（第 10 教学周，周二）', titleEn: 'Classes resume after in-semester break',
+    start: '2027-10-05', period: 'S2-2027', category: 'teaching', audience: A_CW, importance: 'normal', sourceUrl: SRC.A },
+  { id: 's2-27-insem-def-1', titleZh: '期中周六缓考', titleEn: 'In-semester Saturday deferred examinations',
+    start: '2027-10-09', period: 'S2-2027', category: 'exam', audience: A_CW, importance: 'low', sourceUrl: SRC.A },
+  { id: 's2-27-insem-def-2', titleZh: '期中周六缓考', titleEn: 'In-semester Saturday deferred examinations',
+    start: '2027-10-16', period: 'S2-2027', category: 'exam', audience: A_CW, importance: 'low', sourceUrl: SRC.A },
+  { id: 's2-27-classes-end', titleZh: '第二学期课程结束', titleEn: 'Semester 2 classes end',
+    start: '2027-10-29', period: 'S2-2027', category: 'teaching', audience: A_CW, importance: 'normal', sourceUrl: SRC.A },
+  { id: 's2-27-revision', titleZh: '复习周', titleEn: 'Revision period',
+    start: '2027-11-01', end: '2027-11-05', period: 'S2-2027', category: 'exam', audience: A_CW, importance: 'normal', keywords: 'swotvac', sourceUrl: SRC.A },
+  { id: 's2-27-tl-week', titleZh: '教与学周', titleEn: 'Teaching and Learning Week',
+    start: '2027-11-01', end: '2027-11-05', period: 'S2-2027', category: 'event', audience: A_ALL, importance: 'low', sourceUrl: SRC.A },
+  { id: 's2-27-last-withdraw', titleZh: '考试周前最后退课日', titleEn: 'Last day to withdraw from courses in mySI-net (academic penalty and financial liability apply)',
+    start: '2027-11-05', period: 'S2-2027', category: 'withdraw', audience: A_CW, importance: 'high', risk: 'lastWithdraw', sourceUrl: SRC.A },
+  { id: 's2-27-exams', titleZh: '期末考试周', titleEn: 'Examination period',
+    start: '2027-11-06', end: '2027-11-20', period: 'S2-2027', category: 'exam', audience: A_CW, importance: 'high',
+    tip: '个人考试时间表的发布日官网还没公布（官网说明：一般在考试周开始前 5 周）。时间表出来之前别订回国机票——最后一门可能排到 11月20日。缓考/补考周是 12月13–17日，不能再延期。',
+    sourceUrl: SRC.A },
+  { id: 's2-27-tbd-exam-tt', tbd: true, titleZh: '期末考试时间表发布日', titleEn: 'Release of exam timetable (End-of-semester exams)',
+    period: 'S2-2027', category: 'exam', audience: A_CW, importance: 'high',
+    note: '考试日期页目前只公布到 2027 第一学期。官网说明：一般在考试周开始前 5 周、当天 17:00 发布。', sourceUrl: SRC.E },
+  { id: 's2-27-end', titleZh: '第二学期结束（考试周最后一天）', titleEn: 'Semester 2 ends',
+    start: '2027-11-20', period: 'S2-2027', category: 'teaching', audience: A_CW, importance: 'normal', sourceUrl: SRC.A },
+  { id: 's2-27-enrol-2028', titleZh: '2028 年第一、二学期选课开放（在读生）', titleEn: 'Enrolments for Semesters 1 and 2, 2028 open for continuing students',
+    start: '2027-11-22', period: 'S2-2027', category: 'enrol', audience: A_CW, importance: 'high',
+    note: '在读生从这天起可以在 mySI-net 选 2028 年两个学期的课。', sourceUrl: SRC.A },
+  { id: 's2-27-summer-break', titleZh: '暑假开始', titleEn: 'Summer break starts',
+    start: '2027-11-22', period: 'S2-2027', category: 'break', audience: A_CW, importance: 'normal',
+    note: '结束日要等 2028 年校历公布（2028 第一学期开课日）。', sourceUrl: SRC.A },
+  { id: 's2-27-grades', titleZh: '成绩最终公布', titleEn: 'Finalisation of grades',
+    start: '2027-12-01', period: 'S2-2027', category: 'grades', audience: A_CW, importance: 'high',
+    note: '成绩在 mySI-net 公布，还会发短信（需在 mySI-net 填写澳洲手机号）。补考须在成绩公布后第 4 个自然日 23:59 前申请。', sourceUrl: SRC.A },
+  { id: 's2-27-tbd-supp', tbd: true, titleZh: '补考申请截止时间', titleEn: 'Deadline for supplementary assessment requests',
+    period: 'S2-2027', category: 'exam', audience: A_CW, importance: 'normal',
+    note: '官网规则：成绩公布后第 4 个自然日 23:59（AEST）。考试日期页还没有列出 2027 第二学期的具体日期。', sourceUrl: SRC.E },
+  { id: 's2-27-grad', titleZh: '毕业典礼', titleEn: 'Graduations',
+    start: '2027-12-08', end: '2027-12-23', period: 'S2-2027', category: 'event', audience: A_ALL, importance: 'low', sourceUrl: SRC.A },
+  { id: 's2-27-defer', titleZh: '缓考与补考周', titleEn: 'Deferred and supplementary examination period',
+    start: '2027-12-13', end: '2027-12-17', period: 'S2-2027', category: 'exam', audience: A_CW, importance: 'high', role: 'deferred',
+    tip: '获批缓考或有补考的同学必须在这几天参加，不能再延期。', sourceUrl: SRC.A },
+
+  /* ---------- 2027–28 暑期学期 Summer Semester ---------- */
+  { id: 'sum-27-enrol-open', titleZh: '暑期学期选课开放', titleEn: 'Enrolments open for Summer Semester',
+    start: '2027-05-31', period: 'SUM-2027', category: 'enrol', audience: A_CW, importance: 'low', sourceUrl: SRC.A },
+  { id: 'sum-27-cross', titleZh: '暑期学期跨校及非学位学习申请截止', titleEn: 'Applications for cross-institutional and non-award study in Summer Semester due',
+    start: '2027-10-31', period: 'SUM-2027', category: 'enrol', audience: A_CW, importance: 'low', sourceUrl: SRC.A },
+  { id: 'sum-27-tbd-mt', tbd: true, titleZh: 'My Timetable 各项日期（课表开放、偏好填报、个人课表、调课截止）', titleEn: 'My Timetable dates',
+    period: 'SUM-2027', category: 'enrol', audience: A_CW, importance: 'normal',
+    note: '2027–28 暑期学期的 My Timetable 日期官网一条都还没列。', sourceUrl: SRC.A },
+  { id: 'sum-27-enrol-due', titleZh: '暑期学期注册（选课）截止日', titleEn: 'Due date to enrol',
+    start: '2027-11-12', period: 'SUM-2027', category: 'enrol', audience: A_CW, importance: 'high', risk: 'enrolDue', sourceUrl: SRC.A },
+  { id: 'sum-27-start', titleZh: '暑期学期开课（第 1 教学周）', titleEn: 'Classes start',
+    start: '2027-11-29', period: 'SUM-2027', category: 'teaching', audience: A_CW, importance: 'high', sourceUrl: SRC.A },
+  { id: 'sum-27-fees', titleZh: '暑期学期学费缴纳截止日', titleEn: 'Due date for payment of Summer Semester fees',
+    start: '2027-12-10', period: 'SUM-2027', category: 'fees', audience: A_CW, importance: 'high', risk: 'feeDue', keywords: '学费 tuition 付款 缴费', sourceUrl: SRC.A },
+  { id: 'sum-27-add', titleZh: '加课/改课截止日', titleEn: 'Last date for addition of courses or alteration of enrolment',
+    start: '2027-12-12', period: 'SUM-2027', category: 'enrol', audience: A_CW, importance: 'high', risk: 'addDue', sourceUrl: SRC.A },
+  { id: 'sum-27-census', titleZh: 'Census date：退课不收学费的最后一天', titleEn: 'Census date – Last date to withdraw from course(s) or cancel enrolment through mySI-net without financial liability',
+    start: '2027-12-18', period: 'SUM-2027', category: 'withdraw', audience: A_CW, importance: 'high', risk: 'census', keywords: '退课 退学费 drop',
+    doubt: '官网写的是 18 Dec，但 2027年12月18日是周六。这个学期的其他日期都比上一年早一天，只有这一条没变，可能是官网笔误。本站照官网原文显示，请以 mySI-net 里显示的 Census date 为准；保险起见按 12月17日（周五）之前处理。',
+    sourceUrl: SRC.A },
+  { id: 'sum-27-last-before-break', titleZh: '期中假期前最后一天上课', titleEn: 'Last day of classes before in-semester break',
+    start: '2027-12-24', period: 'SUM-2027', category: 'teaching', audience: A_CW, importance: 'normal', sourceUrl: SRC.A },
+  { id: 'sum-27-tbd-break', tbd: true, titleZh: '期中假期开始日', titleEn: 'In-semester break commences',
+    period: 'SUM-2027', category: 'break', audience: A_CW, importance: 'normal',
+    note: '官网只列了假期前最后上课日（12月24日）和复课日（1月4日），没有单独列出假期开始日。', sourceUrl: SRC.A },
+  { id: 'sum-27-resume', titleZh: '假期后复课（周二）', titleEn: 'Classes resume after in-semester break',
+    start: '2028-01-04', period: 'SUM-2027', category: 'teaching', audience: A_CW, importance: 'normal', sourceUrl: SRC.A },
+  { id: 'sum-27-no-penalty', titleZh: '无学术处罚退课截止日', titleEn: 'Last date to withdraw from courses or cancel your enrolment without academic penalty (financial liability remains)',
+    start: '2028-01-04', period: 'SUM-2027', category: 'withdraw', audience: A_CW, importance: 'high', risk: 'noPenalty', keywords: '退课 drop W K', sourceUrl: SRC.A },
+  { id: 'sum-27-classes-end', titleZh: '暑期学期课程结束', titleEn: 'Classes end',
+    start: '2028-01-28', period: 'SUM-2027', category: 'teaching', audience: A_CW, importance: 'normal', sourceUrl: SRC.A },
+  { id: 'sum-27-revision', titleZh: '复习周', titleEn: 'Revision period commences (31 Jan) / Revision period (1-4 Feb)',
+    start: '2028-01-31', end: '2028-02-04', period: 'SUM-2027', category: 'exam', audience: A_CW, importance: 'normal', keywords: 'swotvac',
+    doubt: '官网有两条写法不一致：一条是「31 Jan – Revision period commences」，另一条是「1-4 Feb – Revision period」。本站合并显示为 1月31日–2月4日。',
+    sourceUrl: SRC.A },
+  { id: 'sum-27-last-withdraw', titleZh: '考试周前最后退课日', titleEn: 'Last date to withdraw from courses in mySI-net (academic penalty and financial liability apply)',
+    start: '2028-02-04', period: 'SUM-2027', category: 'withdraw', audience: A_CW, importance: 'high', risk: 'lastWithdraw', sourceUrl: SRC.A },
+  { id: 'sum-27-exams', titleZh: '期末考试周', titleEn: 'Examination period',
+    start: '2028-02-05', end: '2028-02-12', period: 'SUM-2027', category: 'exam', audience: A_CW, importance: 'high',
+    tip: '个人考试时间表的发布日还没公布（官网说明：暑期学期一般在 1 月下旬）。出来之前别订回国机票。缓考/补考在 3月11日（暂定）。',
+    sourceUrl: SRC.A },
+  { id: 'sum-27-tbd-exam-tt', tbd: true, titleZh: '期末考试时间表发布日、补考申请截止时间', titleEn: 'Release of exam timetable / Deadline for supplementary assessment requests',
+    period: 'SUM-2027', category: 'exam', audience: A_CW, importance: 'normal',
+    note: '考试日期页目前只公布到 2026–27 暑期学期。', sourceUrl: SRC.E },
+  { id: 'sum-27-end', titleZh: '暑期学期结束', titleEn: 'Summer Semester ends',
+    start: '2028-02-12', period: 'SUM-2027', category: 'teaching', audience: A_CW, importance: 'normal', sourceUrl: SRC.A },
+  { id: 'sum-27-grades', titleZh: '成绩最终公布', titleEn: 'Finalisation of grades',
+    start: '2028-02-23', period: 'SUM-2027', category: 'grades', audience: A_CW, importance: 'high', sourceUrl: SRC.A },
+  { id: 'sum-27-defer', titleZh: '缓考与补考', titleEn: 'Deferred and supplementary examinations',
+    start: '2028-03-11', period: 'SUM-2027', category: 'exam', audience: A_CW, importance: 'high', provisional: true, role: 'deferred', sourceUrl: SRC.A },
+
+  /* ---------- 尚未公布的次要内容 ---------- */
+  { id: 'rq-2028-tbd', tbd: true, titleZh: '2028 年研究季度日期', titleEn: 'Research quarters 2028',
+    period: 'RQ', category: 'teaching', audience: A_HDR, importance: 'normal', note: '2028 年校历尚未发布。', sourceUrl: SRC.A },
+  { id: 'tp-2028-tbd', tbd: true, titleZh: '2028 年教学段日期', titleEn: 'Teaching periods 2028',
+    period: 'TP', category: 'teaching', audience: A_CW, importance: 'normal', note: '2028 年校历尚未发布。', sourceUrl: SRC.A }
+
+].concat(expandResearchQuarters(RESEARCH_QUARTERS), expandTeachingPeriods(TEACHING_PERIODS));
+
+/* 把上面两张紧凑表展开成与 EVENTS 同结构的记录（英文名逐字照抄官网）。 */
+function expandResearchQuarters(rows) {
+  var out = [];
+  rows.forEach(function (r) {
+    var tag = 'rq-' + r.year + '-' + r.q, zh = r.year + ' 研究季度 ' + r.q, en = 'Research Quarter ' + r.q + ', ' + r.year + ' — ';
+    var base = { period: 'RQ', group: tag, groupZh: zh, groupEn: 'Quarter ' + r.q + ', ' + r.year, audience: A_HDR, sourceUrl: SRC.A };
+    out.push(Object.assign({ id: tag + '-start', titleZh: zh + ' 开始', titleEn: en + 'Starts', start: r.start, category: 'teaching', importance: 'normal', col: 'start' }, base));
+    out.push(Object.assign({ id: tag + '-fees', titleZh: zh + ' 学费缴纳截止日', titleEn: en + 'Due date for payment of RQ' + r.q + ' fees', start: r.feeDue, category: 'fees', importance: 'high', risk: 'rqFee', col: 'feeDue' }, base));
+    out.push(Object.assign({ id: tag + '-census', titleZh: zh + ' Census date：取消注册不收学费的最后一天', titleEn: en + 'Census date – Last date to cancel your enrolment without financial liability', start: r.census, category: 'withdraw', importance: 'high', risk: 'rqCensus', col: 'census' }, base));
+    out.push(Object.assign({ id: tag + '-end', titleZh: zh + ' 结束', titleEn: en + 'Ends', start: r.end, category: 'teaching', importance: 'normal', col: 'end' }, base));
+  });
+  return out;
+}
+function expandTeachingPeriods(rows) {
+  var out = [];
+  rows.forEach(function (r) {
+    var tag = 'tp-' + r.year + '-' + r.n, zh = r.year + ' 教学段 ' + r.n, en = 'Teaching Period ' + r.n + ' (' + r.linked + '), ' + r.year + ' — ';
+    var base = { period: 'TP', group: tag, groupZh: zh, groupEn: 'Period ' + r.n + ' (' + r.linked + '), ' + r.year, audience: A_CW, sourceUrl: SRC.A };
+    out.push(Object.assign({ id: tag + '-start', titleZh: zh + ' 选课截止并开课', titleEn: en + 'Enrolments close – last date to add courses or alter your enrolment / Classes start', start: r.start, category: 'teaching', importance: 'high', col: 'start' }, base));
+    out.push(Object.assign({ id: tag + '-fees', titleZh: zh + ' 学费缴纳截止日', titleEn: en + 'Due date for payment of fees', start: r.feeDue, category: 'fees', importance: 'high', risk: 'feeDue', col: 'feeDue' }, base));
+    out.push(Object.assign({ id: tag + '-census', titleZh: zh + ' Census date：退课不收学费且无学术处罚的最后一天', titleEn: en + 'Census date – Last date to drop courses or cancel enrolment without financial liability and academic penalty', start: r.census, category: 'withdraw', importance: 'high', risk: 'tpCensus', col: 'census' }, base));
+    out.push(Object.assign({ id: tag + '-end', titleZh: zh + ' 课程结束', titleEn: en + 'Classes end', start: r.end, category: 'teaching', importance: 'normal', col: 'end' }, base));
+  });
+  return out;
+}
+
+/* ---------------------------------------------------------------------
+ * 昆州法定假日叠加层。来源 SRC.Q（qld.gov.au，Last updated 16 January 2026）。
+ * partial = 只放部分时段；dupOf = 校历里已有同一天的条目，时间轴上不重复显示。
+ * --------------------------------------------------------------------- */
+const QLD_HOLIDAYS = [
+  { id: 'qld-2026-xmas-eve', start: '2026-12-24', nameZh: '平安夜（18:00 起为公假）', nameEn: 'Christmas Eve (24 December) 6pm to midnight', partial: '18:00–24:00' },
+  { id: 'qld-2026-xmas',     start: '2026-12-25', nameZh: '圣诞节', nameEn: 'Christmas Day' },
+  { id: 'qld-2026-boxing',   start: '2026-12-26', nameZh: '节礼日', nameEn: 'Boxing Day' },
+  { id: 'qld-2026-boxing-x', start: '2026-12-28', nameZh: '节礼日补假', nameEn: 'Boxing Day (Monday 28 December – extra public holiday)', note: 'UQ 校历页没有列这一天，以昆州政府公布的为准。' },
+  { id: 'qld-2027-newyear',  start: '2027-01-01', nameZh: '元旦', nameEn: "New Year's Day" },
+  { id: 'qld-2027-ausday',   start: '2027-01-26', nameZh: '澳大利亚日', nameEn: 'Australia Day' },
+  { id: 'qld-2027-goodfri',  start: '2027-03-26', nameZh: '耶稣受难日', nameEn: 'Good Friday' },
+  { id: 'qld-2027-eastersat', start: '2027-03-27', nameZh: '复活节星期六', nameEn: 'The day after Good Friday' },
+  { id: 'qld-2027-eastersun', start: '2027-03-28', nameZh: '复活节星期日', nameEn: 'Easter Sunday' },
+  { id: 'qld-2027-eastermon', start: '2027-03-29', nameZh: '复活节星期一', nameEn: 'Easter Monday' },
+  { id: 'qld-2027-anzac',    start: '2027-04-26', nameZh: '澳新军团日（补假）', nameEn: 'Anzac Day', note: '4月25日是周日，公假顺延到周一。' },
+  { id: 'qld-2027-labour',   start: '2027-05-03', nameZh: '劳动节（昆州）', nameEn: 'Labour Day' },
+  { id: 'qld-2027-ekka',     start: '2027-08-11', nameZh: 'Ekka 假日（仅布里斯班地区）', nameEn: 'Royal Queensland Show (Brisbane area only)', dupOf: 's2-27-rqs-bne' },
+  { id: 'qld-2027-kings',    start: '2027-10-04', nameZh: '国王诞辰日', nameEn: "King's Birthday" },
+  { id: 'qld-2027-xmas-eve', start: '2027-12-24', nameZh: '平安夜（18:00 起为公假）', nameEn: 'Christmas Eve (24 December) 6pm to midnight', partial: '18:00–24:00' },
+  { id: 'qld-2027-xmas',     start: '2027-12-25', nameZh: '圣诞节', nameEn: 'Christmas Day' },
+  { id: 'qld-2027-boxing',   start: '2027-12-26', nameZh: '节礼日', nameEn: 'Boxing Day' },
+  { id: 'qld-2027-xmas-x',   start: '2027-12-27', nameZh: '圣诞节补假', nameEn: 'Christmas Day (Monday 27 December – extra public holiday)' },
+  { id: 'qld-2027-boxing-x', start: '2027-12-28', nameZh: '节礼日补假', nameEn: 'Boxing Day (Tuesday 28 December – extra public holiday)' },
+  { id: 'qld-2028-newyear',  start: '2028-01-01', nameZh: '元旦', nameEn: "New Year's Day" },
+  { id: 'qld-2028-newyear-x', start: '2028-01-03', nameZh: '元旦补假', nameEn: "New Year's Day (Monday 3 January – extra public holiday)" },
+  { id: 'qld-2028-ausday',   start: '2028-01-26', nameZh: '澳大利亚日', nameEn: 'Australia Day' }
+];
+
+/* ---------------------------------------------------------------------
+ * 中国节假日叠加层。来源 SRC.G（国办发明电〔2026〕10号）。
+ * workdays = 调休上班日。2028 年的安排尚未公布，不要预填。
+ * --------------------------------------------------------------------- */
+const CN_HOLIDAYS = [
+  { id: 'cn-2027-newyear',  nameZh: '元旦',   nameEn: "New Year's Day (China)",   start: '2027-01-01', end: '2027-01-03', workdays: [] },
+  { id: 'cn-2027-spring',   nameZh: '春节',   nameEn: 'Spring Festival (Chinese New Year)', start: '2027-02-05', end: '2027-02-13', workdays: ['2027-01-31', '2027-02-14'] },
+  { id: 'cn-2027-qingming', nameZh: '清明节', nameEn: 'Qingming Festival',        start: '2027-04-03', end: '2027-04-05', workdays: [] },
+  { id: 'cn-2027-labour',   nameZh: '劳动节', nameEn: 'Labour Day (China)',       start: '2027-05-01', end: '2027-05-05', workdays: ['2027-05-08'] },
+  { id: 'cn-2027-duanwu',   nameZh: '端午节', nameEn: 'Dragon Boat Festival',     start: '2027-06-09', end: '2027-06-09', workdays: [] },
+  { id: 'cn-2027-midautumn', nameZh: '中秋节', nameEn: 'Mid-Autumn Festival',     start: '2027-09-15', end: '2027-09-15', workdays: [] },
+  { id: 'cn-2027-national', nameZh: '国庆节', nameEn: 'National Day (China)',     start: '2027-10-01', end: '2027-10-07', workdays: ['2027-09-26', '2027-10-09'] }
+];
+const CN_HOLIDAYS_PENDING = '2028 年中国节假日安排尚未公布（国务院通常在前一年 11 月发布），其中春节会落在 2027–28 暑期学期期间。';
+
+/* ---------------------------------------------------------------------
+ * 术语表。terms = 页面里出现这些英文时会自动加上可点击的解释。
+ * --------------------------------------------------------------------- */
+const GLOSSARY = [
+  { id: 'census', zh: '学费结算日', en: 'Census date', terms: ['Census date'],
+    desc: '每学期的「学费结算日」。当天或之前在 mySI-net 退课：不收这门课的学费，记录里也不留痕迹。过了这天，学费照付。' },
+  { id: 'revision', zh: '复习周', en: 'Revision period（Swotvac）', terms: ['Revision period', 'Swotvac'],
+    desc: '课程结束后、考试周开始前的一周，不上课也不安排期末考试，留给自己复习。澳洲学生俗称 Swotvac。' },
+  { id: 'deferred', zh: '缓考', en: 'Deferred exam', terms: ['Deferred exam', 'deferred examinations', 'Deferred'],
+    desc: '因生病等无法避免的原因错过考试时，可在原考试日后 5 个自然日内申请，改在统一的缓考时段再考。缓考不能再次延期。' },
+  { id: 'supp', zh: '补考', en: 'Supplementary assessment', terms: ['Supplementary assessment', 'supplementary examination', 'supplementary'],
+    desc: '总评为 3 分（或不计分课程得 N）时可能获得的一次补救机会，通过后最高只能拿 4 分（或 P）。须在成绩公布后第 4 个自然日 23:59 前申请，不能延期。' },
+  { id: 'finalisation', zh: '成绩最终公布', en: 'Finalisation of grades', terms: ['Finalisation of grades'],
+    desc: '本学期所有课程的最终成绩在 mySI-net 公布的日子，第一、二学期还会发短信通知。之后想改成绩只能走查分或特殊情况申请。' },
+  { id: 'provisional', zh: '暂定', en: 'Provisional', terms: ['Provisional'],
+    desc: '学校标注为「暂定」的日期，之后可能调整。本站用「暂定」标签标出，请留意官网更新。' },
+  { id: 'mysinet', zh: '学籍与选课系统', en: 'mySI-net', terms: ['mySI-net'],
+    desc: 'UQ 的学籍系统。选课、退课、查学费账单、查成绩都在这里操作。' },
+  { id: 'mytimetable', zh: '排课系统', en: 'My Timetable', terms: ['My Timetable', 'preferencing', 'allocation adjustment'],
+    desc: '选完课之后在这里排上课时间：先填偏好（preferencing），系统统一分配出个人课表，然后进入可以自己调课的阶段（allocation adjustment）。' },
+  { id: 'oweek', zh: '迎新周', en: 'Orientation Week（O-Week）', terms: ['Orientation Week'],
+    desc: '开课前一周的迎新活动和入学讲座，新生建议全程参加。这一周还没有开始上课。' },
+  { id: 'inbreak', zh: '期中假期', en: 'In-semester break', terms: ['in-semester break'],
+    desc: '学期中间停课约一周，这一周不计入教学周。假期里仍可能有截止日和周六考试。' },
+  { id: 'finliab', zh: '费用责任', en: 'Financial liability', terms: ['financial liability', 'financial liabilities', 'financial penalty'],
+    desc: '要为这门课付学费的责任。Census date 之后退课，学费照付不退。' },
+  { id: 'acpen', zh: '学术处罚', en: 'Academic penalty', terms: ['academic penalty'],
+    desc: '过了无学术处罚退课截止日再退课，成绩单上会记 K，计算 GPA 时按 0 分计。' },
+  { id: 'wk', zh: 'W 和 K 成绩', en: 'W / K grades', terms: [],
+    desc: 'W：Census date 之后、无学术处罚退课截止日之前退课，只出现在 studies report 上，不上正式成绩单。K：之后再退课，记入正式成绩单，GPA 按 0 分计。' },
+  { id: 'insem', zh: '期中统一考试', en: 'In-semester Saturday examinations', terms: ['In-semester Saturday examinations', 'In-semester Saturday deferred examinations'],
+    desc: '部分课程的期中考试由学校统一安排在周六。有没有你的课，以发到学生邮箱的个人考试时间表为准。' },
+  { id: 'altarr', zh: '考试特殊安排', en: 'Alternative exam arrangements', terms: ['alternative arrangements'],
+    desc: '因健康状况或残障需要调整考试形式（如延长时间、单独考场）时提前申请的安排。' },
+  { id: 'ua', zh: '全澳大学共同假期周', en: 'Universities Australia Common Vacation Week', terms: ['Universities Australia Common Vacation Week'],
+    desc: '澳洲各大学约定的统一停课周，UQ 的期中假期与它重合。' },
+  { id: 'ekka', zh: 'Ekka 假日', en: 'Royal Queensland Show（Ekka）', terms: ['Royal Queensland Show'],
+    desc: '布里斯班皇家农展会期间的周三，只在布里斯班地区放假，St Lucia 和 Herston 校区关闭。' },
+  { id: 'pc', zh: '转专业', en: 'Program change', terms: ['program change'],
+    desc: '在 UQ 内部从一个学位项目（program）转到另一个，通过 mySI-net 申请，每学期有开放和截止日期。' },
+  { id: 'rq', zh: '研究季度', en: 'Research Quarter', terms: ['Research Quarter'],
+    desc: '研究型学位（HDR，如 PhD、MPhil）按季度注册和缴费，一年分四个季度。' },
+  { id: 'tp', zh: '教学段', en: 'Teaching Period', terms: ['Teaching Period'],
+    desc: '部分课程使用的非标准教学时段，一年 8 段，Census date 和缴费日与标准学期不同。' },
+  { id: 'qtac', zh: '昆州高校招生中心', en: 'QTAC', terms: ['QTAC'],
+    desc: '昆士兰州本科统一申请渠道，主要与本地申请人有关。' }
+];
+</script>
+
+<style>
+:root{
+  --font:"PingFang SC","Microsoft YaHei","Hiragino Sans GB","Noto Sans CJK SC","Noto Sans SC","Source Han Sans SC","WenQuanYi Micro Hei",system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --bg:#f5f2f9; --surface:#ffffff; --surface-2:#f1edf7; --text:#1c1825; --muted:#5d566d; --faint:#8a8399; --line:#e1dbec;
+  --brand:#51247a; --brand-ink:#51247a; --brand-soft:#efe7f8; --on-brand:#ffffff;
+  --danger:#b3261e; --danger-bg:#fdecea; --amber:#8a5200; --amber-bg:#fff2d8; --ok:#1b6e3a; --ok-bg:#e4f5e9;
+  --shadow:0 1px 2px rgba(45,20,80,.06),0 6px 18px rgba(45,20,80,.07);
+  --c-enrol:#1b5cc8; --c-enrol-bg:#e5eefd;
+  --c-fees:#8f5300; --c-fees-bg:#fff0d4;
+  --c-withdraw:#b8251b; --c-withdraw-bg:#fde8e6;
+  --c-teaching:#51247a; --c-teaching-bg:#efe7f8;
+  --c-exam:#a81d66; --c-exam-bg:#fce6f0;
+  --c-grades:#0a726d; --c-grades-bg:#dcf4f2;
+  --c-break:#1c7237; --c-break-bg:#e1f4e6;
+  --c-event:#4a5263; --c-event-bg:#eceef3;
+  --ph-break:#e3f5e8; --ph-revision:#fff3d6; --ph-exam:#fce6f0; --ph-vac:#edf7f0;
+  --header-h:52px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#121017; --surface:#1c1924; --surface-2:#262130; --text:#ece8f4; --muted:#aca5bb; --faint:#867f95; --line:#342e41;
+    --brand:#51247a; --brand-ink:#cbb2f2; --brand-soft:#2c2240; --on-brand:#ffffff;
+    --danger:#ff9a8d; --danger-bg:#43201c; --amber:#f0c06e; --amber-bg:#3a2c12; --ok:#84d79a; --ok-bg:#16331f;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 18px rgba(0,0,0,.35);
+    --c-enrol:#93bbff; --c-enrol-bg:#1a2946;
+    --c-fees:#f0c06e; --c-fees-bg:#3a2c12;
+    --c-withdraw:#ff9a8d; --c-withdraw-bg:#43201c;
+    --c-teaching:#cbb2f2; --c-teaching-bg:#2e2344;
+    --c-exam:#ff9ecb; --c-exam-bg:#431a2e;
+    --c-grades:#72d8d1; --c-grades-bg:#123532;
+    --c-break:#84d79a; --c-break-bg:#16331f;
+    --c-event:#bcc3d2; --c-event-bg:#2a2e39;
+    --ph-break:#17301f; --ph-revision:#33290f; --ph-exam:#3a1829; --ph-vac:#18261d;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#121017; --surface:#1c1924; --surface-2:#262130; --text:#ece8f4; --muted:#aca5bb; --faint:#867f95; --line:#342e41;
+  --brand:#51247a; --brand-ink:#cbb2f2; --brand-soft:#2c2240; --on-brand:#ffffff;
+  --danger:#ff9a8d; --danger-bg:#43201c; --amber:#f0c06e; --amber-bg:#3a2c12; --ok:#84d79a; --ok-bg:#16331f;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 18px rgba(0,0,0,.35);
+  --c-enrol:#93bbff; --c-enrol-bg:#1a2946;
+  --c-fees:#f0c06e; --c-fees-bg:#3a2c12;
+  --c-withdraw:#ff9a8d; --c-withdraw-bg:#43201c;
+  --c-teaching:#cbb2f2; --c-teaching-bg:#2e2344;
+  --c-exam:#ff9ecb; --c-exam-bg:#431a2e;
+  --c-grades:#72d8d1; --c-grades-bg:#123532;
+  --c-break:#84d79a; --c-break-bg:#16331f;
+  --c-event:#bcc3d2; --c-event-bg:#2a2e39;
+  --ph-break:#17301f; --ph-revision:#33290f; --ph-exam:#3a1829; --ph-vac:#18261d;
+}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%;scroll-padding-top:calc(var(--header-h) + 12px)}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.6 var(--font);-webkit-font-smoothing:antialiased;overflow-wrap:anywhere}
+h1,h2,h3,p{margin:0}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer;-webkit-tap-highlight-color:transparent}
+a{color:var(--brand-ink)}
+:focus-visible{outline:2px solid var(--brand-ink);outline-offset:2px;border-radius:4px}
+.ic{width:1em;height:1em;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-.14em}
+.num{font-variant-numeric:tabular-nums}
+[hidden]{display:none !important}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* ---------- 顶栏 ---------- */
+.top{position:sticky;top:0;z-index:40;background:var(--surface);border-bottom:1px solid var(--line)}
+.top-in{max-width:960px;margin:0 auto;height:var(--header-h);padding:0 16px;display:flex;align-items:center;gap:10px}
+.brand{font-size:17px;font-weight:700;letter-spacing:.01em;white-space:nowrap}
+.top-sp{flex:1}
+.icon-btn{display:inline-flex;align-items:center;gap:6px;height:36px;min-width:36px;padding:0 9px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--muted);font-size:13px}
+.icon-btn:hover{color:var(--text);border-color:var(--faint)}
+.icon-btn .ic{font-size:17px}
+.icon-btn .lbl{display:none}
+@media (min-width:560px){.icon-btn .lbl{display:inline}}
+
+.wrap{max-width:960px;margin:0 auto;padding:14px 16px 40px}
+.nav{display:flex;gap:6px;overflow-x:auto;margin:0 -16px 12px;padding:0 16px;scrollbar-width:none}
+.nav::-webkit-scrollbar{display:none}
+.nav a{flex:none;font-size:13px;text-decoration:none;color:var(--muted);padding:5px 11px;border-radius:999px;background:var(--surface);border:1px solid var(--line)}
+.nav a:hover{color:var(--text)}
+
+section{margin-top:22px}
+.sec-h{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.sec-h h2{font-size:18px;font-weight:700}
+.sec-h .en{font-size:12.5px;color:var(--faint)}
+.sec-h .sp{flex:1}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow)}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+
+/* ---------- 首页状态卡 ---------- */
+.hero{margin-top:0;border-radius:18px;color:#fff;background:linear-gradient(140deg,#35184f 0%,#51247a 52%,#7a3c9f 100%);box-shadow:0 10px 30px rgba(60,25,100,.28);overflow:hidden}
+.hero-main{padding:15px 18px 12px}
+.hero-eyebrow{font-size:13px;opacity:.85;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.hero-head{display:flex;align-items:baseline;gap:2px 12px;flex-wrap:wrap;margin-top:3px}
+.hero-title{font-size:27px;line-height:1.25;font-weight:800;letter-spacing:.01em}
+.hero-title .unit{font-size:.55em;font-weight:600;opacity:.85;margin-left:6px}
+.hero-en{font-size:13.5px;opacity:.8}
+.hero-sub{font-size:14px;margin-top:6px;opacity:.95}
+.hero-sub b{font-weight:700}
+.weeks{display:flex;gap:3px;margin-top:9px;align-items:center;flex-wrap:wrap}
+.weeks i{display:block;width:16px;height:7px;border-radius:3px;background:rgba(255,255,255,.26)}
+.weeks i.done{background:rgba(255,255,255,.62)}
+.weeks i.now{background:#fff;box-shadow:0 0 0 2px rgba(255,255,255,.35)}
+.weeks i.brk{width:7px;border-radius:50%;background:transparent;border:1.5px solid rgba(255,255,255,.6)}
+.weeks i.brk.now{background:#fff}
+.weeks span{font-size:12px;opacity:.8;margin-left:6px}
+.hero-alt{margin-top:9px;font-size:13px;background:rgba(255,255,255,.13);border-radius:10px;padding:7px 10px}
+.hero-alt button{border:0;background:none;color:#fff;text-decoration:underline;padding:0;font-size:13px}
+.hero-foot{padding:7px 18px 9px;font-size:12.5px;background:rgba(0,0,0,.2);display:flex;gap:4px 14px;flex-wrap:wrap}
+@media (min-width:700px){.hero-title{font-size:30px}}
+.test-flag{background:#ffd666;color:#3b2a00;border-radius:5px;padding:0 6px;font-weight:700}
+
+.who{padding:12px 14px;margin-top:12px;display:grid;gap:8px}
+.who-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.who-row .k{font-size:13px;color:var(--muted);width:3.2em;flex:none}
+.seg{display:inline-flex;background:var(--surface-2);border-radius:10px;padding:3px;gap:2px;flex-wrap:wrap}
+.seg button{border:0;background:none;padding:6px 12px;border-radius:8px;font-size:14px;color:var(--muted);min-height:34px}
+.seg button[aria-checked="true"],.seg button[aria-pressed="true"]{background:var(--surface);color:var(--brand-ink);font-weight:700;box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.who-note{font-size:12.5px;color:var(--faint)}
+
+/* ---------- 接下来的重要日期 ---------- */
+.up{display:grid;gap:8px}
+@media (min-width:720px){.up{grid-template-columns:1fr 1fr}}
+.up-item{display:flex;gap:12px;align-items:center;padding:10px 12px;text-align:left;width:100%;border:1px solid var(--line);background:var(--surface);border-radius:12px;border-left:4px solid var(--c)}
+.up-item:hover{border-color:var(--faint);border-left-color:var(--c)}
+.up-days{flex:none;width:58px;text-align:center}
+.up-days b{display:block;font-size:22px;line-height:1.1;font-weight:800;color:var(--c)}
+.up-days span{font-size:11.5px;color:var(--muted)}
+.up-t{min-width:0}
+.up-t .zh{display:block;font-size:14.5px;font-weight:700;line-height:1.35}
+.up-t .d{display:block;font-size:12.5px;color:var(--muted)}
+.up-item.dl{grid-column:1/-1;background:var(--cbg);border-color:var(--c)}
+.up-item.dl .up-days{width:70px}
+.up-item.dl .up-days b{font-size:28px}
+.up-item.dl .zh{font-size:16px}
+.up-kicker{display:block;font-size:12px;font-weight:700;color:var(--c);line-height:1.4}
+.up-why{display:block;font-size:13px;color:var(--text);margin-top:2px}
+
+/* ---------- 回国规划 ---------- */
+.trip{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x proximity;margin:0 -16px;padding:2px 16px 10px}
+.trip-card{flex:none;width:84%;max-width:330px;scroll-snap-align:start;padding:14px;border-top:4px solid var(--c-break)}
+@media (min-width:820px){.trip{display:grid;grid-template-columns:repeat(3,1fr);overflow:visible;margin:0;padding:0}.trip-card{width:auto;max-width:none}}
+.trip-card h3{font-size:16px;font-weight:700}
+.trip-range{font-size:14px;margin-top:2px}
+.trip-days{display:inline-block;margin-top:6px;font-size:12.5px;font-weight:700;color:var(--c-break);background:var(--c-break-bg);border-radius:999px;padding:1px 9px}
+.trip-cn{margin-top:8px;display:flex;flex-wrap:wrap;gap:5px}
+.trip-cn span{font-size:12.5px;border-radius:6px;padding:1px 7px;background:var(--danger-bg);color:var(--danger)}
+.trip-list{margin:9px 0 0;padding:0;list-style:none;font-size:13px;color:var(--muted);display:grid;gap:5px}
+.trip-list li{padding-left:15px;position:relative}
+.trip-list li:before{content:"";position:absolute;left:3px;top:.62em;width:5px;height:5px;border-radius:50%;background:var(--faint)}
+.trip-list li.warn{color:var(--text)}
+.trip-list li.warn:before{background:var(--danger)}
+.trip-note{font-size:13px;color:var(--muted);margin-top:8px}
+
+/* ---------- 工具栏 ---------- */
+.tools{padding:12px;display:grid;gap:10px}
+.tools-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.search{flex:1 1 180px;position:relative;min-width:0}
+.search input{width:100%;height:40px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2);padding:0 12px 0 36px;font-size:15px}
+.search input::placeholder{color:var(--faint)}
+.search .ic{position:absolute;left:11px;top:11px;font-size:17px;color:var(--faint)}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:5px;min-height:32px;padding:3px 11px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--muted);font-size:13.5px}
+.chip[aria-pressed="true"]{background:var(--brand-soft);border-color:var(--brand-ink);color:var(--brand-ink);font-weight:700}
+.chip.cat[aria-pressed="true"]{background:var(--cbg);border-color:var(--c);color:var(--c)}
+.chip .ic{font-size:14px}
+.tools-k{font-size:12.5px;color:var(--faint);width:100%}
+.switch{display:inline-flex;align-items:center;gap:7px;font-size:14px;color:var(--text);min-height:32px;cursor:pointer}
+.switch input{appearance:none;-webkit-appearance:none;width:38px;height:22px;border-radius:999px;background:var(--line);position:relative;margin:0;flex:none;cursor:pointer;transition:background .15s}
+.switch input:after{content:"";position:absolute;left:2px;top:2px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.3);transition:transform .15s}
+.switch input:checked{background:var(--brand-ink)}
+.switch input:checked:after{transform:translateX(16px)}
+.btn{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:5px 12px;border-radius:10px;border:1px solid var(--line);background:var(--surface);font-size:14px;color:var(--text)}
+.btn:hover{border-color:var(--faint)}
+.btn.primary{background:var(--brand);border-color:var(--brand);color:#fff}
+.btn.sm{min-height:30px;padding:2px 9px;font-size:13px;border-radius:8px}
+.list-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:14px 0 6px;font-size:13px;color:var(--muted)}
+.list-bar .sp{flex:1}
+.notice{font-size:13px;border-radius:10px;padding:8px 11px;background:var(--amber-bg);color:var(--amber);margin:8px 0}
+.notice button{border:0;background:none;color:inherit;text-decoration:underline;padding:0;font-size:13px}
+
+/* ---------- 时间轴 ---------- */
+.month-h{position:sticky;top:var(--header-h);z-index:5;background:var(--bg);padding:10px 2px 6px;font-size:15px;font-weight:700;display:flex;gap:8px;align-items:baseline}
+.month-h span{font-size:12px;color:var(--faint);font-weight:400}
+.tl{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.ev{display:grid;grid-template-columns:70px minmax(0,1fr);gap:10px;padding:11px 12px 11px 10px;background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--c);border-radius:12px}
+.ev.is-high{box-shadow:var(--shadow)}
+.ev.is-past{opacity:.58}
+.ev.is-flash{animation:flash 1.6s ease-out}
+@keyframes flash{0%{box-shadow:0 0 0 3px var(--brand-ink)}100%{box-shadow:0 0 0 3px transparent}}
+.ev-date{text-align:center;line-height:1.25;white-space:nowrap}
+.ev-date b{display:block;font-size:14.5px;font-weight:800}
+.ev-date span{display:block;font-size:12px;color:var(--muted)}
+.ev-date .to{font-size:11.5px;color:var(--muted)}
+.ev-main{min-width:0}
+.ev-title{display:block;width:100%;text-align:left;border:0;background:none;padding:0;font-size:15.5px;font-weight:700;line-height:1.4;color:var(--text)}
+.ev-en{font-size:12.5px;color:var(--muted);line-height:1.45;margin-top:2px}
+.ev-time{font-size:13px;margin-top:5px;display:flex;gap:6px;align-items:baseline;flex-wrap:wrap}
+.ev-time b{font-weight:700}
+.ev-chips{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px;align-items:center}
+.tagc{display:inline-flex;align-items:center;gap:4px;font-size:12px;line-height:1;padding:4px 7px;border-radius:6px;background:var(--cbg);color:var(--c);font-weight:700}
+.tagc .ic{font-size:13px}
+.tg{display:inline-flex;align-items:center;gap:3px;font-size:12px;line-height:1;padding:4px 7px;border-radius:6px;background:var(--surface-2);color:var(--muted)}
+.tg.hi{background:var(--danger-bg);color:var(--danger);font-weight:700}
+.tg.prov{background:var(--amber-bg);color:var(--amber);font-weight:700}
+.tg.doubt{background:var(--amber-bg);color:var(--amber);font-weight:700;border:1px dashed currentColor}
+.tg.soon{background:var(--brand-soft);color:var(--brand-ink);font-weight:700}
+.tg.now{background:var(--ok-bg);color:var(--ok);font-weight:700}
+.ev-risk{margin-top:8px;font-size:13.5px;line-height:1.5;color:var(--danger);background:var(--danger-bg);border-radius:8px;padding:6px 9px;display:flex;gap:7px}
+.ev-risk .ic{margin-top:.22em}
+.ev-tip{margin-top:8px;font-size:13.5px;line-height:1.5;color:var(--c-break);background:var(--c-break-bg);border-radius:8px;padding:6px 9px;display:flex;gap:7px}
+.ev-tip .ic{margin-top:.22em}
+.ev-doubt{margin-top:8px;font-size:13.5px;line-height:1.5;color:var(--amber);background:var(--amber-bg);border-radius:8px;padding:6px 9px;display:flex;gap:7px}
+.ev-doubt .ic{margin-top:.22em}
+.ev-body{margin-top:9px;padding-top:9px;border-top:1px dashed var(--line);font-size:13.5px;display:grid;gap:7px}
+.ev-body ul{margin:0;padding-left:1.2em;display:grid;gap:4px}
+.ev-body .who-line{background:var(--brand-soft);color:var(--text);border-radius:8px;padding:6px 9px}
+.ev-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
+.term{border-bottom:1px dotted currentColor;cursor:help}
+.ev-chips .tg.term{border-bottom:0}
+.ov{display:grid;grid-template-columns:70px minmax(0,1fr);gap:10px;padding:7px 12px 7px 10px;border:1px dashed var(--line);border-radius:10px;font-size:13.5px;background:transparent}
+.ov .ev-date b{font-size:13.5px;font-weight:700}
+.ov-t{min-width:0;display:flex;gap:6px;flex-wrap:wrap;align-items:baseline}
+.ov-t .en{font-size:12px;color:var(--muted)}
+.ov-tag{font-size:11.5px;font-weight:700;border-radius:5px;padding:1px 6px;line-height:1.5}
+.ov-tag.qld{background:var(--c-enrol-bg);color:var(--c-enrol)}
+.ov-tag.cn{background:var(--danger-bg);color:var(--danger)}
+.today-mark{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:700;color:var(--brand-ink);padding:2px 0}
+.today-mark:before,.today-mark:after{content:"";height:2px;background:var(--brand-ink);flex:1;border-radius:2px;opacity:.55}
+.empty{padding:26px 16px;text-align:center;color:var(--muted);font-size:14px}
+.tbd{margin-top:14px;padding:12px 14px}
+.tbd h3{font-size:14.5px;font-weight:700;margin-bottom:6px}
+.tbd ul{margin:0;padding:0;list-style:none;display:grid;gap:8px;font-size:13.5px}
+.tbd li b{font-weight:700}
+.tbd .en{color:var(--muted);font-size:12.5px}
+.tbd .tg{margin-right:6px}
+
+/* ---------- 月历 ---------- */
+.cal-bar{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.cal-bar h3{font-size:17px;font-weight:700;flex:1;text-align:center}
+.cal{padding:8px}
+.cal-grid{display:grid;grid-template-columns:34px repeat(7,minmax(0,1fr));gap:3px}
+.cal-dow{font-size:11.5px;color:var(--faint);text-align:center;padding:2px 0}
+.cal-wk{font-size:10.5px;line-height:1.2;color:var(--muted);display:flex;align-items:center;justify-content:center;text-align:center;border-radius:6px;background:var(--surface-2);padding:2px 1px}
+.cal-d{position:relative;min-height:58px;border:1px solid transparent;border-radius:8px;background:var(--surface-2);padding:3px 3px 4px;text-align:left;display:flex;flex-direction:column;gap:2px;overflow:hidden}
+.cal-d.out{opacity:.38}
+.cal-d.ph-break{background:var(--ph-break)}
+.cal-d.ph-vac{background:var(--ph-vac)}
+.cal-d.ph-revision{background:var(--ph-revision)}
+.cal-d.ph-exam{background:var(--ph-exam)}
+.cal-d.today{border-color:var(--brand-ink);box-shadow:inset 0 0 0 1px var(--brand-ink)}
+.cal-d.sel{outline:2px solid var(--brand-ink);outline-offset:1px}
+.cal-n{font-size:13px;font-weight:700;line-height:1.2;display:flex;justify-content:space-between;align-items:flex-start;gap:2px}
+.cal-n em{font-style:normal;font-size:9.5px;font-weight:700;line-height:1.25;border-radius:3px;padding:0 2px}
+.cal-n em.q{background:var(--c-enrol-bg);color:var(--c-enrol)}
+.cal-n em.c{background:var(--danger-bg);color:var(--danger)}
+.cal-n em.w{background:var(--surface);color:var(--muted);border:1px solid var(--line)}
+.cal-p{display:flex;flex-wrap:wrap;gap:2px}
+.pill{font-size:10.5px;line-height:1.35;font-weight:700;border-radius:4px;padding:0 3px;background:var(--cbg);color:var(--c);max-width:100%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.pill.hi{box-shadow:inset 0 0 0 1px var(--c)}
+.pill .lg{display:none}
+@media (min-width:700px){.cal-d{min-height:86px}.pill{display:block;width:100%}.pill .lg{display:inline}.pill .sh{display:none}.cal-grid{grid-template-columns:52px repeat(7,minmax(0,1fr))}.cal-wk{font-size:12px}}
+.cal-legend{display:flex;gap:6px 12px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:8px;padding:0 2px}
+.cal-legend i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:4px;border:1px solid var(--line)}
+.day-panel{margin-top:10px}
+.day-panel h3{font-size:15px;font-weight:700;margin-bottom:8px}
+
+/* ---------- 次要内容、术语、说明 ---------- */
+details.fold{margin-top:10px}
+details.fold>summary{list-style:none;cursor:pointer;padding:12px 14px;display:flex;gap:8px;align-items:center;font-weight:700;font-size:15px}
+details.fold>summary::-webkit-details-marker{display:none}
+details.fold>summary .en{font-size:12.5px;font-weight:400;color:var(--faint)}
+details.fold>summary .ic{margin-left:auto;transition:transform .15s;color:var(--faint)}
+details.fold[open]>summary .ic{transform:rotate(180deg)}
+.fold-body{padding:0 14px 14px;font-size:13.5px}
+.grp-list{display:grid;gap:8px}
+.grp{border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.grp.cur{background:var(--brand-soft);border-color:var(--brand-ink)}
+.grp.old{opacity:.6}
+.grp-h{display:flex;gap:6px 8px;align-items:center;flex-wrap:wrap;font-size:14.5px}
+.grp-h .sp{flex:1}
+.grp-g{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;margin-top:9px}
+@media (min-width:700px){.grp-g{grid-template-columns:repeat(4,1fr)}}
+.grp-c .k{display:block;font-size:12.5px;color:var(--muted);line-height:1.3}
+.grp-c .k small{display:block;font-size:11px;color:var(--faint)}
+.grp-c b{font-size:15px}
+.gloss{display:grid;gap:8px}
+@media (min-width:720px){.gloss{grid-template-columns:1fr 1fr}}
+.gl{padding:11px 13px}
+.gl h3{font-size:15px;font-weight:700}
+.gl h3 span{font-weight:400;color:var(--muted);font-size:13px;margin-left:6px}
+.gl p{font-size:13.5px;color:var(--muted);margin-top:3px}
+.help{padding:14px;font-size:14px;display:grid;gap:10px}
+.help ol,.help ul{margin:0;padding-left:1.3em;display:grid;gap:4px}
+.help h3{font-size:15px}
+.field{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.field select{height:36px;border:1px solid var(--line);border-radius:9px;background:var(--surface-2);padding:0 8px}
+.exp-list{display:flex;gap:6px;flex-wrap:wrap}
+
+.tip{position:absolute;z-index:60;max-width:300px;background:#221a2f;color:#fff;border-radius:10px;padding:9px 11px;font-size:13px;line-height:1.5;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+.tip b{display:block;font-size:13.5px;margin-bottom:2px}
+.toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:70;max-width:min(92vw,460px);background:#221a2f;color:#fff;border-radius:12px;padding:11px 14px;font-size:13.5px;line-height:1.5;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+
+footer{margin-top:28px;padding:18px 16px 34px;border-top:1px solid var(--line);background:var(--surface)}
+.foot-in{max-width:960px;margin:0 auto;font-size:13px;color:var(--muted);display:grid;gap:10px}
+.foot-in strong{color:var(--text)}
+.foot-in ul{margin:0;padding-left:1.2em;display:grid;gap:3px}
+
+/* ---------- 打印：一个学期一页 A4 ---------- */
+#print{display:none}
+@media print{
+  @page{size:A4 portrait;margin:9mm 10mm}
+  html,body{background:#fff !important;color:#000 !important}
+  body>*:not(#print){display:none !important}
+  #print{display:block;font:8pt/1.32 var(--font);color:#000}
+  .pp{break-after:page;page-break-after:always}
+  .pp:last-child{break-after:auto;page-break-after:auto}
+  .pp-h{display:flex;justify-content:space-between;align-items:flex-end;gap:6mm;border-bottom:1.2pt solid #000;padding-bottom:1.5mm;margin-bottom:2mm}
+  .pp-h h1{font-size:14pt;line-height:1.2;font-weight:800}
+  .pp-h h1 span{font-size:9pt;font-weight:400;margin-left:2mm}
+  .pp-h p{font-size:7pt;text-align:right;line-height:1.35}
+  .pp-list{list-style:none;margin:0;padding:0;columns:2;column-gap:7mm}
+  .pp-list li{break-inside:avoid;page-break-inside:avoid;display:grid;grid-template-columns:19mm 1fr;gap:1.5mm;padding:.75mm 0;border-bottom:.3pt solid #bbb}
+  .pp-d{font-weight:700;font-variant-numeric:tabular-nums}
+  .pp-d small{display:block;font-weight:400;font-size:6.5pt}
+  .pp-t b{font-weight:700}
+  .pp-t .star{font-weight:800}
+  .pp-t .en{display:block;font-size:6.3pt;line-height:1.25;color:#333}
+  .pp-t .mk{font-size:6.5pt;border:.4pt solid #000;border-radius:1.5pt;padding:0 .8mm;margin-left:1mm;white-space:nowrap}
+  .pp-f{margin-top:2mm;padding-top:1.2mm;border-top:.6pt solid #000;font-size:6.6pt;line-height:1.35;color:#000}
+  .pp-f p+p{margin-top:.6mm}
+}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="i-enrol" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4h6v3H9zM9 11.5h6M9 15.5h6"/></symbol>
+  <symbol id="i-fees" viewBox="0 0 24 24"><rect x="2.5" y="5" width="19" height="14" rx="2"/><path d="M2.5 10h19M6 15h4"/></symbol>
+  <symbol id="i-withdraw" viewBox="0 0 24 24"><path d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4M15 8l4 4-4 4M19 12H9"/></symbol>
+  <symbol id="i-teaching" viewBox="0 0 24 24"><path d="M12 6c-2-1.5-5-2-8-2v14c3 0 6 .5 8 2 2-1.5 5-2 8-2V4c-3 0-6 .5-8 2zM12 6v14"/></symbol>
+  <symbol id="i-exam" viewBox="0 0 24 24"><path d="M4 20l1-4L16 5l3 3L8 19zM14 7l3 3"/></symbol>
+  <symbol id="i-grades" viewBox="0 0 24 24"><path d="M3 20h18M6 20v-8M12 20V5M18 20v-5"/></symbol>
+  <symbol id="i-break" viewBox="0 0 24 24"><path d="M21 3L3 10.5l7 2.5 2.5 7zM10 13l5-5"/></symbol>
+  <symbol id="i-event" viewBox="0 0 24 24"><path d="M5 21V4M5 4h12l-2.5 4L17 12H5"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18M12 13v5M9.5 15.5h5"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M16.5 16.5L21 21"/></symbol>
+  <symbol id="i-print" viewBox="0 0 24 24"><path d="M7 8V3h10v5"/><rect x="3" y="8" width="18" height="9" rx="2"/><path d="M7 14h10v7H7z"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3l10 18H2zM12 10v5M12 18v.4"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+  <symbol id="i-left" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></symbol>
+  <symbol id="i-right" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+  <symbol id="i-theme" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3v18a9 9 0 0 0 0-18z" fill="currentColor"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.3v.4"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M14 5h5v5M19 5l-8 8M11 6H6a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-5"/></symbol>
+</svg>
+
+<header class="top">
+  <div class="top-in">
+    <span class="brand">UQ 中文校历</span>
+    <span class="top-sp"></span>
+    <button class="icon-btn" id="btn-theme" type="button" title="切换外观"><svg class="ic"><use href="#i-theme"/></svg><span class="lbl" id="theme-lbl">跟随系统</span></button>
+    <button class="icon-btn" id="btn-print" type="button" title="打印当前学期（A4）"><svg class="ic"><use href="#i-print"/></svg><span class="lbl">打印</span></button>
+  </div>
+</header>
+
+<main class="wrap" id="top">
+  <nav class="nav" aria-label="页面导航">
+    <a href="#sec-cal">校历</a><a href="#sec-trip">回国规划</a><a href="#sec-more">研究季度 / 教学段</a><a href="#sec-gloss">术语对照</a><a href="#sec-ics">加入日历</a><a href="#sec-about">来源与声明</a>
+  </nav>
+
+  <section class="hero" id="hero" aria-live="polite"></section>
+
+  <div class="card who" id="who"></div>
+
+  <section id="sec-up">
+    <div class="sec-h"><h2>接下来的重要日期</h2><span class="en">按布里斯班日期倒数</span></div>
+    <div class="up" id="up"></div>
+  </section>
+
+  <section id="sec-trip">
+    <div class="sec-h"><h2>假期与回国规划</h2><span class="en">根据官方开课、考试日期计算</span></div>
+    <div id="trip-wrap"></div>
+  </section>
+
+  <section id="sec-cal">
+    <div class="sec-h">
+      <h2>校历</h2><span class="en">所有日期为布里斯班时间（AEST，UTC+10）</span><span class="sp"></span>
+      <div class="seg" role="group" aria-label="视图切换">
+        <button type="button" data-view="list" aria-pressed="true">时间轴</button>
+        <button type="button" data-view="month" aria-pressed="false">月历</button>
+      </div>
+    </div>
+    <div class="card tools" id="tools">
+      <div class="tools-row">
+        <label class="search"><span class="sr">搜索</span><svg class="ic"><use href="#i-search"/></svg><input id="q" type="search" placeholder="搜索，如 census、退课" autocomplete="off"></label>
+        <label class="switch"><input type="checkbox" id="sw-important"><span>只看重要</span></label>
+      </div>
+      <div><div class="tools-k">学期</div><div class="chips" id="chips-period"></div></div>
+      <div><div class="tools-k">类别</div><div class="chips" id="chips-cat"></div></div>
+      <div class="tools-row">
+        <span class="tools-k" style="width:auto">叠加显示</span>
+        <label class="switch"><input type="checkbox" id="sw-cn"><span>中国节假日</span></label>
+        <label class="switch"><input type="checkbox" id="sw-qld"><span>昆州法定假日</span></label>
+      </div>
+    </div>
+    <div id="view-list"></div>
+    <div id="view-month" hidden></div>
+    <div id="tbd"></div>
+  </section>
+
+  <section id="sec-more">
+    <div class="sec-h"><h2>研究季度与教学段</h2><span class="en">Research Quarters / Teaching Periods</span></div>
+    <div id="more"></div>
+  </section>
+
+  <section id="sec-gloss">
+    <div class="sec-h"><h2>术语对照</h2><span class="en">学校邮件里的英文，对应的意思</span></div>
+    <div class="gloss" id="gloss"></div>
+  </section>
+
+  <section id="sec-ics">
+    <div class="sec-h"><h2>加入日历</h2><span class="en">.ics 文件在你的浏览器里直接生成，不上传任何数据</span></div>
+    <div class="card help" id="ics-help"></div>
+  </section>
+</main>
+
+<footer id="sec-about"><div class="foot-in" id="foot"></div></footer>
+
+<div class="tip" id="tip" role="tooltip" hidden></div>
+<div class="toast" id="toast" role="status" hidden></div>
+<div id="print" aria-hidden="true"></div>
+<noscript><p style="padding:16px">本页需要启用 JavaScript 才能显示校历。官方校历：https://about.uq.edu.au/academic-calendar</p></noscript>
+
+<script>
+/* =====================================================================
+ * 应用区：下面是页面逻辑，每年更新数据时一般不需要改动。
+ * 调试：在网址后面加 ?today=2027-03-28 可以模拟「今天」。
+ * ===================================================================== */
+(function () {
+'use strict';
+
+/* ---------- 日期工具（全部用「距 1970-01-01 的天数」计算，避开设备时区） ---------- */
+var DAY = 86400000;
+var WD = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+function pad(n) { return (n < 10 ? '0' : '') + n; }
+function dn(s) { var p = s.split('-'); return Math.round(Date.UTC(+p[0], +p[1] - 1, +p[2]) / DAY); }
+function parts(n) { var d = new Date(n * DAY); return { y: d.getUTCFullYear(), m: d.getUTCMonth() + 1, d: d.getUTCDate(), w: d.getUTCDay() }; }
+function ds(n) { var p = parts(n); return p.y + '-' + pad(p.m) + '-' + pad(p.d); }
+function monday(n) { return n - ((parts(n).w + 6) % 7); }
+function md(n) { var p = parts(n); return p.m + '月' + p.d + '日'; }
+function mdw(n) { return md(n) + ' ' + WD[parts(n).w]; }
+function ymd(n) { var p = parts(n); return p.y + '年' + p.m + '月' + p.d + '日'; }
+function ymdw(n) { return ymd(n) + ' ' + WD[parts(n).w]; }
+function rangeText(s, e) {
+  if (s === e) return md(s);
+  var a = parts(s), b = parts(e);
+  if (a.y !== b.y) return ymd(s) + '–' + ymd(e);
+  if (a.m === b.m) return a.m + '月' + a.d + '–' + b.d + '日';
+  return md(s) + '–' + md(e);
+}
+function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+function $(id) { return document.getElementById(id); }
+function ic(name) { return '<svg class="ic" aria-hidden="true"><use href="#i-' + name + '"/></svg>'; }
+
+/* ---------- 「今天」按布里斯班时间（UTC+10，无夏令时）计算 ---------- */
+var TEST_TODAY = null;
+(function () { var m = /[?&]today=(\d{4}-\d{2}-\d{2})/.exec(window.location.search || ''); if (m) TEST_TODAY = m[1]; })();
+function brisbaneNow() {
+  var t = Date.now() + 10 * 3600000, d = new Date(t);
+  return { day: TEST_TODAY ? dn(TEST_TODAY) : Math.floor(t / DAY), hm: pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()) };
+}
+function beijingNow() {
+  var t = Date.now() + 8 * 3600000, d = new Date(t);
+  return { day: Math.floor(t / DAY), hm: pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()) };
+}
+function toBeijing(hm) {            // 布里斯班 HH:MM → 北京时间（早 2 小时）
+  var p = hm.split(':'), m = (+p[0]) * 60 + (+p[1]) - 120, pre = '';
+  if (m < 0) { m += 1440; pre = '前一天 '; }
+  return pre + pad(Math.floor(m / 60)) + ':' + pad(m % 60);
+}
+var TODAY = brisbaneNow().day;
+
+/* ---------- 状态与本地存储（读写都包 try/catch） ---------- */
+var STORE_KEY = 'uq-zh-calendar.v1';
+var state = {
+  res: 'intl', level: 'ug', summer: false,          // 身份：默认国际生 · 本科 · 不上暑期课
+  view: 'list', period: 'all', cats: {}, important: false, q: '', showPast: false,
+  cn: true, qld: true, theme: 'auto', remind: 3, remindEvent: false,
+  month: null, selDay: null
+};
+var ALLOWED = {
+  res: ['intl', 'dom'], level: ['ug', 'pgcw', 'hdr'], summer: [true, false], view: ['list', 'month'],
+  cn: [true, false], qld: [true, false], theme: ['auto', 'light', 'dark'], remind: [0, 1, 3, 7], remindEvent: [true, false]
+};
+function loadState() {
+  try {
+    var raw = window.localStorage.getItem(STORE_KEY);
+    if (!raw) return;
+    var o = JSON.parse(raw);
+    if (!o || typeof o !== 'object') return;
+    Object.keys(ALLOWED).forEach(function (k) { if (ALLOWED[k].indexOf(o[k]) >= 0) state[k] = o[k]; });
+  } catch (e) { /* 读不到就用默认值 */ }
+}
+function saveState() {
+  try {
+    var o = {};
+    Object.keys(ALLOWED).forEach(function (k) { o[k] = state[k]; });
+    window.localStorage.setItem(STORE_KEY, JSON.stringify(o));
+  } catch (e) { /* 无痕模式或被禁用时忽略 */ }
+}
+
+/* ---------- 类别 ---------- */
+var CATS = {
+  enrol:    { zh: '选课', sh: '选' },
+  fees:     { zh: '缴费', sh: '缴' },
+  withdraw: { zh: '退课', sh: '退' },
+  teaching: { zh: '上课', sh: '课' },
+  exam:     { zh: '考试', sh: '考' },
+  grades:   { zh: '成绩', sh: '绩' },
+  'break':  { zh: '假期', sh: '假' },
+  event:    { zh: '活动', sh: '活' }
+};
+var CAT_ORDER = ['enrol', 'fees', 'withdraw', 'teaching', 'exam', 'grades', 'break', 'event'];
+function cvar(c) { return 'style="--c:var(--c-' + c + ');--cbg:var(--c-' + c + '-bg)"'; }
+function anyCat() { for (var k in state.cats) { if (state.cats[k]) return true; } return false; }
+
+/* ---------- 高风险截止日：大白话后果（依据 my.UQ 的退课、缴费、迟注册页面） ---------- */
+var RISKS = {
+  enrolDue: {
+    short: '错过这天还没选上课，会被收迟注册费（late enrolment fee）。',
+    detail: ['必须在这天之前在 mySI-net 至少选上 1 门课，才算按时完成注册。', '迟注册费的金额随迟的天数增加。'],
+    src: SRC.L },
+  addDue: {
+    short: '这天之后不能自己加课或换课；再想加课要申请审批，并收 $50。',
+    detail: ['这天之后、Census date 之前想加课或换课，需要在线申请并获批，批准后收 $50 迟加课费。', 'Census date 之后原则上不能再加课。'],
+    pgcw: '授课型硕士在入学的第一个学期免收这 $50。',
+    src: SRC.L },
+  feeDue: {
+    short: '逾期未付清罚 $100；到 Census date 还没付清，注册可能被取消。',
+    detail: ['所有费用（含学费）都必须在这天之前到账。', '应缴金额和账单在 mySI-net 的 Financial 页面查看；改了选课后要等一晚账单才会更新。'],
+    intl: '国际生需全额自付。银行电汇可能要好几天才到账，建议至少提前一周付款并保留凭证。账单一般在第一学期 1 月中、第二学期 6 月中、暑期学期 11 月初出来。',
+    dom: '本地生：联邦资助学位（CSP）想用 HECS-HELP 延迟付费的，要在 Census date 前完成 eCAF；需要自付的部分仍须在这天前付清。',
+    src: SRC.F },
+  census: {
+    short: '过了这天再退课，学费照付不退。',
+    detail: ['当天或之前在 mySI-net 退课：不收这门课的学费，课程从记录里删除，成绩单上不留痕迹。', '过了这天再退课：学费照付；如果还晚于「无学术处罚退课截止日」，成绩单上还会留下 K。', '学费到这天还没付清的，注册可能被取消。'],
+    intl: '国际生：退课或减少学分可能影响学生签证，退课前先咨询学院（faculty）。入学第一个学期如果在 Census date 前退学（withdraw from program），会收一笔取消注册的行政费。',
+    src: SRC.W },
+  noPenalty: {
+    short: '过了这天再退课，成绩单记 K，GPA 按 0 分算，效果等同挂科。',
+    detail: ['当天或之前退课：学费照付，但只在 studies report 上记 W，不会出现在正式成绩单（transcript）上。', '过了这天再退课：学费照付，成绩单上记 K（带学术处罚的退课），算 GPA 时按 0 分计。'],
+    intl: '国际生：退课前先咨询学院，确认不会影响学生签证要求的学习量。',
+    src: SRC.W },
+  lastWithdraw: {
+    short: '考试周一开始就不能退课了；这天退课仍然记 K，学费照付。',
+    detail: ['这是还能在 mySI-net 退课的最后一天。此时退课记 K（GPA 按 0 分计），学费照付。', '考试周开始后不能再退课，学校会按你已完成的考核给出成绩。'],
+    src: SRC.W },
+  rqFee: {
+    short: '逾期未付清罚 $100；到 Census date 还没付清，注册可能被取消。',
+    detail: ['研究型学位按研究季度缴费，金额在 mySI-net 的 Financial 页面查看。'],
+    src: SRC.A },
+  rqCensus: {
+    short: '过了这天再取消注册，本季度学费照付。',
+    detail: ['研究型学位（HDR）退学没有学术处罚。', '这里的 financial liability 只指学费，不需要退还奖学金。'],
+    src: SRC.W },
+  tpCensus: {
+    short: '过了这天再退课，学费照付，而且有学术处罚。',
+    detail: ['教学段的 Census date 同时也是无学术处罚退课的最后一天，两个日期合在一起。', '这类课程通常没有期末考试周，最晚可以退到课程的最后一天，但那时学费照付、成绩单记 K。'],
+    src: SRC.W }
+};
+
+/* ---------- 术语自动加注 ---------- */
+var GMAP = {}, TERM_MAP = {}, TERM_LIST = [];
+GLOSSARY.forEach(function (g) {
+  GMAP[g.id] = g;
+  g.terms.forEach(function (t) { TERM_MAP[t.toLowerCase()] = g.id; TERM_LIST.push(t); });
+});
+TERM_LIST.sort(function (a, b) { return b.length - a.length; });
+var TERM_RE = new RegExp('(' + TERM_LIST.map(function (t) { return t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }).join('|') + ')', 'gi');
+function gloss(text) {
+  return esc(text).replace(TERM_RE, function (m) {
+    var id = TERM_MAP[m.toLowerCase()];
+    return id ? '<span class="term" role="button" tabindex="0" data-term="' + id + '">' + m + '</span>' : m;
+  });
+}
+
+/* ---------- 学期阶段与教学周 ---------- */
+var PMAP = {};
+PERIODS.forEach(function (p) { PMAP[p.id] = p; });
+var TEACH = PERIODS.filter(function (p) { return p.type === 'semester' || p.type === 'summer'; });
+var EMAP = {};
+EVENTS.forEach(function (ev) {
+  EMAP[ev.id] = ev;
+  var p = PMAP[ev.period];
+  ev._hay = [ev.titleZh, ev.titleEn, ev.note || '', ev.tip || '', ev.keywords || '', CATS[ev.category].zh,
+    p ? p.nameZh + ' ' + p.nameEn + ' ' + p.short : '', ev.risk ? RISKS[ev.risk].short : '',
+    ev.provisional ? '暂定 provisional' : ''].join(' ').toLowerCase();
+});
+function activeTeach() { return TEACH.filter(function (p) { return p.type === 'semester' || state.summer; }); }
+
+/* 完全落在期中假期里的周一（这些周不计入教学周） */
+function breakMondays(p) {
+  var out = [], stop = monday(dn(p.classesResume));
+  for (var m = monday(dn(p.lastClassBeforeBreak)) + 7; m < stop; m += 7) out.push(m);
+  return out;
+}
+function teachingWeek(p, d) {
+  var first = monday(dn(p.classesStart)), m = monday(d), skip = 0;
+  breakMondays(p).forEach(function (b) { if (b <= m) skip++; });
+  return (m - first) / 7 + 1 - skip;
+}
+function totalWeeks(p) { return teachingWeek(p, dn(p.classesEnd)); }
+function inBreak(p, d) {
+  return d > dn(p.lastClassBeforeBreak) && d < monday(dn(p.classesResume)) && (!p.breakStart || d >= dn(p.breakStart));
+}
+function phaseIn(p, d) {
+  if (d < dn(p.classesStart) || d > dn(p.end)) return null;
+  if (d < dn(p.revision[0])) {
+    if (inBreak(p, d)) return { phase: 'break', p: p };
+    return { phase: 'teach', p: p, week: teachingWeek(p, d) };
+  }
+  if (d <= dn(p.revision[1])) return { phase: 'revision', p: p };
+  return { phase: 'exam', p: p };
+}
+/* 给定日期处于什么阶段。all=true 时不管「是否上暑期课」的设置 */
+function phaseInfo(d, all) {
+  var list = all ? TEACH : activeTeach(), i, r, prev = null, next = null;
+  for (i = 0; i < list.length; i++) { r = phaseIn(list[i], d); if (r) return r; }
+  list.forEach(function (p) {
+    if (dn(p.end) < d && (!prev || dn(p.end) > dn(prev.end))) prev = p;
+    if (dn(p.classesStart) > d && (!next || dn(p.classesStart) < dn(next.classesStart))) next = p;
+  });
+  if (next && next.orientation && d >= dn(next.orientation[0]) && d <= dn(next.orientation[1])) return { phase: 'oweek', prev: prev, next: next };
+  return { phase: 'vac', prev: prev, next: next };
+}
+function phaseLabel(r) {
+  if (r.phase === 'teach') return '第 ' + r.week + ' 教学周';
+  if (r.phase === 'break') return '期中假期';
+  if (r.phase === 'revision') return '复习周';
+  if (r.phase === 'exam') return '期末考试周';
+  if (r.phase === 'oweek') return '迎新周';
+  return r.prev ? r.prev.breakAfterZh : '假期';
+}
+function rqAt(d) {
+  for (var i = 0; i < RESEARCH_QUARTERS.length; i++) {
+    var r = RESEARCH_QUARTERS[i];
+    if (d >= dn(r.start) && d <= dn(r.end)) return r;
+  }
+  return null;
+}
+
+/* ---------- 事件可见性 ---------- */
+function audOK(ev) { return ev.audience.indexOf(state.res) >= 0 && ev.audience.indexOf(state.level) >= 0; }
+function isSummer(pid) { return !!PMAP[pid] && PMAP[pid].type === 'summer'; }
+function inMain(ev) {
+  if (ev.period === 'TP') return false;
+  if (!audOK(ev)) return false;
+  if (isSummer(ev.period) && !state.summer && state.period !== ev.period) return false;
+  return true;
+}
+function passFilters(ev) {
+  if (state.period !== 'all' && ev.period !== state.period) return false;
+  if (state.important && ev.importance !== 'high') return false;
+  if (anyCat() && !state.cats[ev.category]) return false;
+  if (state.q && ev._hay.indexOf(state.q) < 0) return false;
+  return true;
+}
+function evS(ev) { return dn(ev.start); }
+function evE(ev) { return dn(ev.end || ev.start); }
+function rank(ev) { return ev.importance === 'high' ? 0 : ev.importance === 'normal' ? 1 : 2; }
+function byDate(a, b) { return evS(a) - evS(b) || rank(a) - rank(b) || (a.time || '').localeCompare(b.time || ''); }
+function countdown(s, e) {
+  if (s > TODAY) return s - TODAY === 1 ? '明天' : '还有 ' + (s - TODAY) + ' 天';
+  if (e > TODAY) return '进行中 · 还剩 ' + (e - TODAY) + ' 天';
+  if (e === TODAY) return s === e ? '今天' : '今天结束';
+  return '已过';
+}
+
+/* ---------- 首页状态卡 ---------- */
+function nextDeadline() {
+  var best = null;
+  EVENTS.forEach(function (ev) {
+    if (ev.tbd || !ev.risk || !inMain(ev) || evS(ev) < TODAY) return;
+    if (!best || byDate(ev, best) < 0) best = ev;
+  });
+  return best;
+}
+function weeksBar(p, r) {
+  var T = totalWeeks(p), brkAfter = teachingWeek(p, dn(p.lastClassBeforeBreak)), h = '<div class="weeks" aria-hidden="true">';
+  var cur = r.phase === 'teach' ? r.week : (r.phase === 'break' ? brkAfter + 0.5 : T + 1);
+  for (var i = 1; i <= T; i++) {
+    h += '<i class="' + (i < cur ? 'done' : i === cur ? 'now' : '') + '"></i>';
+    if (i === brkAfter) h += '<i class="brk ' + (cur === brkAfter + 0.5 ? 'now' : cur > brkAfter ? 'done' : '') + '" title="期中假期"></i>';
+  }
+  return h + '<span>共 ' + T + ' 个教学周，圆点是期中假期</span></div>';
+}
+function renderHero() {
+  var now = brisbaneNow(), bj = beijingNow(), d = TODAY;
+  var eyebrow = '', title = '', unit = '', en = '', sub = '', bar = '', alt = '';
+
+  if (state.level === 'hdr') {
+    var q = rqAt(d);
+    eyebrow = '研究型学位 · HDR';
+    if (q) {
+      title = q.year + ' 研究季度 ' + q.q; en = 'Research Quarter ' + q.q + ', ' + q.year;
+      sub = rangeText(dn(q.start), dn(q.end)) + ' · 本季度' + (dn(q.end) === d ? '今天结束' : '还剩 <b>' + (dn(q.end) - d) + '</b> 天');
+    } else { title = '研究季度待公布'; en = 'Research quarters'; sub = '这一天的研究季度日期官网还没公布。'; }
+  } else {
+    var r = phaseInfo(d), p = r.p;
+    if (p) eyebrow = esc(p.nameZh) + ' · <span lang="en">' + esc(p.nameEn) + '</span>';
+    if (r.phase === 'teach') {
+      var T = totalWeeks(p), mon = monday(d);
+      title = '第 ' + r.week + ' 教学周'; unit = '共 ' + T + ' 周'; en = 'Teaching Week ' + r.week + ' of ' + T;
+      if (d < dn(p.classesResume) && d > dn(p.lastClassBeforeBreak) && d >= monday(dn(p.classesResume))) sub = '今天是公假，' + mdw(dn(p.classesResume)) + ' 复课。';
+      else if (r.week === T) sub = '最后一个教学周：' + md(dn(p.classesEnd)) + ' 停课，' + md(dn(p.revision[0])) + ' 起是复习周。';
+      else if (mon === monday(dn(p.lastClassBeforeBreak))) sub = '本周 ' + rangeText(mon, mon + 6) + '。' + md(dn(p.lastClassBeforeBreak)) + ' 是假期前最后一天上课，' + mdw(dn(p.classesResume)) + ' 复课。';
+      else sub = '本周 ' + rangeText(mon, mon + 6) + '。';
+      bar = weeksBar(p, r);
+    } else if (r.phase === 'break') {
+      title = '期中假期'; en = 'In-semester break';
+      sub = '假期不计入教学周。<b>' + mdw(dn(p.classesResume)) + '</b> 复课，进入第 ' + teachingWeek(p, dn(p.classesResume)) + ' 教学周。';
+      bar = weeksBar(p, r);
+    } else if (r.phase === 'revision') {
+      title = '复习周'; en = 'Revision period';
+      sub = '不上课。' + md(dn(p.exams[0])) + ' 开始考试，考试周 ' + rangeText(dn(p.exams[0]), dn(p.exams[1])) + '。';
+    } else if (r.phase === 'exam') {
+      title = '期末考试周'; en = 'Examination period';
+      sub = rangeText(dn(p.exams[0]), dn(p.exams[1])) + ' · ' + (dn(p.exams[1]) === d ? '今天是最后一天' : '还剩 <b>' + (dn(p.exams[1]) - d) + '</b> 天') + '。个人考试安排以 my.UQ 公布的为准。';
+    } else {
+      var nx = r.next;
+      if (r.phase === 'oweek') { title = '迎新周'; en = 'Orientation Week'; eyebrow = esc(nx.nameZh) + ' · <span lang="en">' + esc(nx.nameEn) + '</span>'; }
+      else { title = r.prev ? r.prev.breakAfterZh : '假期'; en = r.prev ? r.prev.breakAfterEn : ''; eyebrow = r.prev ? esc(r.prev.nameZh) + '已结束' : ''; }
+      sub = nx ? '距 ' + esc(nx.nameZh) + '开课（' + mdw(dn(nx.classesStart)) + '）还有 <b>' + (dn(nx.classesStart) - d) + '</b> 天。'
+               : '后续校历官网还没公布（本站数据核对于 ' + META.checkedOn + '）。';
+      if (!state.summer) {
+        TEACH.forEach(function (sp) {
+          if (sp.type !== 'summer' || alt) return;
+          var sr = phaseIn(sp, d);
+          if (sr) alt = esc(sp.nameZh) + '正在进行（' + phaseLabel(sr) + '）。你设置的是不上暑期课。<button type="button" data-act="summer-on">我在上暑期课</button>';
+          else if (dn(sp.classesStart) > d && (!nx || dn(sp.classesStart) < dn(nx.classesStart))) alt = esc(sp.nameZh) + '将于 ' + md(dn(sp.classesStart)) + ' 开课。<button type="button" data-act="summer-on">我要上暑期课</button>';
+        });
+      }
+    }
+  }
+
+  $('hero').innerHTML =
+    '<div class="hero-main">' +
+      '<div class="hero-eyebrow">' + eyebrow + '</div>' +
+      '<div class="hero-head"><h1 class="hero-title">' + title + (unit ? '<span class="unit">' + unit + '</span>' : '') + '</h1>' +
+      (en ? '<span class="hero-en" lang="en">' + esc(en) + '</span>' : '') + '</div>' +
+      '<p class="hero-sub">' + sub + '</p>' + bar +
+      (alt ? '<p class="hero-alt">' + alt + '</p>' : '') +
+    '</div>' +
+    '<div class="hero-foot num">' +
+      (TEST_TODAY ? '<span class="test-flag">测试日期</span>' : '') +
+      '<span>布里斯班 ' + mdw(d) + (TEST_TODAY ? '' : ' ' + now.hm) + '</span>' +
+      (TEST_TODAY ? '' : '<span>北京 ' + (bj.day !== d ? md(bj.day) + ' ' : '') + bj.hm + '</span>') +
+      '<span>布里斯班比北京早 2 小时</span>' +
+    '</div>';
+}
+
+/* ---------- 身份选择 ---------- */
+function seg(key, opts) {
+  return '<div class="seg" role="radiogroup">' + opts.map(function (o) {
+    return '<button type="button" role="radio" data-act="set" data-k="' + key + '" data-v="' + o[0] + '" aria-checked="' + (String(state[key]) === String(o[0])) + '">' + o[1] + '</button>';
+  }).join('') + '</div>';
+}
+function renderWho() {
+  $('who').innerHTML =
+    '<div class="who-row"><span class="k">我是</span>' + seg('res', [['intl', '国际生'], ['dom', '本地生']]) +
+      seg('level', [['ug', '本科'], ['pgcw', '授课型硕士'], ['hdr', '研究型学位']]) + '</div>' +
+    (state.level === 'hdr' ? '' : '<div class="who-row"><span class="k">暑期课</span>' + seg('summer', [[false, '不上'], [true, '上 Summer Semester']]) + '</div>') +
+    '<div class="who-note">只显示和你有关的日期。选择保存在这台设备的浏览器里，不会上传。</div>';
+}
+
+/* ---------- 接下来的重要日期 ---------- */
+function upLine(ev) {
+  var s = evS(ev), e = evE(ev);
+  return (s === e ? ymdw(s) : rangeText(s, e)) + (ev.time ? ' ' + ev.time + '（北京 ' + toBeijing(ev.time) + '）' : '') +
+    ' · ' + CATS[ev.category].zh + ' · ' + esc(PMAP[ev.period].short) + (ev.provisional ? ' · 暂定' : '');
+}
+function renderUp() {
+  var nd = nextDeadline(), html = '';
+  if (nd) {
+    var left = evS(nd) - TODAY;
+    html += '<button type="button" class="up-item dl" ' + cvar(nd.category) + ' data-act="jump" data-id="' + nd.id + '">' +
+      '<span class="up-days num">' + (left === 0 ? '<b>今天</b><span>截止</span>' : '<b>' + left + '</b><span>天后截止</span>') + '</span>' +
+      '<span class="up-t"><span class="up-kicker">下一个重要截止日</span><span class="zh">' + esc(nd.titleZh) + '</span>' +
+      '<span class="d num">' + upLine(nd) + '</span><span class="up-why">' + esc(RISKS[nd.risk].short) + '</span></span></button>';
+  }
+  var list = EVENTS.filter(function (ev) { return !ev.tbd && ev !== nd && ev.importance === 'high' && inMain(ev) && evE(ev) >= TODAY; }).sort(byDate).slice(0, 4);
+  html += list.map(function (ev) {
+    var s = evS(ev), e = evE(ev), left = s - TODAY, big, small;
+    if (left > 0) { big = left; small = '天后'; } else if (e > TODAY) { big = e - TODAY; small = '天后结束'; } else { big = '今天'; small = s === e ? '' : '结束'; }
+    return '<button type="button" class="up-item" ' + cvar(ev.category) + ' data-act="jump" data-id="' + ev.id + '">' +
+      '<span class="up-days num"><b>' + big + '</b><span>' + small + '</span></span>' +
+      '<span class="up-t"><span class="zh">' + esc(ev.titleZh) + '</span><span class="d num">' + upLine(ev) + '</span></span></button>';
+  }).join('');
+  $('up').innerHTML = html || '<div class="empty card">官网暂时没有已公布的后续重要日期。</div>';
+}
+
+/* ---------- 假期与回国规划 ---------- */
+function tripWindows() {
+  var out = [];
+  if (state.level === 'hdr') return out;
+  var sems = TEACH.filter(function (p) { return p.type === 'semester'; });
+  sems.forEach(function (p, i) {
+    var next = sems[i + 1] || null;
+    out.push({ kind: 'mid', p: p, s: dn(p.lastClassBeforeBreak) + 1, e: dn(p.classesResume) - 1, title: p.nameZh + '期中假期', en: 'In-semester break' });
+    out.push({ kind: 'after', p: p, next: next, s: dn(p.exams[1]) + 1, e: next ? dn(next.classesStart) - 1 : null,
+      title: p.breakAfterZh + '（' + p.nameZh + '考完之后）', en: p.breakAfterEn });
+  });
+  if (state.summer) {
+    TEACH.forEach(function (p) {
+      if (p.type === 'summer') out.push({ kind: 'mid', p: p, s: dn(p.lastClassBeforeBreak) + 1, e: dn(p.classesResume) - 1, title: p.nameZh + '期中假期', en: 'In-semester break' });
+    });
+  }
+  return out.filter(function (w) { return w.e === null || w.e >= TODAY; }).sort(function (a, b) { return a.s - b.s; });
+}
+function renderTrip() {
+  var el = $('trip-wrap');
+  if (state.level === 'hdr') {
+    el.innerHTML = '<div class="card" style="padding:14px"><p class="small muted">研究型学位（HDR）没有固定的学期假期。离校休假请按学校对 HDR 的休假规定办理，并提前和导师确认。下面的校历只显示研究季度的缴费和 Census date，以及公假和全校活动。</p></div>';
+    return;
+  }
+  var wins = tripWindows();
+  var html = wins.map(function (w) {
+    var days = w.e === null ? null : w.e - w.s + 1, end = w.e === null ? TODAY + 100000 : w.e;
+    var cn = [];
+    CN_HOLIDAYS.forEach(function (h) {
+      var hs = dn(h.start), he = dn(h.end);
+      if (hs > end || he < w.s) return;
+      var ov = Math.min(end, he) - Math.max(w.s, hs) + 1, tot = he - hs + 1;
+      cn.push(h.nameZh + ' ' + rangeText(hs, he) + (ov === tot ? ' · 全在假期内' : ' · 重合 ' + ov + ' 天'));
+    });
+    var lines = [];
+    if (w.kind === 'after') {
+      var tt = null, hasTbd = false;
+      EVENTS.forEach(function (ev) { if (ev.period === w.p.id && ev.role === 'examTT') tt = ev; if (ev.period === w.p.id && ev.tbd && /exam-tt/.test(ev.id)) hasTbd = true; });
+      if (tt && evS(tt) >= TODAY) lines.push(['warn', '先别订票：个人考试时间表 ' + md(evS(tt)) + ' ' + tt.time + ' 发布，看到最后一门的日期再订。考试周到 ' + md(dn(w.p.exams[1])) + ' 才结束。']);
+      else if (hasTbd && dn(w.p.exams[0]) > TODAY) lines.push(['warn', '先别订票：个人考试时间表的发布日官网还没公布。考试周到 ' + md(dn(w.p.exams[1])) + ' 才结束。']);
+      else lines.push(['warn', '出发：考完最后一门之后。考试周到 ' + md(dn(w.p.exams[1])) + ' 结束，以个人考试时间表为准。']);
+    }
+    var inside = EVENTS.filter(function (ev) {
+      if (ev.tbd || !inMain(ev) || ev.category === 'break' || ev.category === 'teaching' || ev.category === 'event') return false;
+      if (evS(ev) > end || evE(ev) < w.s) return false;
+      return ev.category === 'exam' || ev.category === 'withdraw' || ev.category === 'fees' || ev.importance === 'high';
+    }).sort(byDate);
+    inside.slice(0, 6).forEach(function (ev) {
+      lines.push([ev.importance === 'high' ? 'warn' : '', (evS(ev) === evE(ev) ? md(evS(ev)) : rangeText(evS(ev), evE(ev))) + ' ' + ev.titleZh + (ev.provisional ? '（暂定）' : '')]);
+    });
+    if (inside.length > 6) lines.push(['', '另有 ' + (inside.length - 6) + ' 条，见下方校历。']);
+    if (w.kind === 'after') {
+      if (w.next) lines.push(['', '返程：' + md(w.e) + ' 前回到布里斯班，' + mdw(dn(w.next.classesStart)) + ' 开课' + (w.next.orientation ? '；迎新周 ' + rangeText(dn(w.next.orientation[0]), dn(w.next.orientation[1])) : '') + '。']);
+      else lines.push(['', '返程日期要等 2028 年校历公布。']);
+      if (state.summer) TEACH.forEach(function (sp) {
+        if (sp.type === 'summer' && dn(sp.classesStart) <= end && dn(sp.end) >= w.s) lines.push(['warn', '你在上' + sp.nameZh + '（' + rangeText(dn(sp.classesStart), dn(sp.end)) + '），这段时间不能全程离开。']);
+      });
+    } else {
+      lines.push(['', '复课：' + mdw(dn(w.p.classesResume)) + '。']);
+    }
+    return '<article class="card trip-card">' +
+      '<h3>' + esc(w.title) + '</h3>' +
+      '<div class="trip-range num">' + (w.e === null ? ymd(w.s) + ' 起' : rangeText(w.s, w.e)) + '</div>' +
+      (days ? '<span class="trip-days num">最多 ' + days + ' 天</span>' : '<span class="trip-days">结束日待公布</span>') +
+      (state.cn ? (cn.length ? '<div class="trip-cn">' + cn.map(function (c) { return '<span class="num">' + esc(c) + '</span>'; }).join('') + '</div>'
+                              : (w.e === null ? '<p class="trip-note">' + esc(CN_HOLIDAYS_PENDING) + '</p>' : '')) : '') +
+      '<ul class="trip-list">' + lines.map(function (l) { return '<li class="' + l[0] + ' num">' + esc(l[1]) + '</li>'; }).join('') + '</ul>' +
+    '</article>';
+  }).join('');
+  el.innerHTML = '<div class="trip">' + html + '</div>' +
+    '<p class="trip-note">天数按「最后一门考完的次日」到「开课前一天」计算，是最长的情况。红点是假期里仍要处理或必须到场的事项。个人考试安排以 my.UQ 公布的为准，时间表出来之前别订回国机票。</p>';
+}
+
+/* ---------- 筛选栏 ---------- */
+function periodChips() {
+  var list = [{ id: 'all', label: '全部' }];
+  TEACH.forEach(function (p) { list.push({ id: p.id, label: p.short + (p.id === 'S2-2026' ? ' 收尾' : '') }); });
+  if (state.level === 'hdr') list.push({ id: 'RQ', label: '研究季度' });
+  return list;
+}
+function renderChips() {
+  $('chips-period').innerHTML = periodChips().map(function (c) {
+    return '<button type="button" class="chip" data-act="period" data-v="' + c.id + '" aria-pressed="' + (state.period === c.id) + '">' + esc(c.label) + '</button>';
+  }).join('');
+  $('chips-cat').innerHTML = CAT_ORDER.map(function (c) {
+    return '<button type="button" class="chip cat" ' + cvar(c) + ' data-act="cat" data-v="' + c + '" aria-pressed="' + !!state.cats[c] + '">' + ic(c) + CATS[c].zh + '</button>';
+  }).join('');
+  $('sw-important').checked = state.important;
+  $('sw-cn').checked = state.cn;
+  $('sw-qld').checked = state.qld;
+  var vb = document.querySelectorAll('[data-view]');
+  for (var i = 0; i < vb.length; i++) vb[i].setAttribute('aria-pressed', String(vb[i].getAttribute('data-view') === state.view));
+  $('view-list').hidden = state.view !== 'list';
+  $('view-month').hidden = state.view !== 'month';
+}
+
+/* ---------- 事件行 ---------- */
+var openIds = {};
+function audTag(ev) {
+  var a = ev.audience;
+  if (a.indexOf('hdr') >= 0 && a.indexOf('ug') < 0) return 'HDR';
+  if (a.indexOf('dom') < 0) return '国际生';
+  if (a.indexOf('intl') < 0) return '本地生';
+  return '';
+}
+function timeLine(ev) {
+  if (!ev.time) return '';
+  return '<div class="ev-time num">' + ic('clock') + '<b>' + ev.time + (ev.timeEnd ? '–' + ev.timeEnd : '') + '</b><span>布里斯班时间</span><span class="muted">北京时间 ' +
+    toBeijing(ev.time) + (ev.timeEnd ? '–' + toBeijing(ev.timeEnd) : '') + '</span></div>';
+}
+function evRow(ev) {
+  var s = evS(ev), e = evE(ev), past = e < TODAY, open = !!openIds[ev.id], risk = ev.risk ? RISKS[ev.risk] : null, at = audTag(ev);
+  var cd = countdown(s, e), body = '';
+  if (risk) {
+    body += '<div><b>过了会怎样</b><ul>' + risk.detail.map(function (t) { return '<li>' + gloss(t) + '</li>'; }).join('') + '</ul></div>';
+    if (state.res === 'intl' && risk.intl) body += '<div class="who-line">' + gloss(risk.intl) + '</div>';
+    if (state.res === 'dom' && risk.dom) body += '<div class="who-line">' + gloss(risk.dom) + '</div>';
+    if (state.level === 'pgcw' && risk.pgcw) body += '<div class="who-line">' + gloss(risk.pgcw) + '</div>';
+  }
+  if (ev.note) body += '<div>' + gloss(ev.note) + '</div>';
+  body += '<div class="muted">官方来源：<a href="' + esc(ev.sourceUrl) + '" target="_blank" rel="noopener">' + esc(ev.sourceUrl.replace(/^https:\/\//, '').slice(0, 60)) + (ev.sourceUrl.length > 68 ? '…' : '') + '</a>' +
+    (risk && risk.src !== ev.sourceUrl ? '；后果说明依据 <a href="' + esc(risk.src) + '" target="_blank" rel="noopener">my.UQ 相关页面</a>' : '') + '</div>';
+
+  return '<li class="ev' + (ev.importance === 'high' ? ' is-high' : '') + (past ? ' is-past' : '') + '" id="ev-' + ev.id + '" ' + cvar(ev.category) + '>' +
+    '<div class="ev-date num"><b>' + md(s) + '</b>' + (s === e ? '<span>' + WD[parts(s).w] + '</span>' : '<span class="to">至 ' + md(e) + '</span>') + '</div>' +
+    '<div class="ev-main">' +
+      '<button type="button" class="ev-title" data-act="toggle" data-id="' + ev.id + '" aria-expanded="' + open + '">' + esc(ev.titleZh) + '</button>' +
+      '<div class="ev-en" lang="en">' + gloss(ev.titleEn) + '</div>' +
+      timeLine(ev) +
+      '<div class="ev-chips">' +
+        '<span class="tagc">' + ic(ev.category) + CATS[ev.category].zh + '</span>' +
+        (ev.importance === 'high' ? '<span class="tg hi">重要</span>' : '') +
+        (ev.provisional ? '<span class="tg prov term" role="button" tabindex="0" data-term="provisional">暂定 Provisional</span>' : '') +
+        (ev.doubt ? '<span class="tg doubt">存疑</span>' : '') +
+        (at ? '<span class="tg">' + at + '</span>' : '') +
+        '<span class="tg">' + esc(PMAP[ev.period].short) + (ev.groupEn ? ' · ' + esc(ev.groupZh) : '') + '</span>' +
+        (past ? '' : '<span class="tg num ' + (s <= TODAY ? 'now' : s - TODAY <= 14 ? 'soon' : '') + '">' + cd + '</span>') +
+      '</div>' +
+      (risk ? '<p class="ev-risk">' + ic('alert') + '<span>' + gloss(risk.short) + '</span></p>' : '') +
+      (ev.tip ? '<p class="ev-tip">' + ic('break') + '<span>' + gloss(ev.tip) + '</span></p>' : '') +
+      (ev.doubt ? '<p class="ev-doubt">' + ic('info') + '<span>' + gloss(ev.doubt) + '</span></p>' : '') +
+      '<div class="ev-body"' + (open ? '' : ' hidden') + '>' + body + '</div>' +
+      '<div class="ev-actions">' +
+        '<button type="button" class="btn sm" data-act="ics" data-id="' + ev.id + '">' + ic('cal') + '加入日历</button>' +
+        '<button type="button" class="btn sm" data-act="toggle" data-id="' + ev.id + '">' + (open ? '收起' : '详情与来源') + '</button>' +
+      '</div>' +
+    '</div></li>';
+}
+function qldRow(h) {
+  var s = dn(h.start);
+  return '<li class="ov"><div class="ev-date num"><b>' + md(s) + '</b><span>' + WD[parts(s).w] + '</span></div><div class="ov-t">' +
+    '<span class="ov-tag qld">昆州公假</span><span>' + esc(h.nameZh) + '</span><span class="en" lang="en">' + esc(h.nameEn) + '</span>' +
+    (h.note ? '<span class="en">' + esc(h.note) + '</span>' : '') + '</div></li>';
+}
+function cnRow(h) {
+  var s = dn(h.start), e = dn(h.end);
+  return '<li class="ov"><div class="ev-date num"><b>' + md(s) + '</b>' + (s === e ? '<span>' + WD[parts(s).w] + '</span>' : '<span class="to">至 ' + md(e) + '</span>') + '</div><div class="ov-t">' +
+    '<span class="ov-tag cn">中国假期</span><span>' + esc(h.nameZh) + '</span><span class="en" lang="en">' + esc(h.nameEn) + '</span>' +
+    '<span class="en num">放假 ' + (e - s + 1) + ' 天' + (h.workdays.length ? '；调休上班：' + h.workdays.map(function (w) { return mdw(dn(w)); }).join('、') : '') + '</span></div></li>';
+}
+
+/* ---------- 时间轴 ---------- */
+function periodSpan() {
+  if (state.period === 'all') return null;
+  var lo = Infinity, hi = -Infinity;
+  EVENTS.forEach(function (ev) { if (ev.period === state.period && !ev.tbd) { lo = Math.min(lo, evS(ev)); hi = Math.max(hi, evE(ev)); } });
+  return lo === Infinity ? null : [lo, hi];
+}
+function overlaysAllowed() { return !state.important && (!anyCat() || state.cats['break']); }
+function listItems() {
+  var items = [], ids = {};
+  EVENTS.forEach(function (ev) {
+    if (ev.tbd || !inMain(ev) || !passFilters(ev)) return;
+    ids[ev.id] = 1;
+    items.push({ t: 'ev', s: evS(ev), e: evE(ev), r: rank(ev), ev: ev });
+  });
+  if (overlaysAllowed()) {
+    var span = periodSpan();
+    if (state.qld) QLD_HOLIDAYS.forEach(function (h) {
+      var s = dn(h.start);
+      if ((h.dupOf && ids[h.dupOf]) || (span && (s < span[0] || s > span[1]))) return;
+      if (state.q && (h.nameZh + ' ' + h.nameEn + ' 公假 public holiday 昆州').toLowerCase().indexOf(state.q) < 0) return;
+      items.push({ t: 'qld', s: s, e: s, r: 8, h: h });
+    });
+    if (state.cn) CN_HOLIDAYS.forEach(function (h) {
+      var s = dn(h.start), e = dn(h.end);
+      if (span && (e < span[0] || s > span[1])) return;
+      if (state.q && (h.nameZh + ' ' + h.nameEn + ' 中国 假期 节假日').toLowerCase().indexOf(state.q) < 0) return;
+      items.push({ t: 'cn', s: s, e: e, r: 9, h: h });
+    });
+  }
+  items.sort(function (a, b) { return a.s - b.s || a.r - b.r || ((a.ev && a.ev.time) || '').localeCompare((b.ev && b.ev.time) || ''); });
+  return items;
+}
+function hiddenSummerCount() {
+  if (state.summer || state.level === 'hdr' || state.period !== 'all') return 0;
+  return EVENTS.filter(function (ev) { return !ev.tbd && isSummer(ev.period) && audOK(ev) && evE(ev) >= TODAY && passFilters(ev); }).length;
+}
+function renderList() {
+  var items = listItems(), pastN = 0, evN = 0, html = '', curMonth = '', marked = false, openOl = false;
+  items.forEach(function (it) { if (it.e < TODAY) pastN++; if (it.t === 'ev') evN++; });
+  var shown = items.filter(function (it) { return state.showPast || it.e >= TODAY; });
+  var mark = '<li class="today-mark num">今天 · ' + mdw(TODAY) + '（布里斯班）</li>';
+  shown.forEach(function (it) {
+    var p = parts(it.s), key = p.y + '年' + p.m + '月';
+    if (key !== curMonth) {
+      if (openOl) html += '</ol>';
+      html += '<div class="month-h num">' + key + '</div><ol class="tl">'; openOl = true; curMonth = key;
+    }
+    if (!marked && it.s > TODAY) { html += mark; marked = true; }
+    html += it.t === 'ev' ? evRow(it.ev) : it.t === 'qld' ? qldRow(it.h) : cnRow(it.h);
+  });
+  if (openOl) html += (marked ? '' : mark) + '</ol>';
+
+  var bar = '<div class="list-bar"><span class="num">' + evN + ' 条校历日期' + (pastN ? '，其中 ' + pastN + ' 条已过' : '') + '</span><span class="sp"></span>' +
+    (pastN ? '<button type="button" class="btn sm" data-act="past">' + (state.showPast ? '隐藏已过去的' : '显示已过去的') + '</button>' : '') +
+    '<button type="button" class="btn sm" data-act="ics-list">' + ic('cal') + '导出当前列表</button></div>';
+  var notice = '', hs = hiddenSummerCount();
+  if (hs) notice = '<div class="notice">按「不上暑期课」隐藏了 ' + hs + ' 条暑期学期（Summer Semester）日期。<button type="button" data-act="summer-on">我要上暑期课，显示出来</button></div>';
+  else if (isSummer(state.period) && !state.summer) notice = '<div class="notice">你设置的是「不上暑期课」。这里仍然列出这个学期的全部日期，但首页状态和提醒不会包含它们。<button type="button" data-act="summer-on">改为上暑期课</button></div>';
+  $('view-list').innerHTML = bar + notice + (shown.length ? html : '<div class="empty card">没有符合条件的日期。试试清空搜索词或换个筛选条件。' +
+    (pastN && !state.showPast ? '<br>有 ' + pastN + ' 条已经过去，可以点「显示已过去的」。' : '') + '</div>');
+}
+
+/* ---------- 待公布 ---------- */
+function renderTbd() {
+  var list = EVENTS.filter(function (ev) {
+    if (!ev.tbd || !audOK(ev)) return false;
+    if (ev.period === 'TP') return false;
+    if (isSummer(ev.period) && !state.summer && state.period !== ev.period) return false;
+    return passFilters(ev);
+  });
+  var extra = [];
+  if (state.period === 'all' && !state.q && !anyCat()) {
+    if (state.level !== 'hdr') extra.push('<li><span class="tg prov">待公布</span><b>2027 年官方周次表</b><div class="en">官网目前只有 2026 年的 PDF 挂历。本站的教学周按官方 2026 挂历的标法，用 2027 年官方开课、放假、复课日期算出。</div></li>');
+    if (state.cn) extra.push('<li><span class="tg prov">待公布</span><b>2028 年中国节假日安排</b><div class="en">' + esc(CN_HOLIDAYS_PENDING) + '</div></li>');
+  }
+  if (!list.length && !extra.length) { $('tbd').innerHTML = ''; return; }
+  $('tbd').innerHTML = '<div class="card tbd"><h3>官网还没公布的日期</h3><p class="small muted" style="margin-bottom:8px">本站不按往年推算，公布后再补。</p><ul>' +
+    list.map(function (ev) {
+      return '<li><span class="tg prov">待公布</span><b>' + esc(ev.titleZh) + '</b> <span class="tg">' + esc(PMAP[ev.period].short) + '</span>' +
+        '<div class="en" lang="en">' + gloss(ev.titleEn) + '</div><div class="en">' + gloss(ev.note || '') + '</div></li>';
+    }).join('') + extra.join('') + '</ul></div>';
+}
+
+/* ---------- 月历 ---------- */
+function monthBounds() { return [META.coverage[0].slice(0, 7), META.coverage[1].slice(0, 7)]; }
+function addMonth(ym, k) { var y = +ym.slice(0, 4), m = +ym.slice(5, 7) - 1 + k; y += Math.floor(m / 12); m = ((m % 12) + 12) % 12; return y + '-' + pad(m + 1); }
+function clampMonth(ym) { var b = monthBounds(); return ym < b[0] ? b[0] : ym > b[1] ? b[1] : ym; }
+function weekLabel(m) {
+  if (state.level === 'hdr') { var q = rqAt(m + 3); return q ? 'RQ' + q.q : ''; }
+  var seen = {}, wk = null;
+  for (var i = 0; i < 7; i++) { var r = phaseInfo(m + i); seen[r.phase] = 1; if (r.phase === 'teach' && wk === null) wk = r.week; }
+  if (wk !== null) return '第' + wk + '周';
+  if (seen.exam && seen.revision) return '复习<br>考试';
+  if (seen.exam) return '考试周';
+  if (seen.revision) return '复习周';
+  if (seen['break']) return '期中假';
+  if (seen.oweek) return '迎新周';
+  return '假期';
+}
+function dayOverlays(d) {
+  var o = { qld: [], cn: [], work: [] };
+  if (state.qld) QLD_HOLIDAYS.forEach(function (h) { if (dn(h.start) === d) o.qld.push(h); });
+  if (state.cn) CN_HOLIDAYS.forEach(function (h) {
+    if (d >= dn(h.start) && d <= dn(h.end)) o.cn.push(h);
+    h.workdays.forEach(function (w) { if (dn(w) === d) o.work.push(h); });
+  });
+  return o;
+}
+function renderMonth() {
+  if (!state.month) { state.month = clampMonth(ds(TODAY).slice(0, 7)); if (state.month === ds(TODAY).slice(0, 7)) state.selDay = TODAY; }
+  var ym = state.month, b = monthBounds(), first = dn(ym + '-01'), nextFirst = dn(addMonth(ym, 1) + '-01');
+  var visible = EVENTS.filter(function (ev) { return !ev.tbd && inMain(ev) && passFilters(ev); });
+  var h = '<div class="cal-bar"><button type="button" class="btn sm" data-act="month" data-v="-1"' + (ym <= b[0] ? ' disabled' : '') + ' aria-label="上个月">' + ic('left') + '</button>' +
+    '<h3 class="num">' + (+ym.slice(0, 4)) + '年' + (+ym.slice(5, 7)) + '月</h3>' +
+    '<button type="button" class="btn sm" data-act="month-today">今天</button>' +
+    '<button type="button" class="btn sm" data-act="month" data-v="1"' + (ym >= b[1] ? ' disabled' : '') + ' aria-label="下个月">' + ic('right') + '</button></div>';
+  h += '<div class="card cal"><div class="cal-grid"><div class="cal-dow">周次</div>' + ['一', '二', '三', '四', '五', '六', '日'].map(function (x) { return '<div class="cal-dow">' + x + '</div>'; }).join('');
+  for (var m = monday(first); m < nextFirst; m += 7) {
+    h += '<div class="cal-wk">' + weekLabel(m) + '</div>';
+    for (var i = 0; i < 7; i++) {
+      var d = m + i, p = parts(d), out = d < first || d >= nextFirst, cls = 'cal-d';
+      if (state.level !== 'hdr') {
+        var r = phaseInfo(d);
+        if (r.phase === 'break') cls += ' ph-break'; else if (r.phase === 'revision') cls += ' ph-revision'; else if (r.phase === 'exam') cls += ' ph-exam';
+        else if ((r.phase === 'vac' || r.phase === 'oweek') && (r.prev || r.next)) cls += ' ph-vac';
+      }
+      if (out) cls += ' out'; if (d === TODAY) cls += ' today'; if (d === state.selDay) cls += ' sel';
+      var ov = dayOverlays(d), tags = '';
+      if (ov.qld.length) tags += '<em class="q" title="昆州公假">澳</em>';
+      if (ov.cn.length) tags += '<em class="c" title="中国假期">中</em>';
+      if (ov.work.length) tags += '<em class="w" title="中国调休上班">班</em>';
+      var starts = visible.filter(function (ev) { return evS(ev) === d; }).sort(byDate), pills = '';
+      starts.slice(0, 3).forEach(function (ev) {
+        pills += '<span class="pill' + (ev.importance === 'high' ? ' hi' : '') + '" ' + cvar(ev.category) + '><span class="sh">' + CATS[ev.category].sh + '</span><span class="lg">' + CATS[ev.category].zh + '·' + esc(ev.titleZh) + '</span></span>';
+      });
+      if (starts.length > 3) pills += '<span class="pill" style="--c:var(--muted);--cbg:var(--surface)">+' + (starts.length - 3) + '</span>';
+      h += '<button type="button" class="' + cls + '" data-act="day" data-v="' + d + '" aria-label="' + ymdw(d) + '，' + starts.length + ' 条日期">' +
+        '<span class="cal-n num"><span>' + p.d + '</span><span>' + tags + '</span></span><span class="cal-p">' + pills + '</span></button>';
+    }
+  }
+  h += '</div></div>';
+  h += '<div class="cal-legend"><span><i style="background:var(--surface-2)"></i>教学周</span><span><i style="background:var(--ph-break)"></i>期中假期</span>' +
+    '<span><i style="background:var(--ph-vac)"></i>学期之间的假期</span><span><i style="background:var(--ph-revision)"></i>复习周</span><span><i style="background:var(--ph-exam)"></i>考试周</span>' +
+    '<span>澳 = 昆州公假</span><span>中 = 中国假期</span><span>班 = 中国调休上班</span><span>选 缴 退 课 考 绩 假 活 = 类别</span></div>';
+
+  var sd = state.selDay;
+  if (sd !== null) {
+    var cover = visible.filter(function (ev) { return evS(ev) <= sd && evE(ev) >= sd; }).sort(byDate), ovs = dayOverlays(sd), st = '';
+    if (state.level === 'hdr') { var q = rqAt(sd); st = q ? q.year + ' 研究季度 ' + q.q : ''; }
+    else { var ri = phaseInfo(sd); st = (ri.p ? ri.p.nameZh + ' · ' : '') + phaseLabel(ri); }
+    h += '<div class="day-panel"><h3 class="num">' + ymdw(sd) + (st ? ' <span class="tg">' + esc(st) + '</span>' : '') + '</h3><ol class="tl">' +
+      cover.map(evRow).join('') + ovs.qld.map(qldRow).join('') + ovs.cn.map(cnRow).join('') +
+      ovs.work.map(function (hh) { return '<li class="ov"><div class="ev-date num"><b>' + md(sd) + '</b><span>' + WD[parts(sd).w] + '</span></div><div class="ov-t"><span class="ov-tag cn">中国调休</span><span>' + esc(hh.nameZh) + '调休上班日</span></div></li>'; }).join('') +
+      '</ol>' + (cover.length || ovs.qld.length || ovs.cn.length || ovs.work.length ? '' : '<div class="empty card">这一天没有符合当前筛选条件的日期。</div>') + '</div>';
+  }
+  $('view-month').innerHTML = h;
+}
+
+/* ---------- 研究季度与教学段 ---------- */
+function groupTable(rows, kind) {
+  var isRQ = kind === 'rq';
+  var labels = isRQ
+    ? [['开始', 'Starts'], ['学费缴纳截止', 'Due date for payment of fees'], ['Census date', '取消注册不收学费的最后一天'], ['结束', 'Ends']]
+    : [['选课截止并开课', 'Enrolments close / Classes start'], ['学费缴纳截止', 'Due date for payment of fees'], ['Census date', '退课不收学费且无学术处罚的最后一天'], ['课程结束', 'Classes end']];
+  return '<div class="grp-list">' + rows.map(function (r) {
+    var tag = (isRQ ? 'rq-' + r.year + '-' + r.q : 'tp-' + r.year + '-' + r.n), s = dn(r.start), e = dn(r.end);
+    var cls = e < TODAY ? 'old' : (s <= TODAY ? 'cur' : '');
+    var cells = [r.start, r.feeDue, r.census, r.end].map(function (v, i) {
+      return '<div class="grp-c"><span class="k">' + labels[i][0] + '<small' + (i === 2 ? '' : ' lang="en"') + '>' + labels[i][1] + '</small></span>' +
+        '<b class="num">' + md(dn(v)) + '</b> <span class="muted">' + WD[parts(dn(v)).w] + '</span></div>';
+    }).join('');
+    return '<div class="grp ' + cls + '"><div class="grp-h"><b>' + (isRQ ? r.year + ' 第 ' + r.q + ' 季度' : r.year + ' 第 ' + r.n + ' 段') + '</b>' +
+      '<span class="muted" lang="en">' + (isRQ ? 'Quarter ' + r.q : 'Period ' + r.n + ' (' + r.linked + ')') + '</span>' +
+      (cls === 'cur' ? '<span class="tg now">进行中</span>' : cls === 'old' ? '<span class="tg">已结束</span>' : '') + '<span class="sp"></span>' +
+      '<button type="button" class="btn sm" data-act="ics-group" data-v="' + tag + '">' + ic('cal') + '加入日历</button></div>' +
+      '<div class="grp-g">' + cells + '</div></div>';
+  }).join('') + '</div>';
+}
+function renderMore() {
+  $('more').innerHTML =
+    '<details class="card fold"' + (state.level === 'hdr' ? ' open' : '') + '><summary>研究季度 <span class="en" lang="en">Research Quarters · HDR</span>' + ic('down') + '</summary><div class="fold-body">' +
+      '<p style="margin-bottom:8px">' + gloss('研究型学位（HDR，如 PhD、MPhil）按季度注册和缴费。过了 Census date 再取消注册，本季度学费照付；HDR 退学没有学术处罚。') + '</p>' +
+      groupTable(RESEARCH_QUARTERS, 'rq') +
+      '<p class="muted" style="margin-top:8px">2028 年研究季度日期：待公布（2028 年校历尚未发布）。</p></div></details>' +
+    '<details class="card fold"><summary>教学段 <span class="en" lang="en">Teaching Periods</span>' + ic('down') + '</summary><div class="fold-body">' +
+      '<p style="margin-bottom:8px">' + gloss('少数课程不按标准学期上课，而是用教学段（一年 8 段）。教学段的 Census date 同时是无学术处罚退课的最后一天：过了这天退课，既要付学费，也有学术处罚。你的课是不是教学段课程，以 mySI-net 的 Enrolments 页面为准。') + '</p>' +
+      groupTable(TEACHING_PERIODS, 'tp') +
+      '<p class="muted" style="margin-top:8px">2028 年教学段日期：待公布（2028 年校历尚未发布）。</p></div></details>';
+}
+
+/* ---------- 术语表、日历说明、页脚（静态） ---------- */
+function renderGloss() {
+  $('gloss').innerHTML = GLOSSARY.map(function (g) {
+    return '<div class="card gl" id="g-' + g.id + '"><h3>' + esc(g.zh) + '<span lang="en">' + esc(g.en) + '</span></h3><p>' + esc(g.desc) + '</p></div>';
+  }).join('');
+}
+function renderIcsHelp() {
+  var wx = /MicroMessenger/i.test(navigator.userAgent || '');
+  var exp = TEACH.concat(state.level === 'hdr' ? [PMAP.RQ] : []).map(function (p) {
+    return '<button type="button" class="btn sm" data-act="ics-period" data-v="' + p.id + '">' + ic('cal') + esc(p.nameZh) + '</button>';
+  }).join('');
+  $('ics-help').innerHTML =
+    (wx ? '<div class="notice" style="margin:0">你正在微信里打开本页。微信内置浏览器不能保存日历文件，请点右上角「···」选择「在浏览器打开」后再导出。</div>' : '') +
+    '<div><h3>导出整个学期</h3><p class="small muted" style="margin:2px 0 8px">按你当前选的身份导出该学期的全部日期。单条日期在校历里点「加入日历」。</p><div class="exp-list">' + exp + '</div></div>' +
+    '<div><h3>提醒设置</h3><div class="field" style="margin-top:6px"><label for="sel-remind">重要截止日提前</label>' +
+      '<select id="sel-remind">' + [[3, '3 天提醒（默认）'], [1, '1 天提醒'], [7, '7 天提醒'], [0, '不提醒']].map(function (o) { return '<option value="' + o[0] + '"' + (state.remind === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></div>' +
+      '<label class="switch" style="margin-top:8px"><input type="checkbox" id="sw-remind-ev"' + (state.remindEvent ? ' checked' : '') + '><span>另外加一条「提前提醒」的全天日程（Google 日历建议打开）</span></label>' +
+      '<p class="small muted" style="margin-top:6px">带提醒的是注册、加课、缴费、Census date、退课这几类截止日。全天事件的提醒在提前那一天的上午 9 点（按你手机所在时区）响。Google 日历导入文件时可能忽略文件自带的提醒，所以提供上面这个开关。</p></div>' +
+    '<div><h3>怎么导入</h3><ul>' +
+      '<li><b>iPhone / iPad</b>：用 Safari 打开本页，点「加入日历」并允许下载，再点地址栏旁的下载图标打开文件，选「添加全部」。</li>' +
+      '<li><b>Google 日历</b>：电脑上打开 calendar.google.com，右上角设置 → 导入和导出 → 选择刚下载的 .ics 文件 → 导入。安卓手机下载后直接点文件，用「日历」打开。</li>' +
+      '<li><b>Mac / Outlook</b>：双击下载的 .ics 文件。</li>' +
+      '<li>有具体时刻的事件按布里斯班时间写入，在国内的手机上会自动显示成北京时间；全天事件按布里斯班日期显示在同一天。</li>' +
+      '<li>重复导入同一条不会产生重复日程（每条都有固定编号）。学校改日期后，重新导出再导入即可覆盖。</li>' +
+    '</ul></div>';
+}
+function renderFoot() {
+  var links = [
+    ['UQ 官方校历 Academic calendar', SRC.A], ['考试重要日期 Important exam dates', SRC.E], ['退课与退学 Withdrawing from a course or program', SRC.W],
+    ['国际生学费 Coursework tuition fees – international students', SRC.F], ['迟注册与迟加课费用 Late enrolment', SRC.L],
+    ['国际生重要日期 Important dates for international students', SRC.S], ['昆州法定假日 Queensland public holidays', SRC.Q], ['国务院办公厅关于 2027 年部分节假日安排的通知', SRC.G]
+  ];
+  $('foot').innerHTML =
+    '<p><strong>本站是非官方的中文整理，一切以 UQ 官网为准。</strong>本站与昆士兰大学（The University of Queensland）没有隶属或授权关系，不使用学校标识。日期、规定和后果说明请以 UQ 官网，以及你在 mySI-net、my.UQ 里看到的个人信息为准。</p>' +
+    '<p>标注「暂定 Provisional」的日期可能调整；标注「存疑」的是官网自身前后不一致的地方；「待公布」的日期本站不做推算。医学等有特殊日程的项目、UQ College 的课程不在本站范围内。</p>' +
+    '<p><strong>数据核对日期：' + ymd(dn(META.checkedOn)) + '（布里斯班时间）</strong></p>' +
+    '<ul>' + links.map(function (l) { return '<li><a href="' + esc(l[1]) + '" target="_blank" rel="noopener">' + esc(l[0]) + '</a></li>'; }).join('') + '</ul>';
+}
+
+/* ---------- 打印（一个学期一页 A4） ---------- */
+function renderPrint() {
+  var pids;
+  if (state.period !== 'all') pids = [state.period];
+  else if (state.level === 'hdr') pids = ['RQ'];
+  else pids = activeTeach().map(function (p) { return p.id; });
+  var who = (state.res === 'intl' ? '国际生' : '本地生') + ' · ' + (state.level === 'ug' ? '本科' : state.level === 'pgcw' ? '授课型硕士' : '研究型学位');
+  $('print').innerHTML = pids.map(function (pid) {
+    var p = PMAP[pid];
+    var evs = EVENTS.filter(function (ev) {
+      return ev.period === pid && audOK(ev) && (!state.important || ev.importance === 'high') && (!anyCat() || state.cats[ev.category]);
+    });
+    var dated = evs.filter(function (ev) { return !ev.tbd; }).sort(byDate), tbd = evs.filter(function (ev) { return ev.tbd; });
+    if (!dated.length) return '';
+    var lo = evS(dated[0]), hi = -Infinity;
+    dated.forEach(function (ev) { hi = Math.max(hi, evE(ev)); });
+    var rows = dated.map(function (ev) {
+      var s = evS(ev), e = evE(ev), at = audTag(ev);
+      return '<li><div class="pp-d">' + md(s) + '<small>' + (s === e ? parts(s).y + ' ' + WD[parts(s).w] : '至 ' + md(e)) + '</small></div><div class="pp-t">' +
+        (ev.importance === 'high' ? '<span class="star">★</span>' : '') + '<b>' + esc(ev.titleZh) + '</b>' +
+        '<span class="mk">' + CATS[ev.category].zh + '</span>' + (ev.provisional ? '<span class="mk">暂定</span>' : '') + (ev.doubt ? '<span class="mk">存疑</span>' : '') + (at ? '<span class="mk">' + at + '</span>' : '') +
+        (ev.time ? ' ' + ev.time + (ev.timeEnd ? '–' + ev.timeEnd : '') + '（北京 ' + toBeijing(ev.time) + '）' : '') +
+        '<span class="en" lang="en">' + esc(ev.titleEn) + '</span>' +
+        (ev.risk ? '<span class="en">▲ ' + esc(RISKS[ev.risk].short) + '</span>' : '') + '</div></li>';
+    }).join('');
+    var qh = state.qld ? QLD_HOLIDAYS.filter(function (h) { var s = dn(h.start); return s >= lo && s <= hi; }).map(function (h) { return md(dn(h.start)) + ' ' + h.nameEn.replace(/ \(.*$/, ''); }) : [];
+    var ch = state.cn ? CN_HOLIDAYS.filter(function (h) { return dn(h.start) <= hi && dn(h.end) >= lo; }).map(function (h) { return h.nameZh + ' ' + rangeText(dn(h.start), dn(h.end)); }) : [];
+    return '<section class="pp"><div class="pp-h"><h1>UQ 中文校历 · ' + esc(p.nameZh) + '<span lang="en">' + esc(p.nameEn) + '</span></h1>' +
+      '<p>非官方整理，一切以 UQ 官网为准<br>' + who + ' · 日期为布里斯班时间 · 核对于 ' + META.checkedOn + '</p></div>' +
+      '<ol class="pp-list">' + rows + '</ol><div class="pp-f">' +
+      (tbd.length ? '<p><b>待公布：</b>' + tbd.map(function (ev) { return esc(ev.titleZh); }).join('；') + '。</p>' : '') +
+      (qh.length ? '<p><b>昆州公假：</b>' + esc(qh.join('；')) + '。</p>' : '') +
+      (ch.length ? '<p><b>中国节假日：</b>' + esc(ch.join('；')) + '。</p>' : '') +
+      '<p>★ 重要　▲ 错过的后果　暂定 = 官网标注 Provisional。官方校历：about.uq.edu.au/academic-calendar；个人考试安排以 my.UQ 公布的为准。</p></div></section>';
+  }).join('');
+}
+
+/* ---------- .ics 生成（RFC 5545；iPhone 日历和 Google 日历都能导入） ---------- */
+var ICS_DOMAIN = '@uq-zh-calendar.unofficial';
+function icsText(s) { return String(s).replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n'); }
+function utf8len(cp) { return cp < 0x80 ? 1 : cp < 0x800 ? 2 : cp < 0x10000 ? 3 : 4; }
+function fold(line) {                 // 每行不超过 75 个字节，且不能把一个汉字拆开
+  var out = [], cur = '', bytes = 0;
+  for (var i = 0; i < line.length; i++) {
+    var ch = line.charAt(i), code = line.charCodeAt(i), cp = code;
+    if (code >= 0xD800 && code <= 0xDBFF && i + 1 < line.length) { ch += line.charAt(i + 1); cp = (code - 0xD800) * 0x400 + (line.charCodeAt(i + 1) - 0xDC00) + 0x10000; i++; }
+    var b = utf8len(cp), limit = out.length ? 74 : 75;
+    if (bytes + b > limit) { out.push(cur); cur = ''; bytes = 0; }
+    cur += ch; bytes += b;
+  }
+  out.push(cur);
+  return out.join('\r\n ');
+}
+function icsUtc(ms) { var d = new Date(ms); return d.getUTCFullYear() + pad(d.getUTCMonth() + 1) + pad(d.getUTCDate()) + 'T' + pad(d.getUTCHours()) + pad(d.getUTCMinutes()) + pad(d.getUTCSeconds()) + 'Z'; }
+function icsDate(n) { var p = parts(n); return '' + p.y + pad(p.m) + pad(p.d); }
+function brisToUtc(dateStr, hm) { var p = dateStr.split('-'), t = hm.split(':'); return Date.UTC(+p[0], +p[1] - 1, +p[2], +t[0], +t[1]) - 10 * 3600000; }
+function icsDescription(ev) {
+  var L = [ev.titleEn], risk = ev.risk ? RISKS[ev.risk] : null;
+  L.push(ev.time ? '时间：' + ev.time + (ev.timeEnd ? '–' + ev.timeEnd : '') + ' 布里斯班时间（北京时间 ' + toBeijing(ev.time) + (ev.timeEnd ? '–' + toBeijing(ev.timeEnd) : '') + '）'
+                 : '日期按布里斯班时间（AEST，UTC+10）。');
+  if (ev.provisional) L.push('官网标注 Provisional（暂定），日期可能调整。');
+  if (risk) {
+    L.push('错过的后果：' + risk.short);
+    risk.detail.forEach(function (t) { L.push('· ' + t); });
+    if (state.res === 'intl' && risk.intl) L.push('· ' + risk.intl);
+    if (state.res === 'dom' && risk.dom) L.push('· ' + risk.dom);
+    if (state.level === 'pgcw' && risk.pgcw) L.push('· ' + risk.pgcw);
+  }
+  if (ev.tip) L.push(ev.tip);
+  if (ev.note) L.push(ev.note);
+  if (ev.doubt) L.push('存疑：' + ev.doubt);
+  L.push('官方来源：' + ev.sourceUrl);
+  L.push('本条来自非官方的中文整理，一切以 UQ 官网为准。数据核对日期 ' + META.checkedOn + '。');
+  return L.join('\n');
+}
+function vevent(ev, stamp, opts) {
+  var L = ['BEGIN:VEVENT', 'UID:' + ev.id + ICS_DOMAIN, 'DTSTAMP:' + stamp], s = evS(ev), e = evE(ev);
+  if (ev.time) {
+    var st = brisToUtc(ev.start, ev.time);
+    var en = ev.timeEnd ? brisToUtc(ev.start, ev.timeEnd) : st + (ev.time === '23:59' ? 60000 : 30 * 60000);
+    L.push('DTSTART:' + icsUtc(st), 'DTEND:' + icsUtc(en));
+  } else {
+    L.push('DTSTART;VALUE=DATE:' + icsDate(s), 'DTEND;VALUE=DATE:' + icsDate(e + 1), 'TRANSP:TRANSPARENT');
+  }
+  L.push('SUMMARY:' + icsText((ev.provisional ? '[暂定] ' : '') + (ev.doubt ? '[存疑] ' : '') + 'UQ ' + ev.titleZh));
+  L.push('DESCRIPTION:' + icsText(icsDescription(ev)));
+  L.push('URL:' + ev.sourceUrl);
+  L.push('CATEGORIES:' + icsText('UQ ' + CATS[ev.category].zh));
+  L.push('STATUS:' + (ev.provisional ? 'TENTATIVE' : 'CONFIRMED'));
+  var out = L, N = opts.remind;
+  if (ev.risk && N > 0) {
+    out.push('BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' + icsText('还有 ' + N + ' 天：' + ev.titleZh),
+      'TRIGGER:' + (ev.time ? '-P' + N + 'D' : (N === 1 ? '-PT15H' : '-P' + (N - 1) + 'DT15H')), 'END:VALARM');
+  }
+  out.push('END:VEVENT');
+  if (ev.risk && N > 0 && opts.remindEvent) {
+    out.push('BEGIN:VEVENT', 'UID:' + ev.id + '-remind' + ICS_DOMAIN, 'DTSTAMP:' + stamp,
+      'DTSTART;VALUE=DATE:' + icsDate(s - N), 'DTEND;VALUE=DATE:' + icsDate(s - N + 1), 'TRANSP:TRANSPARENT',
+      'SUMMARY:' + icsText('【提醒】' + N + ' 天后截止：UQ ' + ev.titleZh),
+      'DESCRIPTION:' + icsText('截止日：' + ymdw(s) + '（布里斯班日期）\n' + RISKS[ev.risk].short + '\n官方来源：' + ev.sourceUrl),
+      'STATUS:CONFIRMED', 'END:VEVENT');
+  }
+  return out;
+}
+function buildICS(events, calName, opts) {
+  opts = opts || { remind: state.remind, remindEvent: state.remindEvent };
+  var stamp = icsUtc(Date.now());
+  var L = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//UQ Chinese Calendar (unofficial)//ZH', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'X-WR-CALNAME:' + icsText(calName)];
+  events.forEach(function (ev) { if (!ev.tbd) L = L.concat(vevent(ev, stamp, opts)); });
+  L.push('END:VCALENDAR');
+  return L.map(fold).join('\r\n') + '\r\n';
+}
+function download(filename, text) {
+  if (/MicroMessenger/i.test(navigator.userAgent || '')) { toast('微信内置浏览器不能保存日历文件。请点右上角「···」选择「在浏览器打开」后再试。'); return; }
+  try {
+    var blob = new Blob([text], { type: 'text/calendar;charset=utf-8' });
+    if (window.navigator && window.navigator.msSaveBlob) { window.navigator.msSaveBlob(blob, filename); return; }
+    var url = URL.createObjectURL(blob), a = document.createElement('a');
+    a.href = url; a.download = filename; a.rel = 'noopener'; a.style.display = 'none';
+    document.body.appendChild(a); a.click();
+    setTimeout(function () { document.body.removeChild(a); URL.revokeObjectURL(url); }, 4000);
+    toast('已生成 ' + filename + '。iPhone：打开下载的文件，选「添加全部」；Google 日历：设置 → 导入。');
+  } catch (e) { toast('这个浏览器不支持直接下载文件，请换用 Safari、Chrome 或 Edge 打开本页。'); }
+}
+function exportEvents(events, name, file) {
+  events = events.filter(function (ev) { return !ev.tbd; });
+  if (!events.length) { toast('没有可导出的日期。'); return; }
+  download(file, buildICS(events, name));
+}
+
+/* ---------- 提示气泡与轻提示 ---------- */
+var tipEl, toastEl, toastTimer, tipFor = null, tipPinned = false;
+function showTip(el, pinned) {
+  var g = GMAP[el.getAttribute('data-term')];
+  if (!g) return;
+  tipPinned = !!pinned;
+  tipEl.innerHTML = '<b>' + esc(g.zh) + ' · <span lang="en">' + esc(g.en) + '</span></b>' + esc(g.desc);
+  tipEl.hidden = false; tipFor = el;
+  var r = el.getBoundingClientRect(), w = tipEl.offsetWidth, vw = document.documentElement.clientWidth;
+  var left = Math.max(8, Math.min(r.left, vw - w - 8)) + window.pageXOffset;
+  tipEl.style.left = left + 'px';
+  tipEl.style.top = (r.bottom + window.pageYOffset + 6) + 'px';
+}
+function hideTip() { if (tipEl) { tipEl.hidden = true; tipFor = null; tipPinned = false; } }
+function toast(msg) {
+  toastEl.textContent = msg; toastEl.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(function () { toastEl.hidden = true; }, 6500);
+}
+
+/* ---------- 渲染与事件 ---------- */
+function applyTheme() {
+  var root = document.documentElement;
+  if (state.theme === 'auto') root.removeAttribute('data-theme'); else root.setAttribute('data-theme', state.theme);
+  $('theme-lbl').textContent = state.theme === 'auto' ? '跟随系统' : state.theme === 'light' ? '浅色' : '深色';
+}
+function renderCal() { renderChips(); if (state.view === 'list') renderList(); else renderMonth(); renderTbd(); renderPrint(); }
+function renderAll() { renderHero(); renderWho(); renderUp(); renderTrip(); renderCal(); renderMore(); renderIcsHelp(); }
+
+function jumpTo(id) {
+  var ev = EMAP[id];
+  if (!ev) return;
+  state.view = 'list';
+  if (!inMain(ev) || !passFilters(ev)) { state.period = 'all'; state.cats = {}; state.q = ''; state.important = false; $('q').value = ''; }
+  if (evE(ev) < TODAY) state.showPast = true;
+  openIds[id] = true;
+  saveState(); renderCal();
+  var el = $('ev-' + id);
+  if (el) {
+    el.scrollIntoView({ block: 'center' });
+    el.classList.add('is-flash');
+    setTimeout(function () { el.classList.remove('is-flash'); }, 1700);
+  }
+}
+
+function onClick(e) {
+  var t = e.target, term = t.closest ? t.closest('.term') : null;
+  if (term) { if (tipFor === term && tipPinned) hideTip(); else showTip(term, true); e.stopPropagation(); return; }
+  hideTip();
+  var el = t.closest ? t.closest('[data-act],[data-view]') : null;
+  if (!el) return;
+  if (el.hasAttribute('data-view')) { state.view = el.getAttribute('data-view'); saveState(); renderCal(); return; }
+  var act = el.getAttribute('data-act'), v = el.getAttribute('data-v'), id = el.getAttribute('data-id');
+  if (act === 'set') {
+    var k = el.getAttribute('data-k');
+    state[k] = k === 'summer' ? v === 'true' : v;
+    if (k === 'level' && state.period === 'RQ' && v !== 'hdr') state.period = 'all';
+    saveState(); renderAll();
+  } else if (act === 'summer-on') { state.summer = true; saveState(); renderAll(); }
+  else if (act === 'period') { state.period = v; renderCal(); }
+  else if (act === 'cat') { state.cats[v] = !state.cats[v]; renderCal(); }
+  else if (act === 'past') { state.showPast = !state.showPast; renderCal(); }
+  else if (act === 'toggle') {
+    openIds[id] = !openIds[id];
+    var li = $('ev-' + id);
+    if (li) {
+      li.querySelector('.ev-body').hidden = !openIds[id];
+      li.querySelector('.ev-title').setAttribute('aria-expanded', String(!!openIds[id]));
+      li.querySelector('.ev-actions [data-act="toggle"]').textContent = openIds[id] ? '收起' : '详情与来源';
+    }
+  }
+  else if (act === 'jump') { if (id) jumpTo(id); }
+  else if (act === 'month') { state.month = clampMonth(addMonth(state.month, +v)); state.selDay = null; renderMonth(); }
+  else if (act === 'month-today') { state.month = clampMonth(ds(TODAY).slice(0, 7)); state.selDay = TODAY; renderMonth(); }
+  else if (act === 'day') { state.selDay = +v; renderMonth(); }
+  else if (act === 'ics') { var ev = EMAP[id]; exportEvents([ev], 'UQ 中文校历（非官方）', 'uq-' + ev.id + '.ics'); }
+  else if (act === 'ics-group') { exportEvents(EVENTS.filter(function (x) { return x.group === v; }), 'UQ 中文校历（非官方）', 'uq-' + v + '.ics'); }
+  else if (act === 'ics-period') {
+    exportEvents(EVENTS.filter(function (x) { return x.period === v && !x.tbd && audOK(x); }).sort(byDate), 'UQ ' + PMAP[v].nameZh + '（非官方）', 'uq-' + v.toLowerCase() + '.ics');
+  }
+  else if (act === 'ics-list') {
+    exportEvents(listItems().filter(function (it) { return it.t === 'ev' && (state.showPast || it.e >= TODAY); }).map(function (it) { return it.ev; }), 'UQ 中文校历（非官方）', 'uq-calendar-selected.ics');
+  }
+}
+
+function init() {
+  loadState();
+  tipEl = $('tip'); toastEl = $('toast');
+  applyTheme();
+  renderGloss(); renderFoot(); renderAll();
+
+  document.addEventListener('click', onClick);
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') { hideTip(); return; }
+    var t = e.target;
+    if ((e.key === 'Enter' || e.key === ' ') && t && t.classList && t.classList.contains('term')) {
+      e.preventDefault();
+      if (tipFor === t && tipPinned) hideTip(); else showTip(t, true);
+    }
+  });
+  window.addEventListener('resize', hideTip);
+  if (window.matchMedia && window.matchMedia('(hover: hover)').matches) {
+    document.addEventListener('mouseover', function (e) { var t = e.target.closest ? e.target.closest('.term') : null; if (t && !tipPinned) showTip(t, false); });
+    document.addEventListener('mouseout', function (e) { var t = e.target.closest ? e.target.closest('.term') : null; if (t && !tipPinned) hideTip(); });
+  }
+  var qTimer;
+  $('q').addEventListener('input', function () {
+    var val = this.value;
+    clearTimeout(qTimer);
+    qTimer = setTimeout(function () { state.q = val.trim().toLowerCase(); renderCal(); }, 120);
+  });
+  $('sw-important').addEventListener('change', function () { state.important = this.checked; renderCal(); });
+  $('sw-cn').addEventListener('change', function () { state.cn = this.checked; saveState(); renderTrip(); renderCal(); });
+  $('sw-qld').addEventListener('change', function () { state.qld = this.checked; saveState(); renderCal(); });
+  $('btn-theme').addEventListener('click', function () {
+    state.theme = state.theme === 'auto' ? 'light' : state.theme === 'light' ? 'dark' : 'auto';
+    saveState(); applyTheme();
+  });
+  $('btn-print').addEventListener('click', function () { renderPrint(); window.print(); });
+  document.addEventListener('change', function (e) {
+    if (e.target.id === 'sel-remind') { state.remind = +e.target.value; saveState(); }
+    if (e.target.id === 'sw-remind-ev') { state.remindEvent = e.target.checked; saveState(); }
+  });
+  /* 布里斯班过了午夜就整页重算；其余时候只更新时钟 */
+  setInterval(function () {
+    var d = brisbaneNow().day;
+    if (d !== TODAY) { TODAY = d; renderAll(); } else renderHero();
+  }, 30000);
+}
+
+/* 供自查和调试使用 */
+window.UQZH = {
+  state: state, EVENTS: EVENTS, PERIODS: PERIODS, phaseInfo: phaseInfo, phaseIn: phaseIn, teachingWeek: teachingWeek, totalWeeks: totalWeeks,
+  buildICS: buildICS, dn: dn, ds: ds, renderAll: renderAll, toBeijing: toBeijing, today: function () { return ds(TODAY); }
+};
+
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+})();
+</script>
+</body>
+</html>
