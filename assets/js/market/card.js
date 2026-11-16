@@ -34,7 +34,7 @@ let returnTo = null;
 let closing = false;
 let editing = false;
 let loading = false;
-let phase = "idle"; // idle | ok | partial | error | offline | auth | unconfigured
+let phase = "idle"; // idle | ok | partial | error | offline | auth
 let authMessage = "";
 let failed = new Map(); // 代码 → 这次为什么取不到
 let refreshTimer = 0;
@@ -206,21 +206,20 @@ function stopTimers() {
   clearInterval(tickTimer);
 }
 
+/** 去后台要数据。访问口令是可选的：后台设了口令（返回 401）才需要，记住的口令会自动带上 */
 async function request(ids, { lookup = false, token = quotesAuth.get() } = {}) {
   if (DEMO) return { ok: true, data: demoQuotes(ids) };
-  if (!token) return { ok: false, kind: "auth" };
   let res;
   try {
     res = await fetch(`./api/quotes?ids=${encodeURIComponent(ids.join(","))}${lookup ? "&lookup=1" : ""}`, {
-      headers: { "X-Quotes-Token": token },
+      headers: token ? { "X-Quotes-Token": token } : {},
       cache: "no-store",
       credentials: "same-origin",
     });
   } catch {
     return { ok: false, kind: "offline" };
   }
-  if (res.status === 401) return { ok: false, kind: "auth", bad: true };
-  if (res.status === 503) return { ok: false, kind: "unconfigured" };
+  if (res.status === 401) return { ok: false, kind: "auth", bad: !!token };
   let data = null;
   try {
     data = await res.json();
@@ -296,8 +295,6 @@ function renderNotice() {
     );
   } else if (phase === "auth") {
     parts.push(tokenForm());
-  } else if (phase === "unconfigured") {
-    parts.push(message("triangle-alert", "后台还没有设置访问口令", "请在 Cloudflare 后台给 start-page 添加密钥 QUOTES_TOKEN（做法见说明文档），然后刷新。"));
   } else if (phase === "offline") {
     parts.push(message("triangle-alert", "连不上服务器", "可能是网络断了。下面显示的是上次的数据。", retryButton()));
   } else if (phase === "error") {
@@ -325,7 +322,7 @@ function tokenForm() {
     "div",
     { class: "mk-msg", role: "alert" },
     h("h3", null, icon("lock"), authMessage ? "口令不对" : "输入访问口令"),
-    h("p", null, authMessage || `行情接口需要访问口令（就是 Cloudflare 后台的 QUOTES_TOKEN）。验证通过后在这台设备上记住 ${tokenDays} 天。`),
+    h("p", null, authMessage || `后台设置了访问口令（Cloudflare 后台的 QUOTES_TOKEN），请输入。验证通过后在这台设备上记住 ${tokenDays} 天。`),
     form
   );
 }

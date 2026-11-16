@@ -1,14 +1,15 @@
 // 行情接口：/api/quotes 和 /api/quotes/selftest。
 //
-//   GET /api/quotes?ids=SH:600519,HK:00700,US:NVDA,FX:AUDCNY   请求头 X-Quotes-Token: <口令>
+//   GET /api/quotes?ids=SH:600519,HK:00700,US:NVDA,FX:AUDCNY   （设置了口令时，请求头要带 X-Quotes-Token: <口令>）
 //   → { quotes: [一条条行情], errors: [{ id, reason }], at: 时间戳 }
 //   加 &lookup=1：添加关注时查名称用（优先用有中文名的数据源）
 //
-//   GET /api/quotes/selftest  不带口令：一个输入口令的小页面；带口令：把每个数据源各查一次，返回结果、耗时和原始样例
+//   GET /api/quotes/selftest  在浏览器里直接打开：一个小页面，点一下就检查；页面去要数据时：把每个数据源各查一次，返回结果、耗时和原始样例
 //
 // 规矩：
-//   - 只给本站页面用：不加任何跨域许可（CORS）头，别的网站的网页调不了。
-//   - 口令存在 Cloudflare 的密钥 QUOTES_TOKEN 里；Key 存在 FINNHUB_KEY、TWELVEDATA_KEY 里。代码里没有任何密钥。
+//   - 只给本站页面用：不加任何跨域许可（CORS）头；浏览器标明"来自别的网站"的请求直接拒绝，免得别人的网页替你用掉额度。
+//   - 访问口令是可选的：Cloudflare 后台没设密钥 QUOTES_TOKEN 时谁都能用；设了以后必须带对口令。
+//     Key 存在 FINNHUB_KEY、TWELVEDATA_KEY 里。代码里没有任何密钥。
 //   - 一次最多 40 个代码；每个代码先按市场的格式核对，核对过的才会拼进上游地址。
 //   - 同一个代码在缓存有效期内不重复去上游取：先看这台服务器的内存，再看 Cloudflare 的缓存（Cache API，
 //     只在 callaum.com 这类自己的域名上起作用，workers.dev 上自动跳过）。
@@ -134,10 +135,14 @@ export async function resolveQuotes(ids, { env, fetcher, now, lookup = false }) 
 export async function handleQuotes(request, url, env = {}, ctx, { fetcher = fetch, now = Date.now() } = {}) {
   if (request.method !== "GET" && request.method !== "HEAD") return new Response("Method Not Allowed", { status: 405, headers: { Allow: "GET, HEAD" } });
   const selftest = url.pathname === "/api/quotes/selftest";
-  const token = request.headers.get("X-Quotes-Token");
-  if (selftest && !token) return selftestPage();
-  if (!env.QUOTES_TOKEN) return json({ error: "not_configured", message: "后台还没有设置访问口令（Cloudflare 密钥 QUOTES_TOKEN）" }, 503);
-  if (!(await sameToken(token, env.QUOTES_TOKEN))) return json({ error: "bad_token", message: "访问口令不对" }, 401);
+  // 别的网站的网页发来的请求（浏览器会标上 Sec-Fetch-Site: cross-site / same-site）一律不接
+  const site = request.headers.get("Sec-Fetch-Site");
+  if (site && site !== "same-origin" && site !== "none") return json({ error: "forbidden", message: "只给本站页面用" }, 403);
+  // 在浏览器地址栏里直接打开自检地址：给一个小页面
+  if (selftest && (request.headers.get("Accept") || "").includes("text/html")) return selftestPage();
+  if (env.QUOTES_TOKEN && !(await sameToken(request.headers.get("X-Quotes-Token"), env.QUOTES_TOKEN))) {
+    return json({ error: "bad_token", message: "访问口令不对" }, 401);
+  }
   if (selftest) return json(await runSelftest(env, fetcher, now));
 
   const raw = (url.searchParams.get("ids") || "").split(",").map((s) => s.trim()).filter(Boolean);
@@ -197,7 +202,7 @@ export async function runSelftest(env, fetcher, now) {
       }
     })
   );
-  return { at: now, keys: { FINNHUB_KEY: !!env.FINNHUB_KEY, TWELVEDATA_KEY: !!env.TWELVEDATA_KEY }, results };
+  return { at: now, token: !!env.QUOTES_TOKEN, keys: { FINNHUB_KEY: !!env.FINNHUB_KEY, TWELVEDATA_KEY: !!env.TWELVEDATA_KEY }, results };
 }
 
 /** 自检页面：输入口令后由页面带着口令去查（口令不进网址，也不会留在浏览记录里） */
@@ -207,8 +212,8 @@ function selftestPage() {
 <style>body{font:15px/1.5 system-ui,sans-serif;max-width:46em;margin:0 auto;padding:20px 16px;color:#0f172a;background:#f8fafc}@media(prefers-color-scheme:dark){body{color:#e2e8f0;background:#0f172a}}
 form{display:flex;gap:8px}input{flex:1;font-size:16px;padding:10px;border-radius:10px;border:1px solid #94a3b8}button{font-size:16px;padding:10px 16px;border-radius:10px;border:0;background:#2563eb;color:#fff}
 .r{margin:14px 0;padding:12px;border-radius:12px;background:rgba(148,163,184,.15)}.ok{color:#16a34a}.bad{color:#dc2626}pre{white-space:pre-wrap;word-break:break-all;font-size:12px;opacity:.8}</style>
-<h1>行情数据源自检</h1><p>输入访问口令（Cloudflare 密钥 QUOTES_TOKEN），把每个数据源各查一次。</p>
-<form id="f"><input id="t" type="password" autocomplete="current-password" placeholder="访问口令" required><button>开始检查</button></form><div id="out"></div>
+<h1>行情数据源自检</h1><p>把每个数据源各查一次。如果在 Cloudflare 后台设了访问口令（QUOTES_TOKEN），先填上；没设就直接点“开始检查”。</p>
+<form id="f"><input id="t" type="password" autocomplete="current-password" placeholder="访问口令（没设置就不用填）"><button>开始检查</button></form><div id="out"></div>
 <script>
 const out = document.getElementById("out");
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
@@ -216,10 +221,13 @@ document.getElementById("f").addEventListener("submit", async (e) => {
   e.preventDefault();
   out.textContent = "正在检查…";
   try {
-    const res = await fetch("selftest", { headers: { "X-Quotes-Token": document.getElementById("t").value }, cache: "no-store" });
+    const headers = { Accept: "application/json" };
+    const token = document.getElementById("t").value;
+    if (token) headers["X-Quotes-Token"] = token;
+    const res = await fetch("selftest", { headers, cache: "no-store" });
     const data = await res.json();
     if (!res.ok) { out.innerHTML = '<p class="bad">' + esc(data.message || res.status) + "</p>"; return; }
-    out.innerHTML = "<p>Key：FINNHUB_KEY " + (data.keys.FINNHUB_KEY ? "已设置" : "未设置") + "，TWELVEDATA_KEY " + (data.keys.TWELVEDATA_KEY ? "已设置" : "未设置") + "</p>" +
+    out.innerHTML = "<p>访问口令：" + (data.token ? "已设置" : "未设置（谁都能用）") + "；Key：FINNHUB_KEY " + (data.keys.FINNHUB_KEY ? "已设置" : "未设置") + "，TWELVEDATA_KEY " + (data.keys.TWELVEDATA_KEY ? "已设置" : "未设置") + "</p>" +
       data.results.map((r) => '<div class="r"><b>' + esc(r.name) + '</b> <span class="' + (r.ok ? "ok" : "bad") + '">' + (r.ok ? "正常" : "有问题") + "</span> · " + r.ms + " 毫秒" +
         r.quotes.map((q) => "<div>" + esc(q.id + " " + q.name + " " + q.price + " " + (q.change >= 0 ? "+" : "") + q.change + "（" + q.changePct + "%）" + (q.extended ? " " + q.extended.label + " " + q.extended.price : "") + (q.delayed ? " 延时" : "") + " 时间 " + (q.time ? new Date(q.time).toLocaleString() : "无")) + "</div>").join("") +
         r.errors.map((x) => '<div class="bad">' + esc(x.id + "：" + x.reason) + "</div>").join("") +

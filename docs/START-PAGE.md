@@ -181,20 +181,22 @@
 - 美股盘前盘后价：只有新浪给，而且要和常规价核对得上才显示；拿不到就不显示。
 - 缓存：同一个代码交易时 1 分钟、休市收盘时 15 分钟、参考价 1 小时内不重复去取。先看服务器内存，
   再看 Cloudflare 的缓存（只在 callaum.com 这类自己的域名上起作用，workers.dev 上自动跳过）。**请用 callaum.com 打开起始页。**
-- 一次最多 40 个代码；每个代码先按格式核对才会拼进上游地址；不开跨域；每次请求上游 5 秒超时。
+- 一次最多 40 个代码；每个代码先按格式核对才会拼进上游地址；不开跨域，浏览器标明“来自别的网站”的请求直接拒绝；每次请求上游 5 秒超时。
+- **访问口令是可选的**：Cloudflare 后台没设 `QUOTES_TOKEN` 时不用口令（现在就是这样）；
+  哪天发现被别人用掉额度，在后台加上这个密钥，卡片就会自动请你输入口令，不用改代码。
 
 ### 第一次启用要做的事
 
 1. 申请两个免费 Key（可选，不填也能用，只是美股改走腾讯、汇率改走新浪 / 参考价）：
    - Finnhub：在 finnhub.io 注册，Dashboard 里能看到 API Key；
    - Twelve Data：在 twelvedata.com 注册，Dashboard → API Keys。
-2. 在 Cloudflare 后台：Workers & Pages → `start-page` → Settings → Variables and Secrets → Add，类型选 **Secret**，添加：
-   - `QUOTES_TOKEN`：自己编的访问口令（24 位以上随机字符，必填）；
-   - `FINNHUB_KEY`、`TWELVEDATA_KEY`：上面的两个 Key。
+2. （可选）在 Cloudflare 后台：Workers & Pages → `start-page` → Settings → Variables and Secrets → Add，类型选 **Secret**，添加：
+   - `FINNHUB_KEY`、`TWELVEDATA_KEY`：上面的两个 Key；
+   - `QUOTES_TOKEN`：访问口令（可选，不设就谁都能用；要设的话用 24 位以上随机字符）。
    最后点 Deploy。之后用 `node tools/deploy-cloudflare.mjs` 发布新版本时，这些密钥会保留（发布脚本带了 `keep_bindings`）。
-3. 手机打开 `https://callaum.com/api/quotes/selftest`，输入口令，看各数据源是不是“正常”，可以展开看原始返回。
-4. 轻点起始页空白处，第一次会请你输入口令，之后在这台设备上记住（天数同 `config/site.js` 里的 `passwordDays`）。
-   口令不会被“导出设置”带走；“恢复默认”会把它和关注列表一起清掉。
+3. 手机打开 `https://callaum.com/api/quotes/selftest`，点“开始检查”（设了口令就先填上），看各数据源是不是“正常”，可以展开看原始返回。
+4. 轻点起始页空白处就能用。设了口令的话，第一次会请你输入，之后在这台设备上记住（天数同 `config/site.js` 里的 `passwordDays`）；
+   口令不会被“导出设置”带走，“恢复默认”会把它和关注列表一起清掉。
 
 ## 五个应用在哪
 

@@ -639,7 +639,9 @@ function marketSection() {
   );
   syncers.push(() => {
     const days = quotesAuth.daysLeft();
-    tokenStatus.textContent = days ? `访问口令已保存在本机，还有 ${days} 天到期。` : "还没有保存访问口令：第一次打开卡片时会请你输入。";
+    // 口令是可选的：后台没设就不需要，这里也就不显示
+    tokenStatus.textContent = days ? `访问口令已保存在本机，还有 ${days} 天到期。` : "";
+    tokenStatus.hidden = !days;
     clearToken.hidden = !days;
   });
   return section(

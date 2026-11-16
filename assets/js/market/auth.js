@@ -1,5 +1,5 @@
-// 行情接口的访问口令：验证通过后只保存在这台设备的浏览器里，到期自动失效，不会被"导出设置"带走。
-// 口令本身存在 Cloudflare 的密钥 QUOTES_TOKEN 里，代码和配置文件里都没有。
+// 行情接口的访问口令（可选）：只有在 Cloudflare 后台设了密钥 QUOTES_TOKEN 时才需要。
+// 验证通过后只保存在这台设备的浏览器里，到期自动失效，不会被"导出设置"带走。代码和配置文件里都没有口令。
 import { AI } from "../../../config/site.js";
 import { readJSON, writeJSON, removeKey } from "../store.js";
 

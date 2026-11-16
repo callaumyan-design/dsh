@@ -337,11 +337,13 @@ function upstream(routes) {
   return { fetcher, seen };
 }
 
-test("接口：没设口令 503，口令不对 401，不带口令 401；都不去上游", async () => {
+test("接口：后台没设口令时不用口令；设了口令后，口令不对、不带口令都是 401，且不去上游", async () => {
+  // （各项检查共用后台的内存缓存，这里用一个别的检查不会用到的时间和代码）
+  const open = upstream([["https://qt.gtimg.cn/", () => new Response(gbk(T.index))]]);
+  let res = await call("/api/quotes?ids=SH:000001", { env: {}, token: "", fetcher: open.fetcher, now: at("2026-11-16T01:00:00Z") });
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).quotes[0].name, "上证指数");
   const { fetcher, seen } = upstream([]);
-  let res = await call("/api/quotes?ids=SH:600519", { env: {}, fetcher });
-  assert.equal(res.status, 503);
-  assert.equal((await res.json()).error, "not_configured");
   res = await call("/api/quotes?ids=SH:600519", { token: "wrong", fetcher });
   assert.equal(res.status, 401);
   assert.equal((await res.json()).error, "bad_token");
@@ -349,6 +351,15 @@ test("接口：没设口令 503，口令不对 401，不带口令 401；都不�
   assert.equal(res.status, 401);
   assert.equal(seen.length, 0);
   assert.equal(res.headers.get("access-control-allow-origin"), null); // 不开跨域
+});
+
+test("接口：浏览器标明来自别的网站的请求一律拒绝（免得别人的网页替你用掉额度）", async () => {
+  const { fetcher, seen } = upstream([]);
+  for (const site of ["cross-site", "same-site"]) {
+    const res = await call("/api/quotes?ids=SH:600519", { env: {}, token: "", fetcher, headers: { "Sec-Fetch-Site": site } });
+    assert.equal(res.status, 403, site);
+  }
+  assert.equal(seen.length, 0);
 });
 
 test("接口：一次最多 40 个；格式不对的放进 errors，不拖垮整个请求，也不拼进上游地址", async () => {
@@ -410,20 +421,21 @@ test("接口：美股先问 Finnhub（Key 放在请求头里，不进地址）�
   assert.ok(!td.url.includes("apikey"));
 });
 
-test("自检：不带口令时给一个输入口令的页面；带对口令时返回每个数据源的结果", async () => {
-  let res = await call("/api/quotes/selftest", { token: "" });
+test("自检：在浏览器里直接打开是一个小页面；页面去要数据时返回每个数据源的结果", async () => {
+  let res = await call("/api/quotes/selftest", { token: "", headers: { Accept: "text/html,application/xhtml+xml", "Sec-Fetch-Site": "none" } });
   assert.equal(res.status, 200);
   assert.match(res.headers.get("content-type"), /text\/html/);
   assert.match(await res.text(), /行情数据源自检/);
   const { fetcher } = upstream([["https://qt.gtimg.cn/", () => new Response(gbk(Object.values(T).join("\n") + "\n" + tencentLine("sz000001", { 1: "平安银行", 2: "000001", 3: "12.00", 4: "11.90", 30: "20261116150003", 31: "0.10", 32: "0.84" })))]]);
-  res = await call("/api/quotes/selftest", { fetcher, env: { QUOTES_TOKEN: ENV.QUOTES_TOKEN } });
+  res = await call("/api/quotes/selftest", { fetcher, env: {}, token: "", headers: { Accept: "application/json" } });
   const data = await res.json();
+  assert.equal(data.token, false);
   assert.deepEqual(data.keys, { FINNHUB_KEY: false, TWELVEDATA_KEY: false });
   const tc = data.results.find((r) => r.source === "tencent");
   assert.equal(tc.ok, true, JSON.stringify(tc.errors));
   assert.equal(tc.quotes.length, 6);
   assert.match(tc.raw, /v_sh000001/);
   assert.equal(data.results.find((r) => r.source === "finnhub").ok, false);
-  res = await call("/api/quotes/selftest", { token: "wrong" });
-  assert.equal(res.status, 401);
+  res = await call("/api/quotes/selftest", { token: "wrong", headers: { Accept: "application/json" } });
+  assert.equal(res.status, 401); // 设了口令时，自检也要口令
 });
