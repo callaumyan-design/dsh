@@ -2,7 +2,7 @@
 // 所有改动立刻生效，并保存在浏览器本地。
 import { BACKGROUND_PRESETS, AI } from "../../config/site.js";
 import { store, safeTemplate, safeUrl, uid, defaultSettings } from "./store.js";
-import { addUploads, addImageUrl, removeImage, selectImage, shownImageId, shuffleBackground, thumbFor, nextOnlineWallpaper, ONLINE_SOURCES, onlineInfoUrl } from "./background.js";
+import { addUploads, addImageUrl, removeImage, selectImage, shownImageId, shuffleBackground, thumbFor, nextOnlineWallpaper, ONLINE_SOURCES, onCredit } from "./background.js";
 import { FONT_CHOICES, WEIGHT_NAMES } from "./typography.js";
 import { listEngines } from "./engines.js";
 import { searchHistory } from "./search.js";
@@ -219,42 +219,24 @@ function backgroundSection() {
   const nextRow = h(
     "div",
     { class: "btn-row" },
-    h("button", { type: "button", class: "btn", onclick: () => { nextOnlineWallpaper(); showInfo(); } }, icon("shuffle"), "换一张")
+    h("button", { type: "button", class: "btn", onclick: nextOnlineWallpaper }, icon("shuffle"), "换一张")
   );
   const dailyHint = h("p", { class: "hint" }, "这个来源每天自动换成当天的那一张。");
 
-  // 当前这张壁纸是什么、谁拍的、出自哪里
+  // 当前这张壁纸是什么、谁拍的、出自哪里（和主页最底下那行小字是同一份）
   const infoBox = h("p", { class: "hint wall-info", hidden: true });
-  let infoFor = ""; // 现在显示的是哪个地址查到的信息
-  async function showInfo() {
-    const url = onlineInfoUrl();
-    if (url === infoFor) return;
-    infoFor = url;
-    infoBox.hidden = true;
-    if (!url) return;
-    let info = null;
-    try {
-      const res = await fetch(url);
-      if (res.ok) info = await res.json();
-    } catch {
-      /* 查不到就不显示 */
-    }
-    if (infoFor !== url || !info || typeof info !== "object") return; // 等结果的时候又换了一张
-    const text = (v) => (typeof v === "string" ? v.trim().slice(0, 200) : "");
-    const title = text(info.title);
-    const credit = text(info.credit);
-    const link = safeUrl(info.link);
-    if (!title && !credit) return;
+  onCredit((value) => {
+    infoBox.hidden = !value;
+    if (!value) return;
     infoBox.replaceChildren(
       "当前这张：",
-      title && h("strong", null, title),
-      title && credit ? " — " : "",
-      credit,
-      link && " ",
-      link && h("a", { href: link, target: "_blank", rel: "noopener noreferrer" }, "查看出处")
+      value.title && h("strong", null, value.title),
+      value.title && value.credit ? " — " : "",
+      value.credit,
+      value.link && " ",
+      value.link && h("a", { href: value.link, target: "_blank", rel: "noopener noreferrer" }, "查看出处")
     );
-    infoBox.hidden = false;
-  }
+  });
 
   syncers.push((s) => {
     const known = ONLINE_SOURCES.some((src) => src.id === s.bg.online.source);
@@ -265,7 +247,6 @@ function backgroundSection() {
     const daily = !!ONLINE_SOURCES.find((src) => src.id === sourceSelect.value)?.daily;
     everyRow.hidden = nextRow.hidden = daily;
     dailyHint.hidden = !daily;
-    showInfo();
   });
   const onlinePane = h(
     "div",

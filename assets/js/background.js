@@ -3,11 +3,11 @@
 import { BACKGROUND_PRESETS, WALLPAPER_API } from "../../config/site.js";
 import { store, readJSON, writeJSON, safeUrl, uid } from "./store.js";
 import { images } from "./idb.js";
-import { $, toast } from "./ui.js";
+import { $, h, toast } from "./ui.js";
 
 const CACHE_KEY = "sp:bg-cache"; // 给 boot.js 用：下次打开时立刻还原
 const LAST_KEY = "sp:bg-last"; // 上次随机到的图片，避免连续两次一样
-const ONLINE_KEY = "sp:bg-online"; // 在线壁纸的轮换记录：{ seed 当前这张, next 预先下载好的下一张, at 换上的时间, ... }
+const ONLINE_KEY = "sp:bg-online"; // 在线壁纸的轮换记录：{ seed 当前这张, next 预先下载好的下一张, at 换上的时间, credit 这张的出处, ... }
 const ONLINE_PERIOD = { hour: 60 * 60 * 1000, day: 24 * 60 * 60 * 1000 };
 const MAX_SIDE = 2560; // 上传图片压缩后的最长边
 const UNKNOWN_LUM = 0.15; // 外链图片读不到亮度，按"偏暗"处理（白字 + 阴影）
@@ -172,11 +172,57 @@ export function nextOnlineWallpaper() {
   apply();
 }
 
-/** 查询"当前这张在线壁纸的标题、作者和出处"的地址。只有本站后台代取的来源才有，其他情况返回空 */
-export function onlineInfoUrl() {
-  const bg = store.get().bg;
-  if (bg.type !== "online" || !sourceOf(bg.online).api) return "";
-  return onlineUrl(bg.online, currentOnlineSeed(bg)) + "&info=1";
+// ---------- 壁纸出处（主页最底下的一行小字，设置面板里也会显示） ----------
+let credit = null; // 现在这张壁纸的出处 { title 标题, credit 作者等说明, link 链接 }；没有就是 null
+let creditKey = ""; // 它说的是哪一张
+const creditListeners = new Set();
+// Picsum 查不到具体是谁拍的时候，至少说明照片是从哪来的
+const PICSUM_CREDIT = { title: "", credit: "照片来自 Lorem Picsum", link: "https://picsum.photos/" };
+
+/** 订阅"壁纸出处"：一订阅就先收到当前的，之后每次变化都会收到 */
+export function onCredit(fn) {
+  creditListeners.add(fn);
+  fn(credit);
+}
+
+function setCredit(key, value) {
+  creditKey = key;
+  credit = value;
+  for (const fn of creditListeners) fn(value);
+}
+
+/** 把查到的出处洗干净：只留文字和 http(s) 链接；什么都没有就返回 null */
+function cleanCredit(raw) {
+  const text = (v) => (typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, 200) : "");
+  const value = { title: text(raw?.title), credit: text(raw?.credit), link: safeUrl(raw?.link) };
+  return value.title || value.credit ? value : null;
+}
+
+/** 查出这张壁纸的出处并显示。查过的会记下来，下次打开直接显示 */
+async function loadCredit(view) {
+  const want = view.credit;
+  if (!want) return setCredit("", null);
+  if (want.key === creditKey && credit) return;
+  const saved = onlineState().credit;
+  if (saved?.key === want.key && cleanCredit(saved)) {
+    setCredit(want.key, cleanCredit(saved));
+    if (!want.refresh) return; // "每日一图"当天也可能换图，所以还要再确认一次
+  } else {
+    setCredit(want.key, want.picsum ? PICSUM_CREDIT : null);
+  }
+  let data = null;
+  try {
+    const res = await fetch(want.url);
+    if (res.ok) data = await res.json();
+  } catch {
+    /* 查不到就算了 */
+  }
+  if (creditKey !== want.key || !data || typeof data !== "object") return; // 等结果的时候又换了一张
+  // Picsum 给的是摄影师名字和照片在 Unsplash 上的页面
+  const value = cleanCredit(want.picsum ? { credit: typeof data.author === "string" && data.author.trim() ? `摄影：${data.author.trim()} · Unsplash` : "", link: data.url } : data);
+  if (!value) return;
+  setCredit(want.key, value);
+  writeJSON(ONLINE_KEY, { ...onlineState(), credit: { key: want.key, ...value } });
 }
 
 function describe(bg) {
@@ -185,10 +231,18 @@ function describe(bg) {
     const src = onlineUrl(bg.online, seed);
     const st = onlineState();
     const known = st.sampled === src && typeof st.color === "string";
+    const source = sourceOf(bg.online);
+    const creditKeyOf = `${source.id}:${seed}`;
     return {
       key: `o:${bg.online.source}:${bg.online.url}:${seed}`,
       src,
       online: true,
+      // 去哪查这张图的出处：本站代取的来源问本站后台，Picsum 问它自己；自定义接口查不了
+      credit: source.api
+        ? { key: creditKeyOf, url: `${src}&info=1`, refresh: !!source.daily }
+        : source.id === "picsum"
+          ? { key: creditKeyOf, url: `https://picsum.photos/seed/${seed}/info`, picsum: true }
+          : null,
       cors: bg.online.source !== "custom", // 除了自定义接口，其他来源都允许读取图片内容（用来取色）
       color: known ? st.color : "#1e293b",
       lum: known ? Number(st.lum) || 0 : UNKNOWN_LUM,
@@ -302,6 +356,7 @@ async function showImage(view, src, mine, onDone) {
   if (view.online) {
     onlineFailed = false;
     if (readable) rememberOnlineColor(img, src);
+    loadCredit(view);
     setTimeout(preloadNextOnline, 1500);
   }
   // 等淡入结束、旧图撤掉以后，再释放旧图的临时地址
@@ -313,6 +368,7 @@ function imageFailed(view) {
   // 在线壁纸连不上（断网、被拦截等）：换成内置背景顶上，只提示一次
   const first = !onlineFailed;
   onlineFailed = true;
+  setCredit("", null);
   const preset = presetById(store.get().bg.preset);
   if (preset.css) showCss(preset.css);
   apply(); // 占位色和时钟颜色改按内置背景来
@@ -339,8 +395,12 @@ async function apply() {
   root.style.setProperty("--dim", String(bg.dim / 100));
   root.style.setProperty("--bg-base", view.color);
   root.dataset.bgtone = tone;
+  // 这张壁纸有出处可查：在页面最底下给那行小字留出位置（先留好，字出来时图标就不会跳动）
+  const hasCredit = !!view.credit && !onlineFailed;
+  root.toggleAttribute("data-credit", hasCredit);
+  if (!hasCredit) setCredit("", null);
   $('meta[name="theme-color"]')?.setAttribute("content", view.color);
-  writeJSON(CACHE_KEY, { color: view.color, css: view.css || "", tone, blur: bg.blur, dim: bg.dim, searchAlpha, searchTone });
+  writeJSON(CACHE_KEY, { color: view.color, css: view.css || "", tone, blur: bg.blur, dim: bg.dim, searchAlpha, searchTone, credit: hasCredit });
 
   if (view.key === shownKey) return; // 只是调了模糊/暗度，画面内容没变
   shownKey = view.key;
@@ -382,6 +442,14 @@ export function initBackground() {
     root.removeAttribute("data-bginstant");
     root.style.removeProperty("--bg-instant");
   }
+  // 主页最底下的"壁纸出处"
+  const creditEl = $("#wall-credit");
+  onCredit((value) => {
+    if (!creditEl) return;
+    const text = value ? [value.title, value.credit].filter(Boolean).join(" · ") : "";
+    creditEl.replaceChildren(text && value.link ? h("a", { href: value.link, target: "_blank", rel: "noopener noreferrer", title: "查看这张壁纸的出处" }, text) : text);
+    creditEl.hidden = !text;
+  });
   apply();
   store.subscribe(apply);
   // 系统在深色 / 浅色之间切换时，搜索框的底色跟着变，文字颜色要重新判断（等主题先切换完）

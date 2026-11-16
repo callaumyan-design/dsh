@@ -310,6 +310,7 @@ svg.icon {
 
 /* ---------- 5. 时钟 / 问候 ---------- */
 main {
+  position: relative;
   display: flex;
   flex-direction: column;
   width: min(1120px, 100%);
@@ -363,10 +364,9 @@ main {
   box-shadow: var(--shadow);
   background: rgb(var(--glass-rgb) / var(--search-alpha)); /* 半透明：透明度由设置里的滑块决定 */
 }
+/* 点进搜索框时不加外框，只把边线加深一点 */
 .search-box:focus-within {
   border-color: var(--border-strong);
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
 }
 
 /* AI 模式：渐变描边 + 光晕，和普通搜索引擎明显区分 */
@@ -626,6 +626,42 @@ main {
 .engine-item.is-ai .engine-name {
   color: var(--ai-fg);
   font-weight: var(--fw-bold);
+}
+
+/* 壁纸出处：用在线壁纸时，页面最底下的一行小字（最多两行） */
+:root[data-credit] main {
+  padding-bottom: calc(50px + env(safe-area-inset-bottom));
+}
+.wall-credit {
+  position: absolute;
+  left: max(16px, env(safe-area-inset-left));
+  right: max(16px, env(safe-area-inset-right));
+  bottom: calc(9px + env(safe-area-inset-bottom));
+  margin: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  text-align: center;
+  text-wrap: balance; /* 折成两行时，两行尽量一样长 */
+  font-size: calc(11px * var(--fs));
+  line-height: 1.35;
+  color: var(--on-bg);
+  text-shadow: var(--on-bg-shadow);
+  opacity: 0.82;
+}
+.wall-credit a {
+  color: inherit;
+  text-decoration: none;
+}
+@media (hover: hover) {
+  .wall-credit a:hover {
+    text-decoration: underline;
+  }
+}
+.editing .wall-credit {
+  display: none;
 }
 
 /* ---------- 7. 导航 ---------- */

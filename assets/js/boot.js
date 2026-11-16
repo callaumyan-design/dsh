@@ -39,5 +39,7 @@
     // 搜索框的透明度，以及里面用白字还是深字
     if (typeof cache.searchAlpha === "number") root.style.setProperty("--search-alpha", String(cache.searchAlpha));
     if (cache.searchTone === "light" || cache.searchTone === "dark") root.setAttribute("data-searchtone", cache.searchTone);
+    // 壁纸有出处要显示：先在页面最底下留出那一行的位置
+    if (cache.credit === true) root.setAttribute("data-credit", "");
   }
 })();
