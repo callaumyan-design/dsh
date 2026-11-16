@@ -37,6 +37,11 @@ export const BACKGROUND_PRESETS = [
 // 默认用哪一套背景（填上面某一套的 id）。只影响还没自己设置过背景的访客。
 export const DEFAULT_BACKGROUND = "aurora";
 
+// ---------- 在线壁纸 ----------
+// 必应、维基共享资源、名画这几个来源不允许网页直接取图，要由网站自己的后台代取。
+// 这里填后台的地址。网站如果放在没有后台的地方（比如 GitHub Pages），把它改成 ""，这几个来源就不会出现在设置里。
+export const WALLPAPER_API = "./api/wallpaper";
+
 // ---------- AI（catgpt）----------
 // 两个地址都留空：AI 模式会提示"尚未接入"，并提供"改用搜索引擎搜"。
 // 只填 pageUrl：  AI 模式直接跳转到 catgpt 页面（带上 ?q=问题）。

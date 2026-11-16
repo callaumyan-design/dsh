@@ -73,7 +73,9 @@ files.forEach((rel, i) => {
   total += bytes.length;
 });
 
-fs.copyFileSync(path.join(ROOT, "tools/worker/handler.js"), path.join(OUT, "handler.js"));
+// "服务员"程序的各个文件（handler.js 以及它用到的其他 .js）
+const workerModules = fs.readdirSync(path.join(ROOT, "tools/worker")).filter((f) => f.endsWith(".js"));
+for (const f of workerModules) fs.copyFileSync(path.join(ROOT, "tools/worker", f), path.join(OUT, f));
 // 搬走的旧地址（比如以前挂在这个域名下的别的应用）：旧路径前缀 → 新地址
 const redirects = JSON.parse(fs.readFileSync(path.join(ROOT, "tools/worker/redirects.json"), "utf8"));
 fs.writeFileSync(
@@ -123,7 +125,8 @@ if (!account) {
   account = accounts[0].id;
 }
 
-const form = ["-F", "metadata=@metadata.json;type=application/json", "-F", "worker.js=@worker.js;type=application/javascript+module", "-F", "handler.js=@handler.js;type=application/javascript+module"];
+const form = ["-F", "metadata=@metadata.json;type=application/json", "-F", "worker.js=@worker.js;type=application/javascript+module"];
+for (const f of workerModules) form.push("-F", `${f}=@${f};type=application/javascript+module`);
 for (const [name, file, type] of parts) form.push("-F", `${name}=@${file};type=${type}`);
 cf("PUT", `/accounts/${account}/workers/scripts/${NAME}`, form);
 console.log(`已上传：${NAME}`);

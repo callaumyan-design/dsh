@@ -1,6 +1,6 @@
 // 背景：内置预设 / 纯色或渐变 / 图片（上传或链接，可随机切换）/ 在线随机壁纸
 // 图片加载完成前只显示纯色占位，加载好了再淡入，不白屏、不闪烁。
-import { BACKGROUND_PRESETS } from "../../config/site.js";
+import { BACKGROUND_PRESETS, WALLPAPER_API } from "../../config/site.js";
 import { store, readJSON, writeJSON, safeUrl, uid } from "./store.js";
 import { images } from "./idb.js";
 import { $, toast } from "./ui.js";
@@ -66,7 +66,35 @@ function pickRandom(list) {
   return id;
 }
 
-// ---------- 在线随机壁纸 ----------
+// ---------- 在线壁纸 ----------
+// 壁纸来源。api：由本站后台代取时用的名字；daily：每天自动换成"当天那一张"，不用手动换
+export const ONLINE_SOURCES = [
+  { id: "picsum", name: "随机摄影（Picsum）" },
+  { id: "bing-today", name: "必应每日一图", api: "bing", daily: true },
+  { id: "bing", name: "必应近期壁纸（随机）", api: "bing" },
+  { id: "wiki-today", name: "维基共享资源每日图片", api: "wikimedia", daily: true },
+  { id: "wiki", name: "维基共享资源精选（随机）", api: "wikimedia" },
+  { id: "art", name: "名画（芝加哥艺术博物馆）", api: "art" },
+  { id: "custom", name: "自定义接口" },
+].filter((s) => !s.api || WALLPAPER_API); // 没有后台时，需要后台代取的来源不显示
+
+const sourceOf = (online) => ONLINE_SOURCES.find((s) => s.id === online.source) || ONLINE_SOURCES[0];
+
+/** 今天的日期编号，如 20261116（按访客自己的时区） */
+function todaySeed() {
+  const d = new Date();
+  return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** 生成一个新的图片编号。必应近期只有 8 张，直接指定第几张，并避开刚看过的那张 */
+function newSeed(sourceId, previous) {
+  if (sourceId !== "bing") return uid();
+  let seed;
+  do seed = `i${Math.floor(Math.random() * 8)}`;
+  while (seed === previous);
+  return seed;
+}
+
 const onlineState = () => {
   const st = readJSON(ONLINE_KEY, null);
   return st && typeof st === "object" ? st : {};
@@ -82,7 +110,10 @@ function onlineSize() {
 /** 某个编号对应的图片地址。同一个编号永远是同一张图，所以可以提前下载、下次秒开 */
 function onlineUrl(online, seed) {
   const [w, h] = onlineSize();
-  if (online.source === "custom") {
+  const source = sourceOf(online);
+  // 由本站后台代取的来源（必应、维基、名画）
+  if (source.api) return `${WALLPAPER_API}?source=${source.api}&seed=${seed}&shape=${h > w ? "port" : "land"}`;
+  if (source.id === "custom") {
     // 自定义接口：可以用 {w} {h} {seed} 占位；没写 {seed} 就在末尾加一个参数，保证"换一张"时地址不同
     const url = online.url.replace(/\{w\}/g, w).replace(/\{h\}/g, h);
     if (url.includes("{seed}")) return url.replace(/\{seed\}/g, seed);
@@ -93,28 +124,32 @@ function onlineUrl(online, seed) {
 }
 
 /** 换上下一张：优先用已经提前下载好的那张 */
-function rotateOnline() {
+function rotateOnline(bg) {
   const st = onlineState();
-  onlineSeed = (typeof st.next === "string" && st.next) || uid();
-  writeJSON(ONLINE_KEY, { seed: onlineSeed, next: "", at: Date.now() });
+  const sameSource = st.source === bg.online.source;
+  onlineSeed = (sameSource && typeof st.next === "string" && st.next) || newSeed(bg.online.source, sameSource ? st.seed : "");
+  writeJSON(ONLINE_KEY, { source: bg.online.source, seed: onlineSeed, next: "", at: Date.now() });
 }
 
 /** 本次打开页面该显示哪一张：按"多久换一张"的设置决定沿用还是换新 */
 function currentOnlineSeed(bg) {
-  if (onlineSeed) return onlineSeed;
+  if (sourceOf(bg.online).daily) return todaySeed(); // "每日一图"：永远是今天这张
   const st = onlineState();
+  // 换了来源：之前记下的编号不再适用
+  if (onlineSeed && st.source === bg.online.source) return onlineSeed;
   const every = bg.online.every;
   const due = every === "open" || (every !== "manual" && Date.now() - (Number(st.at) || 0) >= ONLINE_PERIOD[every]);
-  if (typeof st.seed === "string" && st.seed && !due) onlineSeed = st.seed;
-  else rotateOnline();
+  if (st.source === bg.online.source && typeof st.seed === "string" && st.seed && !due) onlineSeed = st.seed;
+  else rotateOnline(bg);
   return onlineSeed;
 }
 
 /** 趁空闲把下一张提前下载好，下次换图时就不用等 */
 function preloadNextOnline() {
   const bg = store.get().bg;
-  if (bg.type !== "online" || bg.online.source !== "picsum" || bg.online.every === "manual" || onlineState().next) return;
-  const next = uid();
+  const source = sourceOf(bg.online);
+  if (bg.type !== "online" || source.id === "custom" || source.daily || bg.online.every === "manual" || onlineState().next) return;
+  const next = newSeed(source.id, onlineSeed);
   const img = new Image();
   img.crossOrigin = "anonymous";
   img.onload = () => writeJSON(ONLINE_KEY, { ...onlineState(), next }); // 下载成功了才记下来
@@ -136,8 +171,15 @@ function rememberOnlineColor(img, src) {
 /** 手动"换一张"在线壁纸 */
 export function nextOnlineWallpaper() {
   onlineFailed = false;
-  rotateOnline();
+  rotateOnline(store.get().bg);
   apply();
+}
+
+/** 查询"当前这张在线壁纸的标题、作者和出处"的地址。只有本站后台代取的来源才有，其他情况返回空 */
+export function onlineInfoUrl() {
+  const bg = store.get().bg;
+  if (bg.type !== "online" || !sourceOf(bg.online).api) return "";
+  return onlineUrl(bg.online, currentOnlineSeed(bg)) + "&info=1";
 }
 
 function describe(bg) {
@@ -150,7 +192,7 @@ function describe(bg) {
       key: `o:${bg.online.source}:${bg.online.url}:${seed}`,
       src,
       online: true,
-      cors: bg.online.source === "picsum", // 这个来源允许读取图片内容（用来取色）
+      cors: bg.online.source !== "custom", // 除了自定义接口，其他来源都允许读取图片内容（用来取色）
       color: known ? st.color : "#1e293b",
       lum: known ? Number(st.lum) || 0 : UNKNOWN_LUM,
     };

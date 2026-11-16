@@ -1080,6 +1080,20 @@ select.input {
   font-size: calc(12.5px * var(--fs));
   color: var(--text-3);
 }
+/* 在线壁纸："当前这张"是什么、出自哪里 */
+.wall-info {
+  margin-top: 10px;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+.wall-info strong {
+  color: var(--text);
+  font-weight: var(--fw-medium);
+}
+.wall-info a {
+  color: var(--accent-fg);
+  white-space: nowrap;
+}
 .error-text {
   margin: 6px 0 0;
   font-size: calc(13px * var(--fs));

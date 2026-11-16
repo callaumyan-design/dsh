@@ -2,7 +2,7 @@
 // 所有改动立刻生效，并保存在浏览器本地。
 import { BACKGROUND_PRESETS, AI } from "../../config/site.js";
 import { store, safeTemplate, safeUrl, uid, defaultSettings } from "./store.js";
-import { addUploads, addImageUrl, removeImage, selectImage, shownImageId, shuffleBackground, thumbFor, nextOnlineWallpaper } from "./background.js";
+import { addUploads, addImageUrl, removeImage, selectImage, shownImageId, shuffleBackground, thumbFor, nextOnlineWallpaper, ONLINE_SOURCES, onlineInfoUrl } from "./background.js";
 import { FONT_CHOICES, WEIGHT_NAMES } from "./typography.js";
 import { listEngines } from "./engines.js";
 import { searchHistory } from "./search.js";
@@ -179,7 +179,7 @@ function backgroundSection() {
     randomBox
   );
 
-  // 在线随机壁纸
+  // 在线壁纸
   let wantCustom = false; // 用户选了"自定义接口"但还没填地址
   const sourceId = nextId("sel");
   const sourceSelect = h(
@@ -193,8 +193,7 @@ function backgroundSection() {
         store.update((s) => (s.bg.online.source = sourceSelect.value));
       },
     },
-    h("option", { value: "picsum" }, "随机摄影（Picsum）"),
-    h("option", { value: "custom" }, "自定义接口")
+    ONLINE_SOURCES.map((src) => h("option", { value: src.id }, src.name))
   );
   const apiInput = h("input", { class: "input", type: "url", inputMode: "url", placeholder: "https://…（打开就返回一张图片的地址）", "aria-label": "壁纸接口地址", autocomplete: "off", autocapitalize: "off", spellcheck: false });
   const apiForm = h("form", { class: "inline-form", novalidate: true }, apiInput, h("button", { type: "submit", class: "btn" }, "使用"));
@@ -210,25 +209,74 @@ function backgroundSection() {
     toast("已切换到自定义壁纸接口");
   });
   const apiBox = h("div", { class: "field" }, apiForm, h("p", { class: "hint" }, "填一个“每次打开都返回一张图片”的地址。地址里可以用 {w}、{h} 代表需要的宽和高。"));
+  const everyRow = selectRow(
+    "多久换一张",
+    null,
+    () => [["open", "每次打开页面"], ["hour", "每小时"], ["day", "每天"], ["manual", "只在我点“换一张”时"]],
+    (s) => s.bg.online.every,
+    (s, v) => (s.bg.online.every = v)
+  );
+  const nextRow = h(
+    "div",
+    { class: "btn-row" },
+    h("button", { type: "button", class: "btn", onclick: () => { nextOnlineWallpaper(); showInfo(); } }, icon("shuffle"), "换一张")
+  );
+  const dailyHint = h("p", { class: "hint" }, "这个来源每天自动换成当天的那一张。");
+
+  // 当前这张壁纸是什么、谁拍的（画的）、出自哪里
+  const infoBox = h("p", { class: "hint wall-info", hidden: true });
+  let infoFor = ""; // 现在显示的是哪个地址查到的信息
+  async function showInfo() {
+    const url = onlineInfoUrl();
+    if (url === infoFor) return;
+    infoFor = url;
+    infoBox.hidden = true;
+    if (!url) return;
+    let info = null;
+    try {
+      const res = await fetch(url);
+      if (res.ok) info = await res.json();
+    } catch {
+      /* 查不到就不显示 */
+    }
+    if (infoFor !== url || !info || typeof info !== "object") return; // 等结果的时候又换了一张
+    const text = (v) => (typeof v === "string" ? v.trim().slice(0, 200) : "");
+    const title = text(info.title);
+    const credit = text(info.credit);
+    const link = safeUrl(info.link);
+    if (!title && !credit) return;
+    infoBox.replaceChildren(
+      "当前这张：",
+      title && h("strong", null, title),
+      title && credit ? " — " : "",
+      credit,
+      link && " ",
+      link && h("a", { href: link, target: "_blank", rel: "noopener noreferrer" }, "查看出处")
+    );
+    infoBox.hidden = false;
+  }
+
   syncers.push((s) => {
-    sourceSelect.value = wantCustom ? "custom" : s.bg.online.source;
+    const known = ONLINE_SOURCES.some((src) => src.id === s.bg.online.source);
+    sourceSelect.value = wantCustom ? "custom" : known ? s.bg.online.source : ONLINE_SOURCES[0].id;
     apiBox.hidden = sourceSelect.value !== "custom";
     if (document.activeElement !== apiInput) apiInput.value = s.bg.online.url;
+    // "每日一图"这类来源每天自动换，不需要"多久换一张"和"换一张"
+    const daily = !!ONLINE_SOURCES.find((src) => src.id === sourceSelect.value)?.daily;
+    everyRow.hidden = nextRow.hidden = daily;
+    dailyHint.hidden = !daily;
+    showInfo();
   });
   const onlinePane = h(
     "div",
     { class: "bg-pane" },
     h("div", { class: "set-row" }, h("label", { for: sourceId }, "壁纸来源"), sourceSelect),
     apiBox,
-    selectRow(
-      "多久换一张",
-      null,
-      () => [["open", "每次打开页面"], ["hour", "每小时"], ["day", "每天"], ["manual", "只在我点“换一张”时"]],
-      (s) => s.bg.online.every,
-      (s, v) => (s.bg.online.every = v)
-    ),
-    h("div", { class: "btn-row" }, h("button", { type: "button", class: "btn", onclick: nextOnlineWallpaper }, icon("shuffle"), "换一张")),
-    h("p", { class: "hint" }, "壁纸从网上加载：提供图片的服务器能看到你的网络地址，但看不到你搜索的内容。连不上时会自动显示内置背景。")
+    everyRow,
+    nextRow,
+    dailyHint,
+    infoBox,
+    h("p", { class: "hint" }, "壁纸从网上加载，连不上时会自动显示内置背景。必应、维基、名画由本站代取，图库看不到你的网络地址；其他来源由浏览器直接去取。都看不到你搜索的内容。")
   );
 
   // 几种类型切换。切到"图片"但一张图都没有时，先停在这个页签等用户添加
@@ -265,8 +313,7 @@ function backgroundSection() {
     imagePane,
     onlinePane,
     rangeRow("模糊", 0, 30, "px", (s) => s.bg.blur, (s, v) => (s.bg.blur = v)),
-    rangeRow("暗度遮罩", 0, 80, "%", (s) => s.bg.dim, (s, v) => (s.bg.dim = v)),
-    h("p", { class: "hint" }, "“必应每日一图”需要服务器中转，本站是纯静态网站，暂不提供；可以用上面的“在线”壁纸。")
+    rangeRow("暗度遮罩", 0, 80, "%", (s) => s.bg.dim, (s, v) => (s.bg.dim = v))
   );
 }
 

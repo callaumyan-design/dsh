@@ -100,7 +100,7 @@ export function defaultSettings() {
       images: [], // [{id, kind: "upload" | "url", url?, color?, lum?}]  图片本体在 IndexedDB
       current: "", // 当前选中的图片 id
       random: false, // 每次打开随机换一张
-      // 在线随机壁纸：source 是壁纸来源，url 是自定义接口地址，every 是多久换一张
+      // 在线壁纸：source 是壁纸来源（见 background.js 里的 ONLINE_SOURCES），url 是自定义接口地址，every 是多久换一张
       online: { source: "picsum", url: "", every: "open" }, // every: open | hour | day | manual
       blur: 0, // 模糊 px
       dim: 25, // 暗度 %
@@ -170,7 +170,7 @@ export function normalizeSettings(raw) {
   }
   const o = isObj(b.online) ? b.online : {};
   const online = {
-    source: oneOf(o.source, ["picsum", "custom"], d.bg.online.source),
+    source: oneOf(o.source, ["picsum", "bing-today", "bing", "wiki-today", "wiki", "art", "custom"], d.bg.online.source),
     url: safeUrl(o.url),
     every: oneOf(o.every, ["open", "hour", "day", "manual"], d.bg.online.every),
   };

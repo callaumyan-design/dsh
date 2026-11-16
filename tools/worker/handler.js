@@ -1,3 +1,5 @@
+import { handleWallpaper } from "./wallpaper.js";
+
 // 起始页在 Cloudflare 上的"服务员"：收到网址，把对应的文件发回去。
 // 网站的所有文件在发布时直接打包进来（见 tools/deploy-cloudflare.mjs），这里不读硬盘、不连数据库。
 //
@@ -42,6 +44,8 @@ export function createHandler(files, redirects = {}) {
     // 搬走的旧地址：不管是什么请求，都指到新地址去（307 会保留原来的请求方式）
     const moved = movedTo(redirects, url);
     if (moved) return new Response(null, { status: 307, headers: { Location: moved, "Cache-Control": "no-store" } });
+    // 在线壁纸：由这里代为去图库取图（见 wallpaper.js）
+    if (url.pathname === "/api/wallpaper") return handleWallpaper(request, url);
     if (request.method !== "GET" && request.method !== "HEAD") {
       return new Response("Method Not Allowed", { status: 405, headers: { Allow: "GET, HEAD" } });
     }
