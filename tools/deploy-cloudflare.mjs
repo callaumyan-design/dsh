@@ -92,13 +92,21 @@ files.forEach((rel, i) => {
 // "服务员"程序的各个文件（handler.js 以及它用到的其他 .js）
 const workerModules = fs.readdirSync(path.join(ROOT, "tools/worker")).filter((f) => f.endsWith(".js"));
 for (const f of workerModules) fs.copyFileSync(path.join(ROOT, "tools/worker", f), path.join(OUT, f));
+// 和页面共用的文件：仓库里 tools/worker 下只是"转一下手"，发布时换成原文（包里只有一层目录，引用不到 assets/）
+const SHARED = { "market-ids.js": "assets/js/market/ids.js", "market-hours.js": "assets/js/market/hours.js" };
+for (const [name, from] of Object.entries(SHARED)) {
+  const text = fs.readFileSync(path.join(ROOT, from), "utf8");
+  if (/^\s*import\s/m.test(text)) throw new Error(`${from} 不能引用别的文件（发布时它会被单独放进后台的包里）`);
+  fs.writeFileSync(path.join(OUT, name), text);
+}
 // 搬走的旧地址（比如以前挂在这个域名下的别的应用）：旧路径前缀 → 新地址
 const redirects = JSON.parse(fs.readFileSync(path.join(ROOT, "tools/worker/redirects.json"), "utf8"));
 fs.writeFileSync(
   path.join(OUT, "worker.js"),
   `// 这个文件是 tools/deploy-cloudflare.mjs 自动生成的，不要手改。\nimport { createHandler } from "./handler.js";\n${imports.join("\n")}\n\nconst FILES = new Map([\n${table.join("\n")}\n]);\nconst REDIRECTS = ${JSON.stringify(redirects)};\nconst BUILD = ${JSON.stringify(BUILD)};\n\nexport default { fetch: createHandler(FILES, REDIRECTS, BUILD) };\n`
 );
-fs.writeFileSync(path.join(OUT, "metadata.json"), JSON.stringify({ main_module: "worker.js", compatibility_date: "2026-01-01" }));
+// keep_bindings：发布新版本时保留在 Cloudflare 后台设置的密钥（QUOTES_TOKEN、FINNHUB_KEY 等），不然每次发布都会被清掉
+fs.writeFileSync(path.join(OUT, "metadata.json"), JSON.stringify({ main_module: "worker.js", compatibility_date: "2026-01-01", keep_bindings: ["secret_text"] }));
 console.log(`打包完成：${files.length} 个文件，共 ${(total / 1024).toFixed(0)} KB，版本号 ${BUILD} → ${path.relative(ROOT, OUT)}/`);
 if (DRY_RUN) process.exit(0);
 
