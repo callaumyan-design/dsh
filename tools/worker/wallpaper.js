@@ -10,8 +10,8 @@
 // （试过维基共享资源和两家博物馆，要么取不到、要么图太小，所以没有保留。）
 //
 // 用法：
-//   /api/wallpaper?source=<来源>&seed=<编号>&shape=<land|port>          → 图片
-//   /api/wallpaper?source=<来源>&seed=<编号>&shape=<land|port>&info=1   → 这张图的标题、作者、出处（JSON）
+//   /api/wallpaper?source=<来源>&seed=<编号>&w=<宽>&h=<高>          → 图片（宽高是屏幕的真实像素，用来挑合适的清晰度）
+//   /api/wallpaper?source=<来源>&seed=<编号>&w=<宽>&h=<高>&info=1   → 这张图的标题、作者、出处（JSON）
 //   seed 是 8 位日期（如 20261116）表示"当天的每日图片"；"i0"~"i7" 表示最近 8 天里的第几张。
 
 // 去图库取东西时自报家门（不含任何个人信息）
@@ -54,21 +54,42 @@ async function getJson(what, url, cacheSeconds, headers = {}) {
 // ---------- 必应 ----------
 // 必应首页的每日图片，接口一次给出最近 8 天的。
 // seed 是日期 → 今天的；"i0"~"i7" → 指定第几张；其他 → 按编号固定挑一张
-async function bing(seed, shape) {
+async function bing(seed, w, h) {
   const data = await getJson("必应图片列表", "https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=8&mkt=zh-CN", 1800);
   const list = Array.isArray(data.images) ? data.images.filter((i) => i && typeof i.urlbase === "string") : [];
   if (!list.length) throw new Error("必应没有返回图片");
   const pick = isDate(seed) ? 0 : /^i[0-7]$/.test(seed) ? Number(seed[1]) % list.length : hash(seed) % list.length;
   const item = list[pick];
-  const size = shape === "port" ? "1080x1920" : "1920x1080";
   return {
-    images: [`https://www.bing.com${item.urlbase}_${size}.jpg`],
+    images: bingImages(`https://www.bing.com${item.urlbase}`, w, h),
     title: plain(item.title),
     credit: plain(item.copyright),
     link: typeof item.copyrightlink === "string" && /^https:\/\/www\.bing\.com\//.test(item.copyrightlink) ? item.copyrightlink : "https://www.bing.com/",
     maxAge: isDate(seed) ? 3600 : 6 * 3600, // 列表每天都在变，所以不能缓存太久
   };
 }
+
+/**
+ * 按屏幕的真实像素（w × h）挑图片地址，按顺序试：
+ *   - 屏幕不大：用必应现成的 1920x1080（横）/ 1080x1920（竖）。
+ *   - 屏幕更大：用必应的超清原图（一般是 3840x2160），让它按屏幕的长宽比裁好；万一不行再退回现成的尺寸。
+ * 必应的原图是横的、最高 2160：竖屏最多能要到 2160 高，按屏幕的长宽比从原图里裁出竖的一条。
+ */
+export function bingImages(base, w, h) {
+  const uhd = (width, height) => `${base}_UHD.jpg&w=${width}&h=${height}&rs=1&c=${BING_CROP}`;
+  if (h > w) {
+    const preset = `${base}_1080x1920.jpg`;
+    if (w <= 1080 && h <= 1920) return [preset];
+    const width = Math.max(900, Math.min(1620, Math.round((2160 * w) / h)));
+    return [uhd(width, 2160), preset];
+  }
+  const preset = `${base}_1920x1080.jpg`;
+  if (w <= 1920 && h <= 1080) return [preset];
+  const width = Math.min(3840, w);
+  const height = Math.max(Math.round(width / 2.4), Math.min(2160, Math.round((width * h) / w)));
+  return [uhd(width, height), preset];
+}
+const BING_CROP = 4; // 必应的裁切方式：4 = 从正中间裁
 
 const SOURCES = { bing };
 
@@ -83,13 +104,20 @@ export async function handleWallpaper(request, url, now = Date.now()) {
   if (request.method !== "GET" && request.method !== "HEAD") return new Response("Method Not Allowed", { status: 405, headers: { Allow: "GET, HEAD" } });
   const source = url.searchParams.get("source") || "";
   const seed = url.searchParams.get("seed") || "";
-  const shape = url.searchParams.get("shape") === "port" ? "port" : "land";
+  // 屏幕的真实像素；没给的话（旧版页面）按"横屏 1920x1080 / 竖屏 1080x1920"算
+  const portrait = url.searchParams.get("shape") === "port";
+  const size = (name, fallback) => {
+    const n = Number(url.searchParams.get(name));
+    return Number.isInteger(n) && n >= 200 && n <= 8000 ? n : fallback;
+  };
+  const w = size("w", portrait ? 1080 : 1920);
+  const h = size("h", portrait ? 1920 : 1080);
   if (!Object.hasOwn(SOURCES, source)) return json({ error: "不认识的壁纸来源" }, 400);
   if (!/^[a-z0-9]{1,24}$/.test(seed)) return json({ error: "编号只能是 1~24 位小写字母或数字" }, 400);
 
   let found;
   try {
-    found = await SOURCES[source](seed, shape, now);
+    found = await SOURCES[source](seed, w, h, now);
   } catch (err) {
     return json({ error: "暂时取不到壁纸", detail: String(err?.message || err).slice(0, 200) }, 502);
   }

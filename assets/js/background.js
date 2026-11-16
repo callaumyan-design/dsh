@@ -97,11 +97,24 @@ const onlineState = () => {
   return st && typeof st === "object" ? st : {};
 };
 
-/** 按屏幕方向和清晰度决定要多大的图：够清楚，又不至于太大太慢 */
+/**
+ * 要多大的图：按这台设备屏幕的"真实像素"来（手机屏幕的真实像素是页面尺寸的 2～3 倍），
+ * 这样图片不用放大，看着才清楚。太大的屏幕封个顶，免得文件太大、加载太慢。
+ * 用的是整块屏幕的尺寸而不是窗口的尺寸：窗口大小会变，屏幕不会，同一台设备取图的地址就是固定的。
+ */
 function onlineSize() {
-  if (window.innerHeight > window.innerWidth) return [1080, 1920];
-  const pixels = Math.max(screen.width, screen.height) * (window.devicePixelRatio || 1);
-  return pixels > 2200 ? [2560, 1440] : [1920, 1080];
+  const dpr = Math.min(window.devicePixelRatio || 1, 4);
+  let long = Math.max(screen.width, screen.height) * dpr;
+  let short = Math.min(screen.width, screen.height) * dpr;
+  const portrait = window.innerHeight > window.innerWidth;
+  const cap = portrait ? 2800 : 2880; // 长边的上限
+  if (long > cap) {
+    short = (short * cap) / long;
+    long = cap;
+  }
+  long = Math.max(640, Math.round(long));
+  short = Math.max(360, Math.round(short));
+  return portrait ? [short, long] : [long, short];
 }
 
 /** 某个编号对应的图片地址。同一个编号永远是同一张图，所以可以提前下载、下次秒开 */
@@ -109,7 +122,7 @@ function onlineUrl(online, seed) {
   const [w, h] = onlineSize();
   const source = sourceOf(online);
   // 由本站后台代取的来源（必应）
-  if (source.api) return `${WALLPAPER_API}?source=${source.api}&seed=${seed}&shape=${h > w ? "port" : "land"}`;
+  if (source.api) return `${WALLPAPER_API}?source=${source.api}&seed=${seed}&w=${w}&h=${h}`;
   if (source.id === "custom") {
     // 自定义接口：可以用 {w} {h} {seed} 占位；没写 {seed} 就在末尾加一个参数，保证"换一张"时地址不同
     const url = online.url.replace(/\{w\}/g, w).replace(/\{h\}/g, h);
@@ -392,6 +405,7 @@ async function apply() {
   root.style.setProperty("--search-alpha", String(searchAlpha));
   root.dataset.searchtone = searchTone;
   root.style.setProperty("--blur", bg.blur + "px");
+  root.toggleAttribute("data-blur", bg.blur > 0); // 没开模糊时完全不加模糊效果，保证图片原样清晰
   root.style.setProperty("--dim", String(bg.dim / 100));
   root.style.setProperty("--bg-base", view.color);
   root.dataset.bgtone = tone;

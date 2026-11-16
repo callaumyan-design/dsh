@@ -34,7 +34,10 @@
       root.setAttribute("data-bginstant", "");
     }
     if (cache.tone === "light" || cache.tone === "dark") root.setAttribute("data-bgtone", cache.tone);
-    if (typeof cache.blur === "number") root.style.setProperty("--blur", cache.blur + "px");
+    if (typeof cache.blur === "number" && cache.blur > 0) {
+      root.style.setProperty("--blur", cache.blur + "px");
+      root.setAttribute("data-blur", "");
+    }
     if (typeof cache.dim === "number") root.style.setProperty("--dim", String(cache.dim / 100));
     // 搜索框的透明度，以及里面用白字还是深字
     if (typeof cache.searchAlpha === "number") root.style.setProperty("--search-alpha", String(cache.searchAlpha));

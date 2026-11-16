@@ -254,9 +254,12 @@ svg.icon {
   background-position: center;
   background-size: cover;
   background-repeat: no-repeat;
-  filter: blur(var(--blur));
   opacity: 0;
   transition: opacity 0.6s ease;
+}
+/* 只有在设置里开了模糊时才加模糊效果；没开就什么都不加，图片保持原样清晰 */
+:root[data-blur] .bg-layer {
+  filter: blur(var(--blur));
 }
 .bg-layer img {
   display: block;
