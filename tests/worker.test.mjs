@@ -169,9 +169,9 @@ test("壁纸中转·必应：按屏幕的真实像素挑清晰度", async () => 
   assert.deepEqual(bingImages(B, 1366, 768), [`${B}_1920x1080.jpg`]);
   assert.deepEqual(bingImages(B, 1080, 1920), [`${B}_1080x1920.jpg`]);
   assert.deepEqual(bingImages(B, 750, 1334), [`${B}_1080x1920.jpg`]);
-  // 高清手机屏（如 1179x2556）：从超清原图里按屏幕的长宽比裁一条竖的，最高 2160；不行再退回现成的
-  assert.deepEqual(bingImages(B, 1179, 2556), [`${B}_UHD.jpg&w=996&h=2160&rs=1&c=4`, `${B}_1080x1920.jpg`]);
-  assert.deepEqual(bingImages(B, 1290, 2796), [`${B}_UHD.jpg&w=997&h=2160&rs=1&c=4`, `${B}_1080x1920.jpg`]);
+  // 手机竖屏：不管屏幕多高清，都用必应专门为手机裁好的竖版（自动从原图裁会把主体裁掉）
+  assert.deepEqual(bingImages(B, 1179, 2556), [`${B}_1080x1920.jpg`]);
+  assert.deepEqual(bingImages(B, 1290, 2796), [`${B}_1080x1920.jpg`]);
   // 高清电脑屏：要多大给多大，最大 3840x2160，长宽比跟着屏幕走
   assert.deepEqual(bingImages(B, 2560, 1440), [`${B}_UHD.jpg&w=2560&h=1440&rs=1&c=4`, `${B}_1920x1080.jpg`]);
   assert.deepEqual(bingImages(B, 2880, 1800), [`${B}_UHD.jpg&w=2880&h=1800&rs=1&c=4`, `${B}_1920x1080.jpg`]);
@@ -179,9 +179,11 @@ test("壁纸中转·必应：按屏幕的真实像素挑清晰度", async () => 
   assert.deepEqual(bingImages(B, 1920, 1200), [`${B}_UHD.jpg&w=1920&h=1200&rs=1&c=4`, `${B}_1920x1080.jpg`]);
 
   await withUpstream([["https://www.bing.com/HPImageArchive.aspx", bingList], ["https://www.bing.com/th?id=", jpeg]], async (seen) => {
-    const res = await wall("source=bing&seed=i0&w=1179&h=2556");
+    const res = await wall("source=bing&seed=i0&w=2880&h=1800");
     assert.equal(res.status, 200);
-    assert.equal(seen.at(-1), `${B}_UHD.jpg&w=996&h=2160&rs=1&c=4`);
+    assert.equal(seen.at(-1), `${B}_UHD.jpg&w=2880&h=1800&rs=1&c=4`);
+    await wall("source=bing&seed=i0&w=1179&h=2556");
+    assert.equal(seen.at(-1), `${B}_1080x1920.jpg`);
     // 乱填的宽高不会被拿去拼地址：按默认尺寸算
     await wall("source=bing&seed=i0&w=99999&h=abc");
     assert.equal(seen.at(-1), `${B}_1920x1080.jpg`);

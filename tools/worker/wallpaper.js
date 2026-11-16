@@ -71,25 +71,20 @@ async function bing(seed, w, h) {
 
 /**
  * 按屏幕的真实像素（w × h）挑图片地址，按顺序试：
- *   - 屏幕不大：用必应现成的 1920x1080（横）/ 1080x1920（竖）。
- *   - 屏幕更大：用必应的超清原图（一般是 3840x2160），让它按屏幕的长宽比裁好；万一不行再退回现成的尺寸。
- * 必应的原图是横的、最高 2160：竖屏最多能要到 2160 高，按屏幕的长宽比从原图里裁出竖的一条。
+ *   - 竖屏（手机）：一律用必应专门为手机裁好的竖版 1080x1920。
+ *     试过从超清原图里自动裁一条竖的（能到 2160 高，清楚一点点），但自动裁只会从正中间裁，
+ *     最近 8 张图里有 3 张把主体（崖居、石拱门、桥）裁掉了，所以不用。
+ *   - 横屏、屏幕不超过 1920x1080：用现成的 1920x1080。
+ *   - 横屏、屏幕更大：用超清原图（一般是 3840x2160），按屏幕的长宽比从中间裁好；万一取不到再退回 1920x1080。
  */
 export function bingImages(base, w, h) {
-  const uhd = (width, height) => `${base}_UHD.jpg&w=${width}&h=${height}&rs=1&c=${BING_CROP}`;
-  if (h > w) {
-    const preset = `${base}_1080x1920.jpg`;
-    if (w <= 1080 && h <= 1920) return [preset];
-    const width = Math.max(900, Math.min(1620, Math.round((2160 * w) / h)));
-    return [uhd(width, 2160), preset];
-  }
+  if (h > w) return [`${base}_1080x1920.jpg`];
   const preset = `${base}_1920x1080.jpg`;
   if (w <= 1920 && h <= 1080) return [preset];
   const width = Math.min(3840, w);
   const height = Math.max(Math.round(width / 2.4), Math.min(2160, Math.round((width * h) / w)));
-  return [uhd(width, height), preset];
+  return [`${base}_UHD.jpg&w=${width}&h=${height}&rs=1&c=4`, preset]; // rs=1 缩放，c=4 按长宽比从中间裁
 }
-const BING_CROP = 4; // 必应的裁切方式：4 = 从正中间裁
 
 const SOURCES = { bing };
 
