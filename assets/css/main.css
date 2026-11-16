@@ -83,21 +83,11 @@
   --focus-halo: #ffffff;
 }
 
-/* 直接压在背景上的文字（时钟）：背景偏暗用白字，偏亮用深字 */
-:root,
-:root[data-bgtone="dark"] {
-  --on-bg: #ffffff;
-  --on-bg-shadow: 0 1px 2px rgb(0 0 0 / 0.55), 0 0 22px rgb(0 0 0 / 0.4);
-}
-:root[data-bgtone="light"] {
-  --on-bg: #0b1220;
-  --on-bg-shadow: 0 1px 1px rgb(255 255 255 / 0.7), 0 0 22px rgb(255 255 255 / 0.6);
-}
-/* 页面最下面的字（应用名称、壁纸出处）：不管背景深浅，一律白字。
-   背景很亮时靠一圈深色的阴影衬着，照样看得清 */
+/* 直接压在壁纸上的字（时钟、日期、应用名称、壁纸出处）：不管壁纸深浅，一律白字。
+   壁纸很亮时靠一圈深色的阴影衬着，照样看得清 */
 :root {
-  --dock-text: #ffffff;
-  --dock-shadow: 0 1px 2px rgb(0 0 0 / 0.75), 0 0 8px rgb(0 0 0 / 0.55), 0 0 20px rgb(0 0 0 / 0.4);
+  --wall-text: #ffffff;
+  --wall-shadow: 0 1px 2px rgb(0 0 0 / 0.75), 0 0 8px rgb(0 0 0 / 0.55), 0 0 20px rgb(0 0 0 / 0.4);
 }
 
 /* 搜索框是半透明的（透明度可在设置里调），里面的文字用白字还是深字，
@@ -345,8 +335,8 @@ main {
 
 .clock {
   margin-bottom: clamp(18px, 4vh, 34px);
-  color: var(--on-bg);
-  text-shadow: var(--on-bg-shadow);
+  color: var(--wall-text);
+  text-shadow: var(--wall-shadow);
 }
 .clock-time {
   display: block;
@@ -668,8 +658,8 @@ main {
   text-wrap: balance; /* 折成两行时，两行尽量一样长 */
   font-size: calc(11px * var(--fs));
   line-height: 1.35;
-  color: var(--dock-text);
-  text-shadow: var(--dock-shadow);
+  color: var(--wall-text);
+  text-shadow: var(--wall-shadow);
   opacity: 0.9;
 }
 .wall-credit a {
@@ -713,8 +703,8 @@ main {
   padding: 0;
   text-align: center;
   font-size: calc(12px * var(--fs));
-  color: var(--dock-text);
-  text-shadow: var(--dock-shadow);
+  color: var(--wall-text);
+  text-shadow: var(--wall-shadow);
 }
 .app-grid {
   display: flex;
@@ -750,9 +740,9 @@ main {
   gap: 5px;
   padding: 5px 1px 3px;
   border-radius: 16px;
-  /* 名字直接压在背景上：一律白字（见上面的 --dock-text） */
-  color: var(--dock-text);
-  text-shadow: var(--dock-shadow);
+  /* 名字直接压在背景上：一律白字（见上面的 --wall-text） */
+  color: var(--wall-text);
+  text-shadow: var(--wall-shadow);
   text-decoration: none;
 }
 /* 图标的底：一块半透明的"毛玻璃"，会透出壁纸的颜色；上面的图形是白色的 */

@@ -10,9 +10,10 @@ const LAST_KEY = "sp:bg-last"; // 上次随机到的图片，避免连续两次�
 const ONLINE_KEY = "sp:bg-online"; // 在线壁纸的轮换记录：{ seed 当前这张, next 预先下载好的下一张, at 换上的时间, credit 这张的出处, ... }
 const ONLINE_PERIOD = { hour: 60 * 60 * 1000, day: 24 * 60 * 60 * 1000 };
 const MAX_SIDE = 2560; // 上传图片压缩后的最长边
-const UNKNOWN_LUM = 0.15; // 外链图片读不到亮度，按"偏暗"处理（白字 + 阴影）
-// 背景（算上暗度遮罩）亮度高于这个值时，时钟改用深色字。
-// 0.19 是白字和深字对比度打平的分界点：两边都能保证约 4.4:1 以上。
+const UNKNOWN_LUM = 0.15; // 外链图片读不到亮度，按"偏暗"处理
+// 背景（算上暗度遮罩）亮度高于这个值时，算作"偏亮"：应用图标的玻璃底换成偏深的，搜索框里的字换成深色。
+// （时钟、日期、应用名称这些直接压在壁纸上的字一律是白字，靠阴影衬着，不跟着变。）
+// 0.19 是白字和深字对比度打平的分界点。
 const LIGHT_TONE_FROM = 0.19;
 
 const root = document.documentElement;
@@ -166,7 +167,7 @@ function preloadNextOnline() {
   img.src = onlineUrl(bg.online, next);
 }
 
-/** 从已加载的图片里取平均色和亮度，记下来：下次打开先显示这个颜色，时钟也知道该用白字还是深字 */
+/** 从已加载的图片里取平均色和亮度，记下来：下次打开先显示这个颜色，也知道这张图偏亮还是偏暗 */
 function rememberOnlineColor(img, src) {
   try {
     const { color, lum } = sampleColor(img);
@@ -321,7 +322,7 @@ function loadImage(src, cors) {
 /** 背景算上暗度遮罩后的实际亮度。遮罩是按"颜色值"压暗的，换算到亮度上大约是 (1 - 暗度) 的 2.4 次方 */
 const dimmed = (lum, dim) => lum * (1 - dim / 100) ** 2.4;
 
-/** 把亮度（考虑暗度遮罩后）换算成"时钟用白字还是深字" */
+/** 把亮度（考虑暗度遮罩后）换算成"偏亮"还是"偏暗" */
 function toneFor(lum, dim) {
   return dimmed(lum, dim) >= LIGHT_TONE_FROM ? "light" : "dark";
 }
@@ -384,7 +385,7 @@ function imageFailed(view) {
   setCredit("", null);
   const preset = presetById(store.get().bg.preset);
   if (preset.css) showCss(preset.css);
-  apply(); // 占位色和时钟颜色改按内置背景来
+  apply(); // 占位色和明暗改按内置背景来
   if (first) toast("在线壁纸暂时加载不了，先显示内置背景");
 }
 
@@ -551,7 +552,7 @@ async function compress(file) {
   return { blob, thumb, color, lum };
 }
 
-/** 缩到 16x16 取平均色：整体平均色做占位色，上半部分的亮度决定时钟用白字还是深字 */
+/** 缩到 16x16 取平均色：整体平均色做占位色，上半部分的亮度决定这张图算偏亮还是偏暗 */
 function sampleColor(source) {
   // 先缩到 240 宽再缩到 16x16，比一步缩到位取到的颜色更准
   const w = source.width || source.naturalWidth;
