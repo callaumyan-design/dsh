@@ -28,6 +28,9 @@
     <meta name="apple-mobile-web-app-title" content="起始页" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 
+    <!-- 版本号：发布到线上时自动换成真正的版本号（见 tools/deploy-cloudflare.mjs），页面靠它发现"有新版本了" -->
+    <meta name="build" content="dev" />
+
     <!-- 先定主题和背景占位（同步、很小），再加载样式，避免闪烁 -->
     <script src="assets/js/boot.js"></script>
     <link rel="stylesheet" href="assets/css/main.css" />

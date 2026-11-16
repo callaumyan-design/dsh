@@ -57,14 +57,30 @@ fs.rmSync(OUT, { recursive: true, force: true });
 fs.mkdirSync(OUT, { recursive: true });
 
 const files = SITE.flatMap(listFiles);
+const sha = (bytes) => createHash("sha256").update(bytes).digest("hex");
+
+// 这一版的"版本号"：由所有文件的内容算出来，任何一个文件变了，版本号就变。
+// 首页里引用样式和脚本的地址会带上它（如 v/3fa9c1d2e4/assets/js/main.js）。
+// 这样每次发布后地址都是新的，浏览器不可能再用到上一版留下的旧文件——
+// 以前就出过这种事：手机上样式是新的、图标配置却还是旧的。
+const BUILD = sha(files.map((rel) => `${rel}:${sha(fs.readFileSync(path.join(ROOT, rel)))}`).join("\n")).slice(0, 10);
+
+/** 发布前对首页做的两处改动：写上版本号；样式、脚本的地址前面加上 v/版本号/ */
+function stampIndex(html) {
+  const marked = html.replace('<meta name="build" content="dev" />', `<meta name="build" content="${BUILD}" />`);
+  if (marked === html) throw new Error('index.html 里找不到 <meta name="build" content="dev" />，没法写入版本号');
+  return marked.replace(/(href|src)="((?:assets\/(?:css|js)|config)\/[^"]+)"/g, `$1="v/${BUILD}/$2"`);
+}
+
 const imports = [];
 const table = [];
 const parts = []; // 上传时的各个部分：[名字, 文件, 类型]
 let total = 0;
 files.forEach((rel, i) => {
-  const bytes = fs.readFileSync(path.join(ROOT, rel));
+  let bytes = fs.readFileSync(path.join(ROOT, rel));
+  if (rel === "index.html") bytes = Buffer.from(stampIndex(bytes.toString("utf8")), "utf8");
   const type = TYPES[path.extname(rel).toLowerCase()] || "application/octet-stream";
-  const etag = `"${createHash("sha256").update(bytes).digest("hex").slice(0, 20)}"`;
+  const etag = `"${sha(bytes).slice(0, 20)}"`;
   const moduleName = `f${i}.bin`;
   fs.writeFileSync(path.join(OUT, moduleName), bytes);
   imports.push(`import f${i} from "./${moduleName}";`);
@@ -80,10 +96,10 @@ for (const f of workerModules) fs.copyFileSync(path.join(ROOT, "tools/worker", f
 const redirects = JSON.parse(fs.readFileSync(path.join(ROOT, "tools/worker/redirects.json"), "utf8"));
 fs.writeFileSync(
   path.join(OUT, "worker.js"),
-  `// 这个文件是 tools/deploy-cloudflare.mjs 自动生成的，不要手改。\nimport { createHandler } from "./handler.js";\n${imports.join("\n")}\n\nconst FILES = new Map([\n${table.join("\n")}\n]);\nconst REDIRECTS = ${JSON.stringify(redirects)};\n\nexport default { fetch: createHandler(FILES, REDIRECTS) };\n`
+  `// 这个文件是 tools/deploy-cloudflare.mjs 自动生成的，不要手改。\nimport { createHandler } from "./handler.js";\n${imports.join("\n")}\n\nconst FILES = new Map([\n${table.join("\n")}\n]);\nconst REDIRECTS = ${JSON.stringify(redirects)};\nconst BUILD = ${JSON.stringify(BUILD)};\n\nexport default { fetch: createHandler(FILES, REDIRECTS, BUILD) };\n`
 );
 fs.writeFileSync(path.join(OUT, "metadata.json"), JSON.stringify({ main_module: "worker.js", compatibility_date: "2026-01-01" }));
-console.log(`打包完成：${files.length} 个文件，共 ${(total / 1024).toFixed(0)} KB → ${path.relative(ROOT, OUT)}/`);
+console.log(`打包完成：${files.length} 个文件，共 ${(total / 1024).toFixed(0)} KB，版本号 ${BUILD} → ${path.relative(ROOT, OUT)}/`);
 if (DRY_RUN) process.exit(0);
 
 // ---------- 上传 ----------

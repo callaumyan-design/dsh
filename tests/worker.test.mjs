@@ -197,3 +197,38 @@ test("壁纸中转·必应：按屏幕的真实像素挑清晰度", async () => 
     assert.deepEqual(seen.slice(-2), [`${B}_UHD.jpg&w=2560&h=1440&rs=1&c=4`, `${B}_1920x1080.jpg`]);
   });
 });
+
+// ---------- 带版本号的地址 ----------
+test("带版本号的地址：去掉版本号找文件；当前版本可以长期缓存，别的版本不行", async () => {
+  const files = new Map([
+    ["/index.html", file("home", "text/html; charset=utf-8")],
+    ["/assets/js/main.js", file("js", "text/javascript; charset=utf-8")],
+    ["/assets/css/main.css", file("css", "text/css; charset=utf-8")],
+    ["/config/nav.js", file("nav", "text/javascript; charset=utf-8")],
+    ["/uq/index.html", file("uq", "text/html; charset=utf-8")],
+  ]);
+  const serve = createHandler(files, {}, "abc123");
+  const at = (path, init) => serve(new Request("https://example.test" + path, init));
+  // 当前版本
+  let res = await at("/v/abc123/assets/js/main.js");
+  assert.equal(res.status, 200);
+  assert.equal(await res.text(), "js");
+  assert.equal(res.headers.get("cache-control"), "public, max-age=31536000, immutable, no-transform");
+  assert.equal(await (await at("/v/abc123/config/nav.js")).text(), "nav");
+  assert.equal((await at("/v/abc123/assets/css/main.css")).headers.get("content-type"), "text/css; charset=utf-8");
+  // 别的版本号：给的是现在的内容，但不许长期缓存
+  res = await at("/v/old999/assets/js/main.js");
+  assert.equal(await res.text(), "js");
+  assert.equal(res.headers.get("cache-control"), "no-cache, no-transform");
+  // 不带版本号的照旧
+  assert.equal((await at("/assets/js/main.js")).headers.get("cache-control"), "no-cache, no-transform");
+  // 版本号前缀只管样式、脚本、配置：页面和别的应用不能这样访问
+  for (const path of ["/v/abc123/", "/v/abc123/index.html", "/v/abc123/uq/", "/v/abc123/assets/js/nope.js", "/v/abc123/assets/../index.html", "/v//assets/js/main.js", "/v/a.b/assets/js/main.js"]) {
+    assert.equal((await at(path)).status, 404, path);
+  }
+  // 现在是哪一版
+  res = await at("/api/build");
+  assert.deepEqual(await res.json(), { build: "abc123" });
+  assert.equal(res.headers.get("cache-control"), "no-store");
+  assert.equal((await at("/api/build", { method: "POST" })).status, 405);
+});

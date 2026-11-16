@@ -78,6 +78,43 @@ import("../../config/nav.js")
     );
   });
 
+// ---------- 发现有新版本就自动刷新一次 ----------
+// 首页里写着自己的版本号（发布时写入）。页面可能是很久以前打开、一直留在后台的，
+// 也可能是浏览器从缓存里恢复出来的旧页面：这时问一下服务器现在是哪一版，不一样就重新加载。
+const BUILD = $('meta[name="build"]')?.content || "";
+const hasBuild = /^[A-Za-z0-9]{1,40}$/.test(BUILD) && BUILD !== "dev"; // 本机预览时是 "dev"，不检查
+let lastBuildCheck = 0;
+
+async function checkForNewBuild() {
+  // 明确没网时不问；一分钟内也不重复问
+  if (!hasBuild || navigator.onLine === false || Date.now() - lastBuildCheck < 60 * 1000) return;
+  lastBuildCheck = Date.now();
+  let latest = "";
+  try {
+    const res = await fetch("./api/build", { cache: "no-store" });
+    if (res.ok) latest = (await res.json()).build;
+  } catch {
+    return; // 没网或者问不到，就算了
+  }
+  if (typeof latest !== "string" || !/^[A-Za-z0-9]{1,40}$/.test(latest) || latest === BUILD) return;
+  // 正在输入、或者开着设置 / 对话面板时不打断，等下次回到页面再说
+  if (document.querySelector("dialog[open]") || $("#q").value) return (lastBuildCheck = 0);
+  // 同一个新版本只自动刷新一次：万一刷新后拿到的还是旧页面，也不会没完没了地刷新
+  try {
+    if (sessionStorage.getItem("sp:reloaded-for") === latest) return;
+    sessionStorage.setItem("sp:reloaded-for", latest);
+  } catch {
+    return; // 记不下"已经刷新过"，就不冒险
+  }
+  location.reload();
+}
+if (hasBuild) {
+  (window.requestIdleCallback || ((fn) => setTimeout(fn, 800)))(() => checkForNewBuild());
+  // 从后台切回来、或者浏览器把之前的页面原样恢复出来时，再检查一次
+  window.addEventListener("pageshow", (e) => e.persisted && checkForNewBuild());
+  document.addEventListener("visibilitychange", () => !document.hidden && checkForNewBuild());
+}
+
 // ---------- PWA：注册 Service Worker（支持"添加到主屏幕"和离线打开） ----------
 // 浏览器只允许在 https 网站（或本机调试）上使用
 const isSecure = location.protocol === "https:" || ["localhost", "127.0.0.1"].includes(location.hostname);
@@ -87,5 +124,7 @@ if ("serviceWorker" in navigator && isSecure && !isFramed()) {
     navigator.serviceWorker.register("sw.js").catch(() => {
       /* 注册失败不影响正常使用 */
     });
+    // 告诉"离线助手"现在是哪一版，让它把这一版的文件存好（断网时才打得开），并清掉旧版本的
+    if (hasBuild) navigator.serviceWorker.ready.then((reg) => reg.active?.postMessage({ type: "store-build", build: BUILD })).catch(() => {});
   });
 }
