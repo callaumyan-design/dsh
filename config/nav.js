@@ -13,7 +13,7 @@
 //     desc:   "一句话描述",           // 可选，鼠标停在图标上时显示
 //     group:  "分组名",               // 同一个分组名的入口会排在一起（只有一个分组时不显示分组名）
 //     newTab: true,                   // 是否在新标签页打开（true / false）
-//     color:  "#5b5bd6",              // 可选：图标的底色；不写就用默认的淡蓝色
+//     color:  "#5b5bd6",              // 可选：图标的底色；不写就是半透明的"毛玻璃"底（推荐）
 //   }
 //
 // 注意：
@@ -22,53 +22,48 @@
 //     请在页面右上角的"编辑"模式里添加（只保存在你自己的浏览器里）。
 
 export default [
-  // 页面最下面的四个应用。
+  // 页面最下面的五个应用。图标是专门画的（assets/icons/apps/ 里的 svg：白色图形、透明底），垫在毛玻璃底上。
   // ./duo/ 和 ./uq/ 是本网站自己的子目录（文件就在仓库的 duo/ 和 uq/ 文件夹里）；
   // CatGPT、砚录、WiFi Drop 是另外部署的，写的是它们现在的真实地址。
   // （CatGPT 和 WiFi Drop 原来在 callaum.com，起始页接管这个域名后搬到了 chat.callaum.com。）
   {
     name: "Duo 适配",
-    icon: "smartphone",
+    icon: "./assets/icons/apps/duo.svg",
     url: "./duo/",
     desc: "iPhone Duo 折叠屏 App 适配进度",
     group: "应用",
     newTab: false,
-    color: "#0f766e",
   },
   {
     name: "CatGPT",
-    icon: "cat",
+    icon: "./assets/icons/apps/catgpt.svg",
     url: "https://chat.callaum.com/",
     desc: "多模型 AI 聊天",
     group: "应用",
     newTab: false,
-    color: "#5b5bd6",
   },
   {
     name: "UQ 校历",
-    icon: "calendar",
+    icon: "./assets/icons/apps/uq.svg",
     url: "./uq/",
     desc: "昆士兰大学中文校历",
     group: "应用",
     newTab: false,
-    color: "#51247a",
   },
   {
     name: "砚录",
-    icon: "scan-text",
+    icon: "./assets/icons/apps/yanlu.svg",
     url: "https://ocr.callaum.com/",
     desc: "离线文字识别，图片不上传",
     group: "应用",
     newTab: false,
-    color: "#7c5a2e",
   },
   {
     name: "WiFi Drop",
-    icon: "wifi",
+    icon: "./assets/icons/apps/wifidrop.svg",
     url: "https://chat.callaum.com/drop/",
     desc: "同一个 WiFi 下互传文件",
     group: "应用",
     newTab: false,
-    color: "#0369a1",
   },
 ];

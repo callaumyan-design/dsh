@@ -49,7 +49,11 @@ export function entryIcon(entry, cls = "card-icon") {
     const src = /^data:image\/(png|jpeg|webp|gif);base64,/.test(value) ? value : safeUrl(value, { allowRelative: true });
     if (src) {
       const img = h("img", { src, alt: "", loading: "lazy", decoding: "async" });
-      img.addEventListener("error", () => box.replaceChildren(firstChar)); // 图片坏了就退回首字
+      img.addEventListener("error", () => {
+        box.classList.remove("is-img");
+        box.replaceChildren(firstChar); // 图片坏了就退回首字
+      });
+      box.classList.add("is-img");
       box.append(img);
     } else box.append(firstChar);
   } else {

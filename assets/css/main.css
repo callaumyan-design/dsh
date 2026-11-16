@@ -107,6 +107,10 @@
   --sb-mark-fg: #ffffff;
   --sb-hover: rgb(255 255 255 / 0.16);
   --sb-shadow: 0 1px 2px rgb(0 0 0 / 0.5);
+  /* 搜索按钮：半透明的蓝，白色图标 */
+  --sb-go-bg: rgb(59 130 246 / 0.45);
+  --sb-go-fg: #ffffff;
+  --sb-go-line: rgb(255 255 255 / 0.22);
 }
 :root[data-searchtone="light"] {
   --sb-text: #0f172a;
@@ -115,6 +119,10 @@
   --sb-mark-fg: #1e3a8a;
   --sb-hover: rgb(15 23 42 / 0.08);
   --sb-shadow: none;
+  /* 搜索按钮：更淡的蓝，深蓝色图标 */
+  --sb-go-bg: rgb(37 99 235 / 0.2);
+  --sb-go-fg: #1e40af;
+  --sb-go-line: rgb(37 99 235 / 0.28);
 }
 
 /* ---------- 2. 基础 ---------- */
@@ -454,15 +462,19 @@ main {
   opacity: 1;
 }
 
+/* 搜索按钮：一块半透明的蓝色玻璃（颜色见上面的 --sb-go-*，跟着搜索框里文字的深浅走） */
 .search-go {
-  background: var(--accent);
-  color: var(--accent-text);
+  background: var(--sb-go-bg);
+  color: var(--sb-go-fg);
+  box-shadow: inset 0 0 0 1px var(--sb-go-line);
 }
 .search-go:hover {
-  filter: brightness(1.1);
+  filter: brightness(1.12);
 }
 .search[data-ai="true"] .search-go {
   background: linear-gradient(135deg, var(--ai-1), var(--ai-2));
+  color: #ffffff;
+  box-shadow: none;
 }
 
 /* 搜索历史下拉 */
@@ -734,25 +746,29 @@ main {
   text-shadow: var(--on-bg-shadow);
   text-decoration: none;
 }
+/* 图标的底：一块半透明的"毛玻璃"，会透出壁纸的颜色；上面的图形是白色的 */
 .app-icon {
   display: grid;
   place-items: center;
   width: 46px;
   height: 46px;
   border-radius: 13px;
-  background: var(--accent-soft);
-  color: var(--accent-fg);
+  background: rgb(255 255 255 / 0.2);
+  color: #ffffff;
+  -webkit-backdrop-filter: blur(14px) saturate(1.6);
+  backdrop-filter: blur(14px) saturate(1.6);
   font-size: 21px;
   font-weight: var(--fw-heavy);
   line-height: 1;
-  text-shadow: none;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 0.3);
   overflow: hidden;
-  box-shadow: 0 2px 8px rgb(0 0 0 / 0.22);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.32), 0 2px 8px rgb(0 0 0 / 0.18);
   transition: transform 0.15s;
 }
-/* 没指定底色的图标（比如自己加的入口）：没有底板垫着，所以用不透明的底色 */
-.app-icon:not([style]) {
-  background: var(--panel);
+/* 壁纸偏亮时：换成一块偏深的"茶色玻璃"，白色图形才看得清 */
+:root[data-bgtone="light"] .app-icon:not([style]) {
+  background: rgb(15 23 42 / 0.3);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.24), 0 2px 8px rgb(0 0 0 / 0.12);
 }
 .app-icon svg.icon {
   width: 22px;
@@ -778,119 +794,6 @@ main {
 }
 .app:active .app-icon {
   transform: scale(0.94);
-}
-.nav-group + .nav-group {
-  margin-top: 4px;
-}
-.dock .group-title {
-  display: block;
-  margin: 2px 0 2px;
-  padding: 0;
-  text-align: center;
-  font-size: calc(12px * var(--fs));
-  color: var(--on-bg);
-  text-shadow: var(--on-bg-shadow);
-}
-.app-grid {
-  display: flex;
-  flex-wrap: nowrap; /* 不换行：放不下时每个格子先收窄，再不够就可以左右滑动 */
-  gap: 2px;
-  margin: 0;
-  padding: 4px 0 2px;
-  list-style: none;
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
-  scrollbar-width: none;
-}
-.app-grid::-webkit-scrollbar {
-  display: none;
-}
-.app-grid > li {
-  flex: 1 1 72px;
-  min-width: 54px;
-  max-width: 76px;
-}
-/* 两头用自动留白：一行放得下时整体居中，放不下时可以从最左边开始滑 */
-.app-grid > li:first-child {
-  margin-left: auto;
-}
-.app-grid > li:last-child {
-  margin-right: auto;
-}
-.app {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 5px;
-  padding: 5px 1px 3px;
-  border-radius: 16px;
-  /* 名字直接压在背景上：和时钟一样，背景偏暗用白字、偏亮用深字 */
-  color: var(--on-bg);
-  text-shadow: var(--on-bg-shadow);
-  text-decoration: none;
-}
-.app-icon {
-  display: grid;
-  place-items: center;
-  width: 46px;
-  height: 46px;
-  border-radius: 13px;
-  background: var(--accent-soft);
-  color: var(--accent-fg);
-  font-size: 21px;
-  font-weight: var(--fw-heavy);
-  line-height: 1;
-  text-shadow: none;
-  overflow: hidden;
-  box-shadow: 0 2px 8px rgb(0 0 0 / 0.22);
-  transition: transform 0.15s;
-}
-/* 没指定底色的图标（比如自己加的入口）：没有底板垫着，所以用不透明的底色 */
-.app-icon:not([style]) {
-  background: var(--panel);
-}
-.app-icon svg.icon {
-  width: 22px;
-  height: 22px;
-}
-.app-icon img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.app-name {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: calc(12px * var(--fs));
-  line-height: 1.3;
-}
-@media (hover: hover) {
-  .app:hover .app-icon {
-    transform: translateY(-3px) scale(1.05);
-  }
-}
-.app:active .app-icon {
-  transform: scale(0.94);
-}
-/* 状态小圆点：在图标的右上角，外面一圈白边把它和图标、背景隔开 */
-.app .status {
-  top: 1px;
-  right: calc(50% - 28px);
-  width: 8px;
-  height: 8px;
-  box-sizing: content-box;
-  border: 2px solid #ffffff;
-  box-shadow: 0 0 2px rgb(0 0 0 / 0.35);
-}
-.app .status[data-state="unknown"] {
-  width: 4px;
-  height: 4px;
-  border: 2px solid #64748b;
-  background: #ffffff;
-  outline: 2px solid #ffffff;
 }
 .nav-group + .nav-group {
   margin-top: 22px;
@@ -966,13 +869,16 @@ main {
   height: 100%;
   object-fit: cover;
 }
+/* 编辑列表里没有壁纸垫着：图片图标（比如那几个白色图形）下面垫一块深色，才看得清 */
+.card-icon.is-img {
+  background: linear-gradient(135deg, #64748b, #334155);
+}
 .card-text {
   flex: 1;
   min-width: 0;
 }
 .card-name {
   display: block;
-  padding-right: 12px; /* 给右上角的状态圆点留位置 */
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
