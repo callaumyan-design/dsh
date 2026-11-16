@@ -2,7 +2,7 @@
 // 策略：起始页自己的文件"网络优先"——有网就拿最新的，没网才用上次存下的。
 // 其他一律不经手：站外请求（搜索引擎、壁纸、AI 接口），
 // 以及同一个域名下别的应用（如 /duo/、/uq/、/yanlu/）的页面和接口。
-const CACHE = "start-page-v3";
+const CACHE = "start-page-v4";
 
 // 首次安装时预先存好的核心文件
 const CORE = [
@@ -29,6 +29,8 @@ const CORE = [
   "assets/js/backup.js",
   "assets/js/settings-panel.js",
   "assets/js/ai/link.js",
+  "assets/js/ai/api.js",
+  "assets/js/ai/api-tools.js",
   "assets/js/ai/auth.js",
   "assets/js/ai/client.js",
   "assets/js/ai/markdown.js",

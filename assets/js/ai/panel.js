@@ -1,19 +1,20 @@
-// AI 对话面板：在起始页里直接和 catgpt 对话（流式显示、Markdown、可追问）。
-// 这里只有界面；catgpt 的代码没有复制过来，所有回答都来自 catgpt 自己的后端接口。
+// AI 对话面板：在起始页里直接和 AI 对话（流式显示、Markdown、可追问）。
+// 这里只有界面；回答来自自己在"设置 → AI"里填的接口，或者站点配置里的 catgpt。
 import { renderMarkdown } from "./markdown.js";
 import { streamChat, AIError } from "./client.js";
 import { aiAuth, passwordDays } from "./auth.js";
-import { aiConfig, aiMode, catgptUrl } from "./link.js";
+import { aiSite, aiSetup, catgptUrl } from "./link.js";
 import { fallbackEngine } from "../search.js";
 import { h, icon, iconButton, openDialog, toast } from "../ui.js";
 
 let dialog = null;
-let logEl, textarea, sendBtn, openLink, liveEl;
+let logEl, textarea, sendBtn, openLink, liveEl, titleLabel;
 let messages = []; // 对话记录 [{ role: "user" | "assistant", content }]
 let busy = false;
 let controller = null; // 用来中止正在进行的回答
 let runId = 0; // 第几次请求；被新对话顶掉的旧请求靠它识别自己"已经过期"
 let searchWeb = () => {};
+let openSettings = null; // 打开设置面板（由 main.js 传进来）
 
 const lastQuestion = () => [...messages].reverse().find((m) => m.role === "user")?.content || "";
 
@@ -53,11 +54,11 @@ function build() {
   const head = h(
     "div",
     { class: "panel-head" },
-    h("h2", { class: "ai-title", id: "ai-title" }, h("span", { class: "engine-mark is-ai", "aria-hidden": "true" }, icon("sparkles")), "AI", h("span", { class: "label-long" }, ` · ${aiConfig.name}`))
+    h("h2", { class: "ai-title", id: "ai-title" }, h("span", { class: "engine-mark is-ai", "aria-hidden": "true" }, icon("sparkles")), "AI", (titleLabel = h("span", { class: "label-long" })))
   );
-  if (aiConfig.pageUrl) {
+  if (aiSite.pageUrl) {
     // 把当前问题带到 catgpt 页面（?q=问题），在那边继续
-    openLink = h("a", { class: "btn ai-head-btn", href: catgptUrl(""), target: "_blank", rel: "noopener" }, icon("external-link"), `在 ${aiConfig.name} 中打开`);
+    openLink = h("a", { class: "btn ai-head-btn", href: catgptUrl(""), target: "_blank", rel: "noopener" }, icon("external-link"), `在 ${aiSite.name} 中打开`);
     head.append(openLink);
   }
   head.append(iconButton("plus", "新对话", { onclick: newChat }), iconButton("x", "关闭", { onclick: () => dialog.close() }));
@@ -81,6 +82,13 @@ function setBusy(value) {
 
 function syncOpenLink() {
   if (openLink) openLink.href = catgptUrl(lastQuestion());
+}
+
+/** 标题里写明现在用的是哪个 AI（设置可能刚改过，所以每次打开都刷新一下） */
+function syncHead() {
+  const setup = aiSetup();
+  titleLabel.textContent = setup.mode === "none" ? "" : ` · ${setup.name}`;
+  if (openLink) openLink.hidden = !setup.pageUrl;
 }
 
 /** 清空对话，重新开始。正在进行的回答会被中止并作废 */
@@ -183,8 +191,26 @@ function webSearchButton(primary) {
 }
 
 function openInCatgptButton() {
-  if (!aiConfig.pageUrl) return null;
-  return h("a", { class: "btn", href: catgptUrl(lastQuestion()), target: "_blank", rel: "noopener" }, icon("external-link"), `在 ${aiConfig.name} 中打开`);
+  if (!aiSetup().pageUrl) return null;
+  return h("a", { class: "btn", href: catgptUrl(lastQuestion()), target: "_blank", rel: "noopener" }, icon("external-link"), `在 ${aiSite.name} 中打开`);
+}
+
+/** "去设置"按钮：关掉对话面板，打开"设置 → AI" */
+function settingsButton(primary) {
+  if (!openSettings) return null;
+  return h(
+    "button",
+    {
+      type: "button",
+      class: `btn${primary ? " btn-primary" : ""}`,
+      onclick: () => {
+        dialog.close();
+        openSettings("ai");
+      },
+    },
+    icon("settings"),
+    "去设置"
+  );
 }
 
 const retryButton = () => h("button", { type: "button", class: "btn btn-primary", onclick: () => run() }, icon("refresh-cw"), "重试");
@@ -195,13 +221,27 @@ const ERROR_TEXT = {
   timeout: "AI 服务很久没有回应。",
   empty: "AI 服务没有返回任何内容。",
 };
+// 用的是自己填的接口时，说得更具体一点
+const MY_ERROR_TEXT = {
+  ...ERROR_TEXT,
+  network: "连不上你填的 AI 接口。可能是地址填错了、网络不通，或者这个服务不允许网页直接调用。",
+  server: "你填的 AI 接口报错了，没能给出回答。",
+};
 
-function showError(kind, { typedPassword, usedSaved } = {}) {
-  if (kind === "auth") return showPasswordCard(typedPassword ? "密码不对，请再试一次。" : usedSaved ? "之前保存的访问密码已失效，请重新输入。" : "这个 AI 需要访问密码才能使用。");
-  if (kind === "rate") {
-    return addCard("triangle-alert", "问得太快了", "请求太频繁，被暂时限制了。请稍等一会儿再试。", retryButton(), webSearchButton());
+function showError(kind, { typedPassword, usedSaved, detail } = {}) {
+  const setup = aiSetup();
+  const mine = setup.source === "user";
+  // 接口自己给的说明（如"余额不足""模型不存在"），只在用自己的接口时显示
+  const reason = mine && detail ? `（接口的说明：${detail}）` : "";
+  if (kind === "auth") {
+    if (mine) return addCard("key", "API Key 不对", `接口拒绝了这个 API Key：可能填错了、已经失效，或者没有使用这个模型的权限。${reason}`, settingsButton(true), webSearchButton());
+    return showPasswordCard(typedPassword ? "密码不对，请再试一次。" : usedSaved ? "之前保存的访问密码已失效，请重新输入。" : "这个 AI 需要访问密码才能使用。");
   }
-  addCard("triangle-alert", `${aiConfig.name} 暂时用不了`, ERROR_TEXT[kind] || ERROR_TEXT.server, retryButton(), webSearchButton(), openInCatgptButton());
+  if (kind === "rate") {
+    return addCard("triangle-alert", "问得太快了", `请求太频繁，被暂时限制了。请稍等一会儿再试。${reason}`, retryButton(), webSearchButton());
+  }
+  const text = (mine ? MY_ERROR_TEXT : ERROR_TEXT)[kind] || (mine ? MY_ERROR_TEXT : ERROR_TEXT).server;
+  addCard("triangle-alert", `${mine ? "AI" : setup.name} 暂时用不了`, text + reason, retryButton(), mine ? settingsButton() : null, webSearchButton(), openInCatgptButton());
 }
 
 function showPasswordCard(text) {
@@ -226,18 +266,28 @@ function ask(question) {
   run();
 }
 
-/** 把当前对话发给 catgpt。typedPassword 是用户刚输入、还没验证过的密码 */
+/** 把当前对话发给 AI。typedPassword 是用户刚输入、还没验证过的（catgpt 的）访问密码 */
 async function run({ typedPassword } = {}) {
   if (busy) return;
   clearCards();
 
-  if (aiMode() !== "embed") {
-    addCard("info", "AI 还没有接入", "本站还没有配置 AI 服务的地址，暂时不能直接提问。你可以先用搜索引擎搜这个问题。", webSearchButton(true), openInCatgptButton());
+  const setup = aiSetup();
+  if (setup.mode !== "embed") {
+    addCard(
+      "info",
+      "AI 还没有接入",
+      "到“设置 → AI”里填上接口地址、API Key 和模型，就能在这里直接提问。也可以先用搜索引擎搜这个问题。",
+      settingsButton(true),
+      webSearchButton(!openSettings),
+      openInCatgptButton()
+    );
     return;
   }
 
-  const saved = aiAuth.get();
-  const password = typedPassword || saved;
+  // 自己填的接口：带上自己的 API Key。catgpt：带上它的访问密码（如果有）
+  const mine = setup.source === "user";
+  const saved = mine ? "" : aiAuth.get();
+  const password = mine ? setup.key : typedPassword || saved;
   const answer = addAnswer();
   let text = "";
   setBusy(true);
@@ -248,8 +298,8 @@ async function run({ typedPassword } = {}) {
 
   try {
     await streamChat({
-      apiUrl: aiConfig.apiUrl,
-      model: aiConfig.model,
+      apiUrl: setup.apiUrl,
+      model: setup.model,
       messages,
       password,
       signal: mine.signal,
@@ -259,7 +309,7 @@ async function run({ typedPassword } = {}) {
       },
     });
     if (id !== runId) return; // 期间用户开了新对话，这次的结果作废
-    if (typedPassword) aiAuth.save(typedPassword); // 新密码验证通过了才记住
+    if (typedPassword && !mine) aiAuth.save(typedPassword); // 新密码验证通过了才记住
     messages.push({ role: "assistant", content: text });
     answer.finish(text);
     liveEl.textContent = "回答完成";
@@ -278,7 +328,7 @@ async function run({ typedPassword } = {}) {
       const kind = err instanceof AIError ? err.kind : "server";
       if (kind === "auth" && saved && !typedPassword) aiAuth.clear();
       liveEl.textContent = "出错了";
-      showError(kind, { typedPassword, usedSaved: !!saved });
+      showError(kind, { typedPassword, usedSaved: !!saved, detail: err instanceof AIError ? err.detail : "" });
     }
   } finally {
     if (id === runId) {
@@ -295,7 +345,9 @@ async function run({ typedPassword } = {}) {
  */
 export function askAI(question, helpers = {}) {
   if (helpers.searchWeb) searchWeb = helpers.searchWeb;
+  if (helpers.openSettings) openSettings = helpers.openSettings;
   if (!dialog) build();
+  syncHead();
   openDialog(dialog);
   if (question) {
     // 从搜索框来的新问题：开一段新对话

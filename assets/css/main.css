@@ -1535,6 +1535,33 @@ input[type="color"] {
   flex: 1;
   min-width: 0;
 }
+/* 设置 → AI：填接口的表单 */
+.ai-form-set {
+  margin: 12px 0 4px;
+}
+.ai-form-set .inline-form .icon-btn,
+.ai-form-set .inline-form .btn {
+  flex: none;
+}
+.ai-status:empty {
+  display: none;
+}
+.ai-status {
+  margin-top: 10px;
+  overflow-wrap: anywhere;
+}
+.ai-status[data-kind="ok"] {
+  color: #4ade80;
+}
+.ai-status[data-kind="bad"] {
+  color: #f87171;
+}
+:root[data-theme="light"] .ai-status[data-kind="ok"] {
+  color: #15803d;
+}
+:root[data-theme="light"] .ai-status[data-kind="bad"] {
+  color: #b91c1c;
+}
 
 .engine-list {
   margin: 0 0 10px;

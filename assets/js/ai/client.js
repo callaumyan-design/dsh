@@ -1,12 +1,12 @@
-// 调用 catgpt 后端对话接口，边收边显示（流式）。
+// 调用 AI 的对话接口，边收边显示（流式）。接口可以是自己在"设置 → AI"里填的，也可以是站点配置里的 catgpt。
 //
-// 这个文件是起始页和 catgpt 之间唯一的"接口适配层"：如果 catgpt 的接口格式和下面写的不一样，
-// 只需要改这一个文件。API Key 不在这里，也不应该在任何前端代码里 —— 它只存在于 catgpt 的服务端。
+// 这个文件是起始页和 AI 接口之间唯一的"接口适配层"：如果接口格式和下面写的不一样，只需要改这一个文件。
+// 代码里没有任何 API Key：自己填的 Key 只存在浏览器本地，调用时作为下面的 password 传进来。
 //
 // 约定的请求格式（OpenAI 兼容，绝大多数对话后端都支持）：
 //   POST {apiUrl}
 //   请求头  Content-Type: application/json
-//           Authorization: Bearer <访问密码>      （catgpt 设置了访问密码时才带）
+//           Authorization: Bearer <API Key 或访问密码>   （填了才带）
 //   请求体  { "messages": [{ "role": "user" | "assistant", "content": "..." }], "stream": true, "model": "可选" }
 //
 // 能识别的回复格式：
@@ -25,6 +25,7 @@ export class AIError extends Error {
     super(detail || kind);
     this.name = "AIError";
     this.kind = kind;
+    this.detail = detail; // 接口自己给的说明（如"余额不足"），没有就是空的
   }
 }
 
@@ -105,9 +106,18 @@ export async function streamChat({ apiUrl, model, messages, password, signal, on
       throw new AIError(timedOut ? "timeout" : "network");
     }
 
-    if (res.status === 401 || res.status === 403) throw new AIError("auth");
-    if (res.status === 429) throw new AIError("rate");
-    if (!res.ok) throw new AIError("server", `HTTP ${res.status}`);
+    if (!res.ok) {
+      // 出错时接口一般会在回复里说明原因，取出来给用户看
+      let reason = "";
+      try {
+        reason = errorText(JSON.parse((await res.text()).slice(0, 4000))).replace(/\s+/g, " ").trim().slice(0, 160);
+      } catch {
+        /* 没有说明就算了 */
+      }
+      if (res.status === 401 || res.status === 403) throw new AIError("auth", reason);
+      if (res.status === 429) throw new AIError("rate", reason);
+      throw new AIError("server", reason ? `${res.status}：${reason}` : `HTTP ${res.status}`);
+    }
 
     const type = (res.headers.get("content-type") || "").toLowerCase();
 

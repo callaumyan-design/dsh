@@ -8,6 +8,8 @@ import { listEngines } from "./engines.js";
 import { searchHistory } from "./search.js";
 import { buildExport, applyImport, pruneImages } from "./backup.js";
 import { aiAuth } from "./ai/auth.js";
+import { userApi } from "./ai/api.js";
+import { AI_PRESETS, testApi, fetchModels } from "./ai/api-tools.js";
 import { h, icon, iconButton, toast, openDialog, confirmDialog, downloadText } from "./ui.js";
 
 let dialog = null;
@@ -460,8 +462,120 @@ function searchSection() {
 
 // ---------- AI ----------
 function aiSection() {
-  const status = h("p", { class: "hint" });
-  const clearBtn = h(
+  // ----- 自己填接口：地址 + API Key + 模型 -----
+  const urlId = nextId("ai");
+  const keyId = nextId("ai");
+  const modelId = nextId("ai");
+  const listId = nextId("ai");
+  const text = { autocomplete: "off", autocapitalize: "off", autocorrect: "off", spellcheck: false };
+  const urlInput = h("input", { class: "input", id: urlId, type: "url", inputMode: "url", placeholder: "例如 https://api.deepseek.com", maxLength: 500, ...text });
+  const keyInput = h("input", { class: "input", id: keyId, type: "password", placeholder: "例如 sk-…", maxLength: 500, ...text });
+  const modelInput = h("input", { class: "input", id: modelId, type: "text", placeholder: "例如 deepseek-chat", maxLength: 120, ...text });
+  modelInput.setAttribute("list", listId);
+  const modelList = h("datalist", { id: listId });
+  const status = h("p", { class: "hint ai-status", role: "status" });
+  const say = (message, kind = "") => {
+    status.textContent = message;
+    status.dataset.kind = kind; // ok 绿色 / bad 红色 / 空 普通
+  };
+  const filled = () => ({ url: urlInput.value.trim(), key: keyInput.value.trim(), model: modelInput.value.trim() });
+
+  // 选服务商：自动填好地址（模型名固定的顺便填上）
+  const presetSelect = h(
+    "select",
+    {
+      class: "input",
+      "aria-label": "选择服务商，自动填好接口地址",
+      onchange: () => {
+        const preset = AI_PRESETS.find((p) => p.id === presetSelect.value);
+        presetSelect.value = "";
+        if (!preset) return;
+        urlInput.value = preset.url;
+        if (preset.model) modelInput.value = preset.model;
+        modelList.replaceChildren();
+        say(`已填好 ${preset.name} 的接口地址。${preset.model ? "" : "模型可以点“读取模型列表”来选。"}接着填 API Key，再点“保存并测试”。`);
+        keyInput.focus();
+      },
+    },
+    h("option", { value: "" }, "选服务商，自动填地址…"),
+    AI_PRESETS.map((p) => h("option", { value: p.id }, p.name))
+  );
+
+  // API Key 默认不显示，点眼睛可以看
+  const eyeBtn = iconButton("eye", "显示 API Key", {
+    onclick: () => {
+      const show = keyInput.type === "password";
+      keyInput.type = show ? "text" : "password";
+      eyeBtn.replaceChildren(icon(show ? "eye-off" : "eye"));
+      eyeBtn.setAttribute("aria-label", show ? "隐藏 API Key" : "显示 API Key");
+      eyeBtn.title = show ? "隐藏 API Key" : "显示 API Key";
+    },
+  });
+
+  const modelsBtn = h("button", { type: "button", class: "btn" }, icon("refresh-cw"), "读取模型列表");
+  modelsBtn.addEventListener("click", async () => {
+    const { url, key } = filled();
+    if (!safeUrl(url)) return say("先填接口地址（以 http:// 或 https:// 开头）。", "bad");
+    modelsBtn.disabled = true;
+    say("正在读取模型列表…");
+    try {
+      const ids = await fetchModels({ url, key });
+      modelList.replaceChildren(...ids.map((id) => h("option", { value: id })));
+      if (!modelInput.value.trim() && ids.length === 1) modelInput.value = ids[0];
+      say(`读到 ${ids.length} 个模型：点一下“模型”那一栏就能选，也可以直接输入。`, "ok");
+      modelInput.focus();
+    } catch (err) {
+      say(`没读到模型列表：${err.message}（也可以直接手动填模型名）`, "bad");
+    }
+    modelsBtn.disabled = false;
+  });
+
+  const saveBtn = h("button", { type: "submit", class: "btn btn-primary" }, icon("check"), "保存并测试");
+  const clearBtn = h("button", { type: "button", class: "btn" }, icon("trash-2"), "清除");
+  clearBtn.addEventListener("click", () => {
+    userApi.clear();
+    urlInput.value = keyInput.value = modelInput.value = "";
+    modelList.replaceChildren();
+    toast("已清除填写的 AI 接口和 API Key");
+    refresh();
+  });
+
+  const form = h(
+    "form",
+    { class: "ai-form-set", novalidate: true },
+    h("div", { class: "field" }, presetSelect),
+    h("label", { class: "field", for: urlId }, h("span", null, "接口地址"), urlInput),
+    h("div", { class: "field" }, h("label", { class: "field-label", for: keyId }, "API Key"), h("div", { class: "inline-form" }, keyInput, eyeBtn)),
+    h("div", { class: "field" }, h("label", { class: "field-label", for: modelId }, "模型"), h("div", { class: "inline-form" }, modelInput, modelsBtn), modelList),
+    h("div", { class: "btn-row" }, saveBtn, clearBtn),
+    status
+  );
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const value = filled();
+    if (!safeUrl(value.url)) return say("接口地址需要以 http:// 或 https:// 开头。", "bad");
+    if (!value.model) return say("还要填模型名（不知道填什么，可以点“读取模型列表”）。", "bad");
+    // 先保存，再测试：就算测试没过，填的内容也不会丢
+    userApi.save(value);
+    refresh();
+    saveBtn.disabled = true;
+    say("已保存，正在测试…");
+    try {
+      const url = await testApi(value);
+      if (url !== value.url) {
+        urlInput.value = url; // 地址少写了 /v1，已经自动补上
+        userApi.save({ ...value, url });
+      }
+      say("测试通过，可以用了：在搜索框左边的标记里选“AI”，或者直接输入 !ai 加问题。", "ok");
+    } catch (err) {
+      say(`已保存，但测试没通过：${err.message}`, "bad");
+    }
+    saveBtn.disabled = false;
+  });
+
+  // ----- 站点配置里的 catgpt（配置了才显示） -----
+  const siteStatus = h("p", { class: "hint" });
+  const clearPassword = h(
     "button",
     {
       type: "button",
@@ -474,13 +588,36 @@ function aiSection() {
     },
     "清除访问密码"
   );
+  const siteBox = h("div", null, siteStatus, h("div", { class: "btn-row" }, clearPassword));
+
   syncers.push(() => {
-    const mode = AI.apiUrl ? `已接入 ${AI.name}：在本页弹出对话面板。` : AI.pageUrl ? `已接入 ${AI.name}：提问后跳转到 ${AI.name} 页面。` : `还没有接入 ${AI.name}（需要站长在 config/site.js 里填写地址）。`;
-    const days = aiAuth.daysLeft();
-    status.textContent = mode + (days ? ` 访问密码已保存在本机，还有 ${days} 天到期。` : "");
-    clearBtn.hidden = !days;
+    const saved = userApi.get();
+    // 正在输入的时候不要把框里的字冲掉
+    if (!form.contains(document.activeElement)) {
+      urlInput.value = saved.url;
+      keyInput.value = saved.key;
+      modelInput.value = saved.model;
+    }
+    clearBtn.hidden = !(saved.url || saved.key || saved.model);
+    const hasSite = !!(AI.apiUrl || AI.pageUrl);
+    siteBox.hidden = !hasSite;
+    if (hasSite) {
+      const days = aiAuth.daysLeft();
+      const mode = AI.apiUrl ? `本站还接入了 ${AI.name}：没填上面的接口时，在本页弹出对话面板。` : `本站还接入了 ${AI.name}：没填上面的接口时，提问后跳转到 ${AI.name} 页面。`;
+      siteStatus.textContent = mode + (days ? ` 访问密码已保存在本机，还有 ${days} 天到期。` : "");
+      clearPassword.hidden = !days;
+    }
   });
-  return section("ai", "sparkles", "AI", status, h("div", { class: "btn-row" }, clearBtn));
+
+  return section(
+    "ai",
+    "sparkles",
+    "AI",
+    h("p", { class: "hint" }, "填上你自己的 AI 接口，就能在搜索框里直接提问。支持“OpenAI 兼容”的接口：DeepSeek、OpenAI、硅基流动、OpenRouter 等大多数服务都是。"),
+    form,
+    h("p", { class: "hint" }, "API Key 只保存在这台设备的浏览器里：提问时由浏览器直接发给你填的接口地址，不经过本站服务器，“导出设置”也不会带上它。不要在公用电脑上填。"),
+    siteBox
+  );
 }
 
 // ---------- 数据 ----------
@@ -498,7 +635,7 @@ function dataSection() {
           const data = await buildExport(withImages.checked);
           // 文件名只用英文和数字，避免个别系统把中文文件名弄乱
           downloadText(`start-page-settings-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(data));
-          toast("已导出。搜索历史和 AI 访问密码不会包含在文件里");
+          toast("已导出。搜索历史、AI 的 API Key 和访问密码不会包含在文件里");
         } catch {
           toast("导出失败，请重试");
         }
@@ -539,11 +676,12 @@ function dataSection() {
       onclick: async () => {
         const ok = await confirmDialog({
           title: "恢复默认设置？",
-          message: "所有设置回到初始状态，上传的背景图片和搜索历史会被删除。导航的改动不受影响（在编辑模式里单独恢复）。",
+          message: "所有设置回到初始状态，上传的背景图片、搜索历史和填写的 AI 接口（含 API Key）会被删除。导航的改动不受影响（在编辑模式里单独恢复）。",
           okText: "恢复默认",
           danger: true,
         });
         if (!ok) return;
+        userApi.clear(); // 先清掉，下面换设置时界面会跟着刷新
         store.replace(null);
         searchHistory.clear();
         await pruneImages();

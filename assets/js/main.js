@@ -57,7 +57,7 @@ const search = initSearch({
     }
     try {
       const { askAI } = await import("./ai/panel.js");
-      askAI(question, { searchWeb: search.searchWeb });
+      askAI(question, { searchWeb: search.searchWeb, openSettings });
     } catch {
       toast("AI 面板加载失败，已改用搜索引擎");
       search.searchWeb(question);

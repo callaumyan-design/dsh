@@ -1,5 +1,5 @@
 // 设置的导出 / 导入（换设备时用）。导出的是一个 JSON 文件。
-// 不会导出：搜索历史、AI 访问密码。
+// 不会导出：搜索历史、自己填的 AI 接口和 API Key、AI 访问密码。
 import { store } from "./store.js";
 import { navState } from "./nav.js";
 import { images } from "./idb.js";
