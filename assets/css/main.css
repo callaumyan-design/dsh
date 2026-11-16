@@ -93,6 +93,12 @@
   --on-bg: #0b1220;
   --on-bg-shadow: 0 1px 1px rgb(255 255 255 / 0.7), 0 0 22px rgb(255 255 255 / 0.6);
 }
+/* 页面最下面的字（应用名称、壁纸出处）：不管背景深浅，一律白字。
+   背景很亮时靠一圈深色的阴影衬着，照样看得清 */
+:root {
+  --dock-text: #ffffff;
+  --dock-shadow: 0 1px 2px rgb(0 0 0 / 0.75), 0 0 8px rgb(0 0 0 / 0.55), 0 0 20px rgb(0 0 0 / 0.4);
+}
 
 /* 搜索框是半透明的（透明度可在设置里调），里面的文字用白字还是深字，
    要看"底色 + 透出来的背景"合起来偏暗还是偏亮 —— 由 background.js 判断后写到 data-searchtone 上 */
@@ -662,9 +668,9 @@ main {
   text-wrap: balance; /* 折成两行时，两行尽量一样长 */
   font-size: calc(11px * var(--fs));
   line-height: 1.35;
-  color: var(--on-bg);
-  text-shadow: var(--on-bg-shadow);
-  opacity: 0.82;
+  color: var(--dock-text);
+  text-shadow: var(--dock-shadow);
+  opacity: 0.9;
 }
 .wall-credit a {
   color: inherit;
@@ -707,8 +713,8 @@ main {
   padding: 0;
   text-align: center;
   font-size: calc(12px * var(--fs));
-  color: var(--on-bg);
-  text-shadow: var(--on-bg-shadow);
+  color: var(--dock-text);
+  text-shadow: var(--dock-shadow);
 }
 .app-grid {
   display: flex;
@@ -744,9 +750,9 @@ main {
   gap: 5px;
   padding: 5px 1px 3px;
   border-radius: 16px;
-  /* 名字直接压在背景上：和时钟一样，背景偏暗用白字、偏亮用深字 */
-  color: var(--on-bg);
-  text-shadow: var(--on-bg-shadow);
+  /* 名字直接压在背景上：一律白字（见上面的 --dock-text） */
+  color: var(--dock-text);
+  text-shadow: var(--dock-shadow);
   text-decoration: none;
 }
 /* 图标的底：一块半透明的"毛玻璃"，会透出壁纸的颜色；上面的图形是白色的 */
