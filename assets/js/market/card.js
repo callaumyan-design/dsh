@@ -29,10 +29,10 @@ function loadStyles() {
   return stylesReady;
 }
 
-let dialog, cardEl, noticeEl, listEl, addEl, footEl, editBtn, refreshBtn;
+let dialog, cardEl, bodyEl, noticeEl, listEl, addEl, footBar, footEl, editBtn, refreshBtn;
 let returnTo = null;
 let closing = false;
-let editing = false;
+let view = "list"; // list 看行情 | edit 编辑列表（排序、删除）| add 添加关注（单独一页，手机键盘弹起时也不挤）
 let loading = false;
 let phase = "idle"; // idle | ok | partial | error | offline | auth
 let authMessage = "";
@@ -92,8 +92,11 @@ function build() {
   addEl = buildAddPanel();
   addEl.hidden = true;
   refreshBtn = iconButton("refresh-cw", "刷新", { class: "mk-tool", onclick: () => refresh({ force: true }) });
-  editBtn = iconButton("pencil", "编辑关注列表", { class: "mk-tool", onclick: () => setEditing(!editing) });
+  editBtn = iconButton("pencil", "编辑关注列表", { class: "mk-tool", onclick: () => setView(view === "list" ? "edit" : "list") });
   footEl = h("div", { class: "mk-foot-info" });
+  // 中间这一块可以上下滚动；标题栏和底栏固定不动
+  bodyEl = h("div", { class: "mk-body" }, noticeEl, listEl, addEl);
+  footBar = h("div", { class: "mk-foot" }, footEl, h("div", { class: "mk-foot-tools" }, refreshBtn, editBtn));
   cardEl = h(
     "section",
     { class: "mk-card", tabindex: "-1", "aria-labelledby": "mk-title" },
@@ -104,10 +107,8 @@ function build() {
       DEMO && h("span", { class: "mk-tag mk-tag-demo" }, "演示数据"),
       iconButton("x", "收起行情卡片", { class: "mk-tool mk-close", onclick: () => close() })
     ),
-    noticeEl,
-    listEl,
-    addEl,
-    h("div", { class: "mk-foot" }, footEl, h("div", { class: "mk-foot-tools" }, refreshBtn, editBtn))
+    bodyEl,
+    footBar
   );
   const fog = h("div", { class: "mk-fog", "aria-hidden": "true" });
   dialog = h("dialog", { class: "mk-dialog", role: "dialog", "aria-modal": "true", "aria-labelledby": "mk-title" }, fog, cardEl);
@@ -120,10 +121,11 @@ function build() {
     if (downOutside && outside(e)) close();
     downOutside = false;
   });
-  // Esc：先退出编辑，再收起
+  // Esc：添加页 → 编辑列表 → 看行情 → 收起，一层一层退
   dialog.addEventListener("cancel", (e) => {
     e.preventDefault();
-    if (editing) setEditing(false);
+    if (view === "add") setView("edit");
+    else if (view === "edit") setView("list");
     else close();
   });
   dialog.addEventListener("close", stopTimers);
@@ -137,8 +139,22 @@ function build() {
       startTimers();
     }
   });
-  store.subscribe(() => dialog.open && !editing && render());
+  store.subscribe(() => dialog.open && view === "list" && render());
+
+  // 手机键盘弹起时，可见区域变小：卡片跟着缩到看得见的那一块里（不被键盘挡住、不被截断）
+  const vv = window.visualViewport;
+  if (vv) {
+    const sync = () => {
+      if (!dialog.open) return;
+      dialog.style.setProperty("--mk-top", `${Math.max(0, vv.offsetTop)}px`);
+      dialog.style.setProperty("--mk-h", `${vv.height}px`);
+    };
+    vv.addEventListener("resize", sync);
+    vv.addEventListener("scroll", sync);
+    syncViewport = sync;
+  }
 }
+let syncViewport = () => {};
 
 // ---------- 打开 / 收起 ----------
 export async function openMarketCard({ returnTo: target } = {}) {
@@ -147,10 +163,11 @@ export async function openMarketCard({ returnTo: target } = {}) {
   if (dialog.open) return;
   closing = false;
   returnTo = target instanceof HTMLElement && target !== document.body ? target : null;
-  setEditing(false, { silent: true });
+  setView("list", { silent: true });
   cardEl.dataset.colors = store.get().market.colors;
   render();
   dialog.showModal();
+  syncViewport();
   cardEl.focus({ preventScroll: true }); // 焦点放进卡片（不直接落在某个按钮上，免得手机上出现焦点框）
   document.documentElement.classList.add("mk-open");
   if (reduceMotion()) dialog.classList.add("is-in");
@@ -199,7 +216,7 @@ function startTimers() {
     refreshTimer = setTimeout(() => refresh(), wait);
   }
   // 每 30 秒更新一下"几分钟前"和市场状态（不联网）
-  tickTimer = setInterval(() => !editing && !noticeEl.contains(document.activeElement) && render(), 30000);
+  tickTimer = setInterval(() => view === "list" && !noticeEl.contains(document.activeElement) && render(), 30000);
 }
 function stopTimers() {
   clearTimeout(refreshTimer);
@@ -272,7 +289,12 @@ function groupStatus(group, now = Date.now()) {
 function render() {
   if (!cardEl) return;
   cardEl.dataset.colors = store.get().market.colors;
-  cardEl.classList.toggle("is-editing", editing);
+  cardEl.dataset.view = view;
+  cardEl.classList.toggle("is-editing", view === "edit");
+  // 添加页单独占满中间这一块：不显示行情列表、提示和底栏
+  noticeEl.hidden = listEl.hidden = view === "add";
+  addEl.hidden = view !== "add";
+  footBar.hidden = view === "add";
   cardEl.setAttribute("aria-busy", String(loading));
   refreshBtn.classList.toggle("is-spinning", loading);
   refreshBtn.disabled = loading || DEMO === false && !list().length;
@@ -284,13 +306,13 @@ function render() {
 function renderNotice() {
   const items = list();
   const parts = [];
-  if (!items.length && !editing) {
+  if (!items.length && view === "list") {
     parts.push(
       h(
         "div",
         { class: "mk-empty" },
         h("p", null, "还没有关注任何行情。"),
-        h("button", { type: "button", class: "btn btn-primary", onclick: () => setEditing(true) }, icon("plus"), "添加")
+        h("button", { type: "button", class: "btn btn-primary", onclick: () => setView("add") }, icon("plus"), "添加")
       )
     );
   } else if (phase === "auth") {
@@ -317,7 +339,7 @@ function tokenForm() {
     const token = input.value.trim();
     if (token) refresh({ typedToken: token });
   });
-  setTimeout(() => dialog.open && phase === "auth" && !editing && input.focus({ preventScroll: true }), 0);
+  setTimeout(() => dialog.open && phase === "auth" && view === "list" && input.focus({ preventScroll: true }), 0);
   return h(
     "div",
     { class: "mk-msg", role: "alert" },
@@ -331,8 +353,7 @@ function renderGroups() {
   const items = list();
   const now = Date.now();
   const groups = GROUPS.map((g) => ({ ...g, items: items.filter((x) => groupOf(x.id) === g.id) })).filter((g) => g.items.length);
-  listEl.replaceChildren(
-    ...groups.map((g) => {
+  const sections = groups.map((g) => {
       const status = groupStatus(g.id, now);
       return h(
         "section",
@@ -340,8 +361,19 @@ function renderGroups() {
         h("h3", { class: "mk-group-title" }, g.name, h("span", { class: `mk-status is-${status}` }, STATUS_TEXT[status])),
         h("ul", { class: "mk-rows" }, g.items.map((item) => row(item, g)))
       );
-    })
-  );
+    });
+  // 编辑时，列表最后是"添加关注"
+  if (view === "edit") {
+    sections.push(
+      h(
+        "button",
+        { type: "button", class: "btn mk-add-btn", disabled: items.length >= MAX_IDS, onclick: () => setView("add") },
+        icon("plus"),
+        items.length >= MAX_IDS ? `最多关注 ${MAX_IDS} 个` : "添加关注"
+      )
+    );
+  }
+  listEl.replaceChildren(...sections);
 }
 
 function row(item, group) {
@@ -365,7 +397,7 @@ function row(item, group) {
   if (stale) notes.push(h("span", { class: "mk-fail", title: failed.get(item.id) || "" }, q ? "暂时取不到，显示的是上次的价格" : "暂时取不到"));
   if (q?.reference && !stale) notes.push(h("span", { class: "mk-ref" }, "每日参考价"));
   if (notes.length) li.append(h("div", { class: "mk-notes" }, notes));
-  if (editing) li.append(editTools(item, group));
+  if (view === "edit") li.append(editTools(item, group));
   return li;
 }
 
@@ -379,21 +411,35 @@ function renderFoot() {
   if (failing && phase === "partial") tags.push(h("span", { class: "mk-tag mk-tag-warn" }, `${failing} 项暂时取不到`));
   const time = !ids.length ? "" : loading ? "正在刷新…" : timeText(cache.at) || "还没有数据";
   footEl.replaceChildren(time && h("span", { class: "mk-time" }, time), ...tags);
-  editBtn.replaceChildren(icon(editing ? "check" : "pencil"));
-  editBtn.setAttribute("aria-label", editing ? "完成编辑" : "编辑关注列表");
-  editBtn.title = editing ? "完成编辑" : "编辑关注列表";
-  editBtn.setAttribute("aria-pressed", String(editing));
+  const editingNow = view !== "list";
+  editBtn.replaceChildren(icon(editingNow ? "check" : "pencil"));
+  editBtn.setAttribute("aria-label", editingNow ? "完成编辑" : "编辑关注列表");
+  editBtn.title = editingNow ? "完成编辑" : "编辑关注列表";
+  editBtn.setAttribute("aria-pressed", String(editingNow));
 }
 
 // ---------- 编辑关注列表 ----------
-function setEditing(value, { silent = false } = {}) {
-  const added = editing && !value && list().some((x) => !cache.quotes[x.id]);
-  editing = value;
-  if (addEl) addEl.hidden = !value;
-  if (silent) return;
+/** 切换卡片里的页：list 看行情、edit 编辑列表、add 添加关注 */
+function setView(next, { silent = false } = {}) {
+  // 编辑完回到行情：新加的代码还没有数据，马上取一次
+  const needData = view !== "list" && next === "list" && list().some((x) => !cache.quotes[x.id]);
+  const from = view;
+  view = next;
+  if (silent) {
+    if (addEl) addEl.hidden = next !== "add";
+    return;
+  }
   render();
-  if (value) addEl.querySelector('input[type="text"]')?.focus({ preventScroll: false });
-  else if (added) refresh(); // 新加的代码还没有数据，马上取一次
+  bodyEl.scrollTop = 0;
+  if (next === "add") {
+    addEl.querySelector(".mk-results").replaceChildren();
+    addEl.querySelector('input[type="text"]').focus({ preventScroll: true });
+  } else if (from === "add" && next === "edit") {
+    // 从添加页回来：停在列表最后（刚加的那些在下面）
+    bodyEl.scrollTop = bodyEl.scrollHeight;
+    listEl.querySelector(".mk-add-btn")?.focus({ preventScroll: true });
+  }
+  if (needData) refresh();
 }
 
 function updateList(mutate) {
@@ -477,7 +523,7 @@ function buildAddPanel() {
       if (result.kind === "auth") {
         phase = "auth";
         authMessage = result.bad ? "口令不对，请重新输入。" : "";
-        setEditing(false);
+        setView("list");
         return;
       }
       return results.replaceChildren(h("p", { class: "mk-fail" }, result.kind === "offline" ? "连不上服务器，请稍后再试。" : "查询失败，请稍后再试。"));
@@ -511,5 +557,8 @@ function buildAddPanel() {
     if (found.length > 1) choices.unshift(h("p", { class: "hint" }, "这个代码对应不止一个，请选一个："));
     results.replaceChildren(...choices);
   });
-  return h("div", { class: "mk-add" }, h("h3", null, "添加关注"), marketBox, form, hint, results);
+  const back = h("button", { type: "button", class: "btn btn-ghost mk-back", onclick: () => setView("edit") }, icon("chevron-left"), "返回");
+  // 手机键盘弹起后，确保输入框在看得见的地方
+  input.addEventListener("focus", () => setTimeout(() => input.scrollIntoView({ block: "nearest" }), 300));
+  return h("div", { class: "mk-add" }, h("div", { class: "mk-add-head" }, back, h("h3", null, "添加关注")), marketBox, form, hint, results);
 }

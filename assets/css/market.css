@@ -1,10 +1,14 @@
 /* 行情卡片的样式。第一次打开卡片时由 assets/js/market/card.js 加载，不占首屏。
    颜色、圆角等变量都来自 main.css（:root 上定义的那些）。 */
+/* 对话框占满"看得见的那一块"：手机键盘弹起时，--mk-top / --mk-h 由 card.js 按可见区域更新 */
 dialog.mk-dialog {
   position: fixed;
-  inset: 0;
+  top: var(--mk-top, 0px);
+  right: 0;
+  bottom: auto;
+  left: 0;
   width: 100%;
-  height: 100%;
+  height: var(--mk-h, 100%);
   max-width: none;
   max-height: none;
   margin: 0;
@@ -39,7 +43,7 @@ dialog.mk-dialog::backdrop {
 .mk-card {
   position: relative;
   width: min(520px, 100%);
-  max-height: min(88vh, calc(var(--vvh) - 32px));
+  max-height: min(88vh, calc(var(--mk-h, 100vh) - 24px));
   display: flex;
   flex-direction: column;
   border-radius: 22px;
@@ -176,11 +180,15 @@ dialog.mk-dialog::backdrop {
   color: var(--text-2);
   font-size: calc(13px * var(--fs));
 }
-.mk-groups {
+/* 中间这一块（提示、行情列表、添加页）：内容多了在这里面滚动，标题栏和底栏不动 */
+.mk-body {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.mk-groups {
   padding: 0 16px 6px;
 }
 .mk-group + .mk-group {
@@ -318,22 +326,55 @@ dialog.mk-dialog::backdrop {
   font-size: calc(12px * var(--fs));
 }
 .mk-edit-tools {
-  grid-column: 1 / -1;
   display: flex;
   justify-content: flex-end;
   gap: 2px;
 }
+/* 编辑列表：每行只留名称和代码，右边是上移、下移、删除，一行一个，不再撑高 */
+.mk-card.is-editing .mk-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 4px 0;
+}
+.mk-card.is-editing .mk-price,
+.mk-card.is-editing .mk-chg,
+.mk-card.is-editing .mk-notes {
+  display: none;
+}
+.mk-add-btn {
+  width: 100%;
+  margin: 12px 0 6px;
+}
 .mk-del {
   color: var(--danger, #ef4444);
 }
+/* 添加页：单独一页，上面一行是"返回"和标题 */
 .mk-add {
-  padding: 10px 16px 4px;
-  border-top: 1px solid var(--border);
+  padding: 0 16px 14px;
 }
-.mk-add h3 {
-  margin: 0 0 8px;
-  font-size: calc(13px * var(--fs));
-  color: var(--text-2);
+.mk-add-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 0 10px -8px;
+}
+.mk-add-head h3 {
+  margin: 0;
+  font-size: calc(15px * var(--fs));
+  font-weight: var(--fw-bold);
+}
+.mk-back {
+  min-height: 36px;
+  padding: 0 8px 0 4px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--accent-fg);
+}
+.mk-back .icon {
+  width: 18px;
+  height: 18px;
+}
+.mk-add .hint {
+  margin: 8px 0 0;
 }
 .mk-markets {
   margin-bottom: 8px;
