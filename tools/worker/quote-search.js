@@ -116,7 +116,13 @@ export function cleanQuery(q) {
 export async function findCandidates(q, ctx) {
   const results = [];
   const problems = [];
-  const push = (list) => list.forEach((x) => !results.some((y) => y.id === x.id) && results.push(x));
+  // 同一个代码被几个接口搜到时，记下它的各种叫法（如"苹果"和 "Apple Inc."），排序时都用来比对
+  const push = (list) =>
+    list.forEach((x) => {
+      const same = results.find((y) => y.id === x.id);
+      if (!same) results.push({ ...x, aliases: [] });
+      else if (x.name && x.name !== same.name && !same.aliases.includes(x.name)) same.aliases.push(x.name);
+    });
   let primary = [];
   try {
     primary = (await tencentSearch(q, ctx)).results;

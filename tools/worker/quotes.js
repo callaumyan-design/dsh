@@ -195,29 +195,41 @@ async function handleSearch(url, { env, fetcher, now, ctx }) {
   const memo = searchMemo.get(q);
   if (memo && memo.expires > now) return json(memo.body);
   // 看一眼就认得出的（代码、汇率）排在前面，然后是腾讯 / 新浪 / Finnhub 搜到的
-  const local = localCandidates(q).map((id) => ({ id, name: "", kind: kindOf(id) }));
+  // 本地认出来的优先（输入的代码、常用指数的叫法、汇率）；只有"把英文字母当成美股代码"这种猜测不算，免得 "ford" 先给代码叫 FORD 的小公司
+  const local = localCandidates(q).map((id) => ({ id, name: "", kind: kindOf(id), local: !(id.startsWith("US:") && !isIndex(id)) }));
   const { results: searched, problems } = await findCandidates(q, { env, fetcher, now });
   const candidates = [];
   for (const c of [...local, ...searched]) {
     const same = candidates.find((x) => x.id === c.id);
-    if (!same) candidates.push({ ...c });
-    else if (!same.name && c.name) Object.assign(same, { name: c.name, kind: c.kind }); // 本地认出的代码，用搜到的中文名
+    if (!same) candidates.push({ ...c, aliases: [...(c.aliases || [])] });
+    else {
+      if (!same.name && c.name) same.name = c.name; // 本地认出的代码，用搜到的名称
+      else if (c.name && c.name !== same.name) same.aliases.push(c.name);
+      same.aliases.push(...(c.aliases || []));
+    }
   }
   const ids = candidates.slice(0, 12).map((c) => c.id);
   // 只返回查得到行情的（"查得到才能加"）
   const { found } = await quotesFor(ids, { url, env, fetcher, now, ctx, lookup: true, useCache: true });
-  // 排序：名称或代码和搜索词完全一样的最前，其次是开头一样的；基金排在股票和指数后面；其余保持原来的顺序
-  const word = q.toUpperCase();
-  const rank = (c, quote) => {
-    const name = String(quote.name || c.name).toUpperCase();
+  // 排序，依次比：
+  //   1. 本地认出来的（输入的代码、常用指数的叫法、汇率）优先：搜"纳斯达克"要的是指数，不是同名的那只股票
+  //   2. 和搜索词有多像：名称或代码完全一样 > 开头一样 > 其他（英文公司名先去掉 Inc.、Corp 这类后缀，"apple" 才能对上 "Apple Inc."）
+  //   3. 股票 > 指数 > 基金：搜"腾讯"先给腾讯控股
+  //   4. 其余保持搜索接口给的顺序
+  const word = q.toUpperCase().replace(/\s+/g, " ");
+  const plain = (name) => String(name || "").toUpperCase().replace(/[,.]/g, " ").replace(/\b(INC|CORP|CORPORATION|CO|LTD|LIMITED|PLC|HOLDINGS?|GROUP|CLASS [A-Z])\b/g, "").replace(/\s+/g, " ").trim();
+  const KIND_ORDER = { 股票: 0, 指数: 1, 汇率: 1, 基金: 2 };
+  const score = (c, quote) => {
+    const names = [quote.name, c.name, ...(c.aliases || [])].filter(Boolean).flatMap((n) => [String(n).toUpperCase(), plain(n)]);
     const code = c.id.split(":")[1].replace(/^\./, "");
-    const match = name === word || code === word ? 0 : name.startsWith(word) || code.startsWith(word) ? 1 : 2;
-    return match * 2 + (c.kind === "基金" ? 1 : 0);
+    const match = names.includes(word) || code === word ? 0 : names.some((n) => n.startsWith(word)) || code.startsWith(word) ? 1 : 2;
+    return [c.local ? 0 : 1, match, KIND_ORDER[c.kind] ?? 1];
   };
   const results = candidates
     .map((c, i) => ({ c, i, quote: found.get(c.id) }))
     .filter((x) => x.quote)
-    .sort((a, b) => rank(a.c, a.quote) - rank(b.c, b.quote) || a.i - b.i)
+    .map((x) => ({ ...x, s: score(x.c, x.quote) }))
+    .sort((a, b) => a.s[0] - b.s[0] || a.s[1] - b.s[1] || a.s[2] - b.s[2] || a.i - b.i)
     .slice(0, 8)
     .map(({ c, quote }) => ({
       id: c.id,

@@ -528,3 +528,22 @@ test("接口·搜索：腾讯搜索挂了换新浪；输入代码时即使两个
   const data = await res.json();
   assert.deepEqual(data.results.map((r) => r.id), ["SH:600519"]);
 });
+
+test("接口·搜索排序：apple 先给苹果（去掉 Inc. 再比）；腾讯先给股票；纳斯达克先给指数", async () => {
+  const appleQuote = tencentLine("usAAPL", { 1: "苹果", 2: "AAPL.OQ", 3: "191.56", 4: "188.63", 30: "2026-11-13 16:00:01", 31: "2.93", 32: "1.55" });
+  const apleQuote = tencentLine("usAPLE", { 1: "Apple Hospitality REIT", 2: "APLE.N", 3: "19.30", 4: "19.00", 30: "2026-11-13 16:00:01", 31: "0.30", 32: "1.58" });
+  const jian = tencentLine("sh000847", { 1: "腾讯济安", 2: "000847", 3: "3189.98", 4: "3180.00", 30: "20261116150002", 31: "9.98", 32: "0.31" });
+  const ndaq = tencentLine("usNDAQ", { 1: "纳斯达克", 2: "NDAQ.OQ", 3: "108.54", 4: "108.00", 30: "2026-11-13 16:00:01", 31: "0.54", 32: "0.50" });
+  const quotes = [appleQuote, apleQuote, jian, ndaq, T.tencentHk, T.ixic].join("\n");
+  const { fetcher } = upstream([
+    ["https://smartbox.gtimg.cn/s3/?v=2&t=all&c=1&q=apple", () => new Response('v_hint="us~aple.n~apple hospitality reit~aple~GP^us~aapl.oq~\\u82f9\\u679c~pg~GP"')],
+    ["https://smartbox.gtimg.cn/s3/?v=2&t=all&c=1&q=%E8%85%BE%E8%AE%AF", () => new Response('v_hint="sh~000847~\\u817e\\u8baf\\u6d4e\\u5b89~txja~ZS^hk~00700~\\u817e\\u8baf\\u63a7\\u80a1~txkg~GP"')],
+    ["https://smartbox.gtimg.cn/", () => new Response('v_hint="us~ndaq.oq~\\u7eb3\\u65af\\u8fbe\\u514b~nsdk~GP"')],
+    ["https://finnhub.io/api/v1/search", JSON.stringify({ count: 2, result: [{ description: "APPLE HOSPITALITY REIT INC", symbol: "APLE", type: "Common Stock" }, { description: "APPLE INC", symbol: "AAPL", type: "Common Stock" }] })],
+    ["https://qt.gtimg.cn/", () => new Response(gbk(quotes))],
+  ]);
+  const names = async (q) => (await (await call("/api/quotes/search?q=" + encodeURIComponent(q), { env: { FINNHUB_KEY: "fh" }, token: "", fetcher, now: at("2026-11-17T01:00:00Z") })).json()).results.map((r) => r.id);
+  assert.deepEqual((await names("apple"))[0], "US:AAPL");
+  assert.deepEqual(await names("腾讯"), ["HK:00700", "SH:000847"]);
+  assert.deepEqual((await names("纳斯达克"))[0], "US:.IXIC");
+});
