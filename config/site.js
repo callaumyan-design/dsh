@@ -9,7 +9,7 @@
 //   css:   CSS 渐变写法（和 image 二选一）
 //   image: 仓库里一张图片的路径，如 "./assets/img/bg-1.jpg"（和 css 二选一）
 //   color: 图片还没加载出来时先显示的纯色
-//   tone:  背景整体偏暗写 "dark"，偏亮写 "light"（用来决定时钟文字用白色还是深色）
+//   tone:  背景整体偏暗写 "dark"，偏亮写 "light"（用来决定应用图标的玻璃底和搜索框里的字用浅色还是深色）
 export const BACKGROUND_PRESETS = [
   {
     id: "aurora",
