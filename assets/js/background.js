@@ -26,6 +26,8 @@ let sessionPick = ""; // 本次打开页面随机到的图片
 let onlineSeed = ""; // 本次打开页面显示的在线壁纸编号
 let onlineFailed = false; // 在线壁纸这次加载失败了（只提示一次）
 let hideTimer = 0;
+// 现在这张图最下面一条的颜色（还没算暗度遮罩）：给 iPhone Safari 填它工具栏下面那一块用，见 paintEdge()
+let edge = { key: "", color: "" };
 
 // ---------- 颜色计算 ----------
 function hexToRgb(hex) {
@@ -338,6 +340,23 @@ function searchToneFor(bgLum, alpha) {
   return mixed >= LIGHT_TONE_FROM ? "light" : "dark";
 }
 
+/**
+ * 网页"底色"：iPhone 上的新版 Safari 不会把固定铺满屏幕的壁纸画到它的工具栏（底部地址栏、侧边栏）下面，
+ * 而是用网页的底色把那一块填满。所以底色要和壁纸最下面一条的颜色一致（再按暗度遮罩压暗），看起来才连得上。
+ * 页面最下面还有一段从透明渐变到这个颜色的过渡（#bg-edge，只在触屏设备上显示），把接缝藏起来。
+ * 返回算好的颜色。
+ */
+function paintEdge(view, bg) {
+  let color = edge.key === view.key && edge.color ? edge.color : view.color;
+  if (view.css && bg.type === "color" && bg.color.gradient) color = bg.color.c2; // 渐变：靠下的那一端
+  if (view.online && onlineFailed) color = presetById(bg.preset).color;
+  const [r, g, b] = hexToRgb(color).map((v) => Math.round(v * (1 - bg.dim / 100)));
+  const out = toHex([r, g, b]);
+  root.style.setProperty("--bg-edge", out);
+  $('meta[name="theme-color"]')?.setAttribute("content", out);
+  return out;
+}
+
 function showCss(css) {
   crossfade((el) => {
     el.replaceChildren();
@@ -367,6 +386,13 @@ async function showImage(view, src, mine, onDone) {
     el.style.background = "";
     el.replaceChildren(img);
   });
+  // 记下这张图最下面一条的颜色（读不到图片内容时就用整张的平均色）
+  try {
+    edge = { key: view.key, color: readable ? sampleEdge(img) : "" };
+  } catch {
+    edge = { key: view.key, color: "" };
+  }
+  paintEdge(view, store.get().bg);
   if (view.online) {
     onlineFailed = false;
     if (readable) rememberOnlineColor(img, src);
@@ -414,8 +440,8 @@ async function apply() {
   const hasCredit = !!view.credit && !onlineFailed;
   root.toggleAttribute("data-credit", hasCredit);
   if (!hasCredit) setCredit("", null);
-  $('meta[name="theme-color"]')?.setAttribute("content", view.color);
-  writeJSON(CACHE_KEY, { color: view.color, css: view.css || "", tone, blur: bg.blur, dim: bg.dim, searchAlpha, searchTone, credit: hasCredit });
+  const edgeColor = paintEdge(view, bg);
+  writeJSON(CACHE_KEY, { color: view.color, edge: edgeColor, css: view.css || "", tone, blur: bg.blur, dim: bg.dim, searchAlpha, searchTone, credit: hasCredit });
 
   if (view.key === shownKey) return; // 只是调了模糊/暗度，画面内容没变
   shownKey = view.key;
@@ -569,6 +595,26 @@ function sampleColor(source) {
     if (i < 160) topLum += luminance(px);
   }
   return { color: toHex(sum.map((v) => v / 256)), lum: topLum / 160 };
+}
+
+/** 图片最下面一条（中间那一段，铺满屏幕时两边常被裁掉）的平均色 */
+function sampleEdge(source) {
+  const w = source.width || source.naturalWidth;
+  const h = source.height || source.naturalHeight;
+  const small = w > 240 ? drawScaled(source, 240, Math.max(1, Math.round((240 * h) / w))) : source;
+  const tiny = drawScaled(small, 16, 16).getContext("2d").getImageData(0, 0, 16, 16).data;
+  const sum = [0, 0, 0];
+  let n = 0;
+  for (let y = 14; y < 16; y++) {
+    for (let x = 3; x < 13; x++) {
+      const i = (y * 16 + x) * 4;
+      sum[0] += tiny[i];
+      sum[1] += tiny[i + 1];
+      sum[2] += tiny[i + 2];
+      n++;
+    }
+  }
+  return toHex(sum.map((v) => v / n));
 }
 
 /** 上传本地图片（可多选）。返回成功和失败的数量 */

@@ -28,6 +28,8 @@
   if (cache && typeof cache === "object") {
     // 占位纯色：图片还没出来之前先显示它
     if (typeof cache.color === "string") root.style.setProperty("--bg-base", cache.color);
+    // 网页底色（iPhone Safari 用它填工具栏下面那一块）：壁纸最下面一条的颜色
+    if (typeof cache.edge === "string" && /^#[0-9a-f]{6}$/i.test(cache.edge)) root.style.setProperty("--bg-edge", cache.edge);
     // 渐变/纯色背景可以立刻画出来；图片背景要等加载，先只显示占位色
     if (typeof cache.css === "string" && cache.css) {
       root.style.setProperty("--bg-instant", cache.css);

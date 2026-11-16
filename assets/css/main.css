@@ -131,6 +131,9 @@
 html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+  /* 网页底色 = 壁纸最下面一条的颜色（background.js 算好写进 --bg-edge）。
+     iPhone 上的新版 Safari 用它填底部地址栏、侧边栏下面那一块（固定的壁纸画不到那里） */
+  background: var(--bg-edge, var(--bg-base));
 }
 
 body {
@@ -139,7 +142,9 @@ body {
   min-height: 100dvh;
   font: var(--fw) calc(15px * var(--fs)) / 1.5 var(--font);
   color: var(--text);
-  background: var(--bg-base); /* 图片没出来之前的纯色占位，避免白屏 */
+  /* body 不设底色：html 设了底色以后，body 的底色会盖在壁纸（#bg）上面。
+     壁纸本身在 #bg 里，图片没出来之前 #bg 先显示纯色占位 */
+  background: transparent;
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
 }
@@ -284,6 +289,27 @@ svg.icon {
   position: absolute;
   inset: 0;
   background: rgb(0 0 0 / var(--dim));
+}
+
+/* 壁纸最下面的一小段：从透明渐变到网页底色。只在手机、平板上需要（那里的 Safari 工具栏压在页面下面）。
+   用"不透明的底色 + 渐变遮罩"而不是渐变背景：Safari 会读贴着屏幕边的固定元素的底色来给工具栏上色 */
+#bg-edge {
+  display: none;
+}
+@media (pointer: coarse) {
+  #bg-edge {
+    display: block;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 56px;
+    z-index: -1;
+    pointer-events: none;
+    background-color: var(--bg-edge, var(--bg-base));
+    -webkit-mask-image: linear-gradient(to bottom, transparent, #000 90%);
+    mask-image: linear-gradient(to bottom, transparent, #000 90%);
+  }
 }
 
 /* ---------- 4. 顶栏 ---------- */
