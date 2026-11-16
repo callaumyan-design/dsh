@@ -487,9 +487,7 @@ function buildAddPanel() {
       const why = result.data.errors?.[0]?.reason;
       return results.replaceChildren(h("p", { class: "mk-fail" }, "查不到这个代码" + (why ? `（${why}）` : "") + "。"));
     }
-    results.replaceChildren(
-      found.length > 1 ? h("p", { class: "hint" }, "这个代码对应不止一个，请选一个：") : null,
-      ...found.map((q) =>
+    const choices = found.map((q) =>
         h(
           "button",
           {
@@ -508,8 +506,10 @@ function buildAddPanel() {
           icon("plus"),
           `${q.name || shortCode(q.id)}（${shortCode(q.id)}）`
         )
-      )
     );
+    // （replaceChildren 遇到 null 会把它当成文字 "null" 显示出来，所以只在需要时才放提示）
+    if (found.length > 1) choices.unshift(h("p", { class: "hint" }, "这个代码对应不止一个，请选一个："));
+    results.replaceChildren(...choices);
   });
   return h("div", { class: "mk-add" }, h("h3", null, "添加关注"), marketBox, form, hint, results);
 }
