@@ -176,7 +176,7 @@ export async function handleQuotes(request, url, env = {}, ctx, { fetcher = fetc
 // ---------- 自检 ----------
 const SELFTEST = {
   tencent: ["SH:000001", "SZ:000001", "HK:00700", "HK:HSI", "US:AAPL", "US:.IXIC"],
-  sina: ["SH:600519", "HK:00700", "US:AAPL", "FX:USDCNH"],
+  sina: ["SH:600519", "HK:00700", "US:AAPL", "FX:USDCNY", "FX:USDCNH", "FX:AUDCNY"],
   finnhub: ["US:AAPL"],
   twelvedata: ["FX:USDCNY", "FX:AUDCNY"],
   frankfurter: ["FX:AUDCNY"],
@@ -195,7 +195,8 @@ export async function runSelftest(env, fetcher, now) {
           ms: Date.now() - started,
           quotes: [...r.quotes.values()],
           errors: [...r.errors].map(([id, reason]) => ({ id, reason })),
-          raw: String(r.raw || "").slice(0, 600),
+          // 原始返回：每行最多 400 个字，最多 10 行（格式变了时对照着改解析）
+          raw: String(r.raw || "").split(/\r?\n/).filter((x) => x.trim()).slice(0, 10).map((x) => x.slice(0, 400)).join("\n"),
         };
       } catch (err) {
         return { source, name: SOURCE_NAMES[source], ok: false, ms: Date.now() - started, quotes: [], errors: [{ id: "*", reason: String(err?.message || err) }], raw: "" };
@@ -231,7 +232,7 @@ document.getElementById("f").addEventListener("submit", async (e) => {
       data.results.map((r) => '<div class="r"><b>' + esc(r.name) + '</b> <span class="' + (r.ok ? "ok" : "bad") + '">' + (r.ok ? "正常" : "有问题") + "</span> · " + r.ms + " 毫秒" +
         r.quotes.map((q) => "<div>" + esc(q.id + " " + q.name + " " + q.price + " " + (q.change >= 0 ? "+" : "") + q.change + "（" + q.changePct + "%）" + (q.extended ? " " + q.extended.label + " " + q.extended.price : "") + (q.delayed ? " 延时" : "") + " 时间 " + (q.time ? new Date(q.time).toLocaleString() : "无")) + "</div>").join("") +
         r.errors.map((x) => '<div class="bad">' + esc(x.id + "：" + x.reason) + "</div>").join("") +
-        (r.raw ? "<details><summary>原始返回（前 600 字）</summary><pre>" + esc(r.raw) + "</pre></details>" : "") + "</div>").join("");
+        (r.raw ? "<details><summary>原始返回</summary><pre>" + esc(r.raw) + "</pre></details>" : "") + "</div>").join("");
   } catch (err) { out.innerHTML = '<p class="bad">请求失败：' + esc(err.message) + "</p>"; }
 });
 </script></html>`;

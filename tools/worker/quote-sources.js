@@ -71,8 +71,10 @@ const currencyOf = (id) => {
 
 /** 哪个数据源的哪个市场是延时行情。以实际情况为准：部署后用自检接口核对，需要时改这里 */
 export const DELAYED = {
-  tencent: { A: false, HK: true, US: true },
-  sina: { A: false, HK: true, US: true, FX: false },
+  // 2026-11-16 用线上自检核对过：腾讯、新浪的美股成交时间和当时的纽约时间一致（看不出延时）；
+  // 港股免费行情通常延时约 15 分钟，先按延时标
+  tencent: { A: false, HK: true, US: false },
+  sina: { A: false, HK: true, US: false, FX: false },
   finnhub: { US: false },
   twelvedata: { FX: false },
   frankfurter: { FX: true },
@@ -219,7 +221,9 @@ export function parseSina(text, ids) {
         const numbers = checkNumbers({ price, prev: price - change, change, changePct: f[2] });
         const time = parseLocalTime(f[3], ZONES.A);
         if (!Number.isFinite(time)) throw new FormatError(`时间看不懂（${f[3]}）`);
-        const extended = isIndex(id) || f.length < 25 ? null : sinaExtended(f, numbers.price, time);
+        // 盘前盘后价比常规交易的成交更新时才显示（交易时段里那几格放的是上一次的盘后价，不要）
+        const ext = isIndex(id) || f.length < 25 ? null : sinaExtended(f, numbers.price, time);
+        const extended = ext && ext.time > time ? ext : null;
         q = quote(id, "sina", f[0], numbers, time, extended ? { extended } : {});
       } else if (market === "FX") {
         // [0] 时间 [1] 买价 [2] 卖价 [3] 昨收 … [8] 最新价 [9] 名称 … 最后是日期

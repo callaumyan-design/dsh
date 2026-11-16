@@ -185,6 +185,7 @@ test("腾讯：A 股、指数、港股、美股、美股指数", () => {
   assert.equal(quotes.get("SH:000001").currency, ""); // 指数没有币种
   assert.equal(quotes.get("HK:00700").currency, "HKD");
   assert.equal(quotes.get("HK:00700").delayed, true);
+  assert.equal(quotes.get("US:AAPL").delayed, false);
   assert.equal(new Date(quotes.get("HK:00700").time).toISOString(), "2026-11-16T08:08:46.000Z");
   assert.equal(quotes.get("HK:HSI").change, -99.5);
   assert.equal(quotes.get("US:AAPL").name, "苹果");
@@ -261,6 +262,13 @@ test("新浪：A 股、港股、美股（含核对过的盘后价）、离岸人
   assert.equal(fx.name, "美元/人民币（离岸）");
   assert.equal(sinaCode("US:.IXIC"), "gb_ixic");
   assert.equal(sinaCode("HK:HSI"), "rt_hkHSI");
+});
+
+test("新浪：盘后价比常规交易的成交还旧时（交易时段里放的是上一次的盘后价）不显示", () => {
+  // 常规成交时间：纽约 11-16 12:00（北京时间 11-17 01:00）；盘后价时间：纽约 11-13 19:59
+  const line = sinaLine("gb_aapl", { 0: "苹果", 1: "191.5600", 2: "1.55", 3: "2026-11-17 01:00:01", 4: "2.9300", 21: "192.1000", 22: "0.28", 23: "0.5400", 24: "Nov 13 07:59PM EST" }, 30);
+  const { quotes } = parseSina(line, ["US:AAPL"]);
+  assert.equal(quotes.get("US:AAPL").extended, undefined);
 });
 
 test("新浪：盘后价核对不过就不显示；外汇数字不合理就当取不到；空内容是查不到", () => {
