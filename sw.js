@@ -26,7 +26,6 @@ const CORE = [
   "assets/js/nav.js",
   "assets/js/nav-model.js",
   "assets/js/nav-edit.js",
-  "assets/js/status.js",
   "assets/js/backup.js",
   "assets/js/settings-panel.js",
   "assets/js/ai/link.js",

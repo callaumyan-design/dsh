@@ -223,7 +223,7 @@ function backgroundSection() {
   );
   const dailyHint = h("p", { class: "hint" }, "这个来源每天自动换成当天的那一张。");
 
-  // 当前这张壁纸是什么、谁拍的（画的）、出自哪里
+  // 当前这张壁纸是什么、谁拍的、出自哪里
   const infoBox = h("p", { class: "hint wall-info", hidden: true });
   let infoFor = ""; // 现在显示的是哪个地址查到的信息
   async function showInfo() {
@@ -276,7 +276,7 @@ function backgroundSection() {
     nextRow,
     dailyHint,
     infoBox,
-    h("p", { class: "hint" }, "壁纸从网上加载，连不上时会自动显示内置背景。必应、维基、名画由本站代取，图库看不到你的网络地址；其他来源由浏览器直接去取。都看不到你搜索的内容。")
+    h("p", { class: "hint" }, "壁纸从网上加载，连不上时会自动显示内置背景。必应的图由本站代取，必应看不到你的网络地址；其他来源由浏览器直接去取。都看不到你搜索的内容。")
   );
 
   // 几种类型切换。切到"图片"但一张图都没有时，先停在这个页签等用户添加

@@ -30,8 +30,6 @@ export function normalizeEntry(raw, { custom = false } = {}) {
     desc: text(raw.desc, 80),
     group: text(raw.group, 20) || DEFAULT_GROUP,
     newTab: raw.newTab !== false,
-    statusUrl: safeUrl(raw.statusUrl, { allowRelative: true }),
-    status: raw.status !== false,
     custom,
   };
 }

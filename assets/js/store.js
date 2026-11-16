@@ -170,7 +170,7 @@ export function normalizeSettings(raw) {
   }
   const o = isObj(b.online) ? b.online : {};
   const online = {
-    source: oneOf(o.source, ["picsum", "bing-today", "bing", "wiki-today", "wiki", "art", "custom"], d.bg.online.source),
+    source: oneOf(o.source, ["picsum", "bing-today", "bing", "custom"], d.bg.online.source),
     url: safeUrl(o.url),
     every: oneOf(o.every, ["open", "hour", "day", "manual"], d.bg.online.every),
   };

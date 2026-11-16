@@ -1,9 +1,8 @@
-// 功能导航：页面下方的一排"小应用图标"，每个入口带一个"能不能访问"的小圆点。
+// 功能导航：页面下方的一排"小应用图标"。
 // 进入编辑模式后展开成带描述的列表，方便拖动排序、隐藏和修改。
 // 默认入口来自 config/nav.js；用户在编辑模式里的改动存在浏览器本地，两者合并显示。
 import { store, readJSON, writeJSON, removeKey, safeUrl } from "./store.js";
 import { buildGroups, normalizeNavState } from "./nav-model.js";
-import { checkStatus, STATUS_TEXT } from "./status.js";
 import { $, h, icon, hasIcon, isFramed } from "./ui.js";
 
 const NAV_KEY = "sp:nav";
@@ -11,8 +10,6 @@ const NAV_KEY = "sp:nav";
 let defaults = [];
 let state = normalizeNavState(readJSON(NAV_KEY));
 let editor = null; // 编辑模式下由 nav-edit.js 提供
-const statusCache = new Map(); // 入口 id → 检测结果
-let lastCheck = 0;
 
 // ---------- 本地改动的读写 ----------
 export const navState = {
@@ -77,23 +74,12 @@ function isSameOrigin(url) {
   }
 }
 
-function paintStatus(dot, value) {
-  dot.dataset.state = value;
-  dot.setAttribute("aria-label", `状态：${STATUS_TEXT[value]}`);
-  dot.title = `状态：${STATUS_TEXT[value]}`;
-}
-
 /** 平时的样子：一个小应用图标 + 下面的名字 */
 function renderApp(entry) {
   const link = h("a", { class: "app", href: entry.url, title: entry.desc ? `${entry.name}：${entry.desc}` : entry.name }, entryIcon(entry, "app-icon"), h("span", { class: "app-name" }, entry.name));
   if (shouldOpenInNewTab(entry)) {
     link.target = "_blank";
     link.rel = "noopener noreferrer";
-  }
-  if (entry.status) {
-    const dot = h("span", { class: "status", role: "img" });
-    paintStatus(dot, statusCache.get(entry.id) || "checking");
-    link.append(dot);
   }
   return h("li", { class: "card-wrap", dataset: { id: entry.id } }, link);
 }
@@ -141,33 +127,10 @@ export function render() {
   document.body.classList.toggle("editing", !!editor);
 }
 
-// ---------- 状态检测 ----------
-async function checkAll() {
-  lastCheck = Date.now();
-  const entries = buildGroups(defaults, state).flatMap((g) => g.items).filter((e) => e.status);
-  await Promise.all(
-    entries.map(async (entry) => {
-      const value = await checkStatus(entry);
-      statusCache.set(entry.id, value);
-      // 检测期间页面可能重画过，所以每次都按 id 重新找圆点
-      const dot = $(`#nav .card-wrap[data-id="${CSS.escape(entry.id)}"] .status`);
-      if (dot) paintStatus(dot, value);
-    })
-  );
-}
-
 // ---------- 启动 ----------
 export function initNav(defaultEntries) {
   defaults = defaultEntries;
   render();
-
-  // 等首屏画完、浏览器空闲时再检测，不拖慢打开速度
-  (window.requestIdleCallback || ((fn) => setTimeout(fn, 300)))(() => checkAll());
-  window.addEventListener("online", checkAll);
-  document.addEventListener("visibilitychange", () => {
-    // 页面放了很久又切回来时，重新检测一次
-    if (!document.hidden && Date.now() - lastCheck > 10 * 60 * 1000) checkAll();
-  });
 
   // "链接打开方式"变了要重画
   let lastTarget = store.get().linkTarget;
@@ -205,6 +168,5 @@ export function initNav(defaultEntries) {
     editBtn.setAttribute("aria-label", "编辑导航");
     editBtn.title = "编辑导航";
     render();
-    checkAll(); // 可能新加了入口
   }
 }

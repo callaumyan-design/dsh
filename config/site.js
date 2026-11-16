@@ -38,8 +38,8 @@ export const BACKGROUND_PRESETS = [
 export const DEFAULT_BACKGROUND = "aurora";
 
 // ---------- 在线壁纸 ----------
-// 必应、维基共享资源、名画这几个来源不允许网页直接取图，要由网站自己的后台代取。
-// 这里填后台的地址。网站如果放在没有后台的地方（比如 GitHub Pages），把它改成 ""，这几个来源就不会出现在设置里。
+// 必应的壁纸不允许网页直接取，要由网站自己的后台代取。
+// 这里填后台的地址。网站如果放在没有后台的地方（比如 GitHub Pages），把它改成 ""，必应这两个来源就不会出现在设置里。
 export const WALLPAPER_API = "./api/wallpaper";
 
 // ---------- AI（catgpt）----------

@@ -72,9 +72,6 @@ export const ONLINE_SOURCES = [
   { id: "picsum", name: "随机摄影（Picsum）" },
   { id: "bing-today", name: "必应每日一图", api: "bing", daily: true },
   { id: "bing", name: "必应近期壁纸（随机）", api: "bing" },
-  { id: "wiki-today", name: "维基共享资源每日图片", api: "wikimedia", daily: true },
-  { id: "wiki", name: "维基共享资源精选（随机）", api: "wikimedia" },
-  { id: "art", name: "名画（芝加哥艺术博物馆）", api: "art" },
   { id: "custom", name: "自定义接口" },
 ].filter((s) => !s.api || WALLPAPER_API); // 没有后台时，需要后台代取的来源不显示
 
@@ -111,7 +108,7 @@ function onlineSize() {
 function onlineUrl(online, seed) {
   const [w, h] = onlineSize();
   const source = sourceOf(online);
-  // 由本站后台代取的来源（必应、维基、名画）
+  // 由本站后台代取的来源（必应）
   if (source.api) return `${WALLPAPER_API}?source=${source.api}&seed=${seed}&shape=${h > w ? "port" : "land"}`;
   if (source.id === "custom") {
     // 自定义接口：可以用 {w} {h} {seed} 占位；没写 {seed} 就在末尾加一个参数，保证"换一张"时地址不同

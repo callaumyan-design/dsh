@@ -16,10 +16,6 @@
 //     color:  "#5b5bd6",              // 可选：图标的底色；不写就用默认的淡蓝色
 //   }
 //
-// 还有两个可选项（一般用不到）：
-//   statusUrl: "https://example.com/health"  // 专门用来检测"能不能访问"的地址
-//   status: false                            // 不检测、不显示状态小圆点
-//
 // 注意：
 //   - 每一项末尾的逗号不要漏。
 //   - 这个文件是公开的，后台、管理面板这类私密入口不要写在这里，
@@ -47,7 +43,6 @@ export default [
     group: "应用",
     newTab: false,
     color: "#5b5bd6",
-    status: false, // CatGPT 的服务器不允许别的网站探测它，状态点只会一直显示"未知"，所以不显示
   },
   {
     name: "UQ 校历",

@@ -54,7 +54,7 @@ test("缓存：页面和脚本每次确认，图片缓存一天；内容没变�
   assert.equal(await again.text(), "");
 });
 
-test("只接受读取请求；HEAD 只回信息不回内容（状态检测用）", async () => {
+test("只接受读取请求；HEAD 只回信息不回内容", async () => {
   assert.equal((await get("/", { method: "POST" })).status, 405);
   const head = await get("/uq/", { method: "HEAD" });
   assert.equal(head.status, 200);
