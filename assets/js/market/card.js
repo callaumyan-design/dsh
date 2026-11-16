@@ -6,10 +6,10 @@
 // 演示：网址带 ?demo=quotes 时不连后台，用本地假数据，卡片上标出"演示数据"。
 import { store, readJSON, writeJSON } from "../store.js";
 import { h, icon, iconButton, toast } from "../ui.js";
-import { GROUPS, groupOf, isIndex, candidatesFor, MAX_IDS } from "./ids.js";
+import { GROUPS, groupOf, isIndex, MAX_IDS } from "./ids.js";
 import { marketStatus, isLive, STATUS_TEXT } from "./hours.js";
 import { quotesAuth, tokenDays } from "./auth.js";
-import { demoQuotes } from "./demo.js";
+import { demoQuotes, demoSearch } from "./demo.js";
 
 const CACHE_KEY = "sp:quotes-cache"; // 上次拿到的行情：{ at, quotes: { 代码: 行情 } }
 const DEMO = new URLSearchParams(location.search).get("demo") === "quotes";
@@ -247,6 +247,22 @@ async function request(ids, { lookup = false, token = quotesAuth.get() } = {}) {
   return { ok: true, data };
 }
 
+/** 按名称 / 代码搜。返回 { ok, data: { results } } 或 { ok: false, kind } */
+async function searchRequest(q) {
+  if (DEMO) return { ok: true, data: demoSearch(q) };
+  const token = quotesAuth.get();
+  let res;
+  try {
+    res = await fetch(`./api/quotes/search?q=${encodeURIComponent(q)}`, { headers: token ? { "X-Quotes-Token": token } : {}, cache: "no-store", credentials: "same-origin" });
+  } catch {
+    return { ok: false, kind: "offline" };
+  }
+  if (res.status === 401) return { ok: false, kind: "auth", bad: !!token };
+  const data = await res.json().catch(() => null);
+  if (!res.ok || !data || !Array.isArray(data.results)) return { ok: false, kind: "error" };
+  return { ok: true, data };
+}
+
 /** 拿一次最新数据。typedToken：刚在卡片里输入、还没验证过的口令 */
 async function refresh({ typedToken } = {}) {
   const ids = list().map((x) => x.id);
@@ -432,8 +448,8 @@ function setView(next, { silent = false } = {}) {
   render();
   bodyEl.scrollTop = 0;
   if (next === "add") {
-    addEl.querySelector(".mk-results").replaceChildren();
-    addEl.querySelector('input[type="text"]').focus({ preventScroll: true });
+    addEl.reset();
+    addEl.querySelector("input").focus({ preventScroll: true });
   } else if (from === "add" && next === "edit") {
     // 从添加页回来：停在列表最后（刚加的那些在下面）
     bodyEl.scrollTop = bodyEl.scrollHeight;
@@ -480,45 +496,34 @@ function editTools(item, group) {
   );
 }
 
-const HINTS = {
-  A: "6 位代码，如 600519。指数：000001 上证指数、399001 深证成指、000300 沪深300。",
-  HK: "如 700（腾讯控股）。指数：HSI 恒生指数、HSCEI 国企指数、HSTECH 恒生科技。",
-  US: "如 NVDA、BRK.B。指数：.IXIC 纳斯达克综合、.DJI 道琼斯、.INX 标普500。",
-  FX: "如 AUDCNY、USDCNH。CNY 是在岸人民币，CNH 是离岸人民币。",
-};
-
+/** 添加页：一个搜索框，名称、拼音首字母、代码都能搜，A 股、港股、美股、汇率一起找 */
 function buildAddPanel() {
-  let market = "A";
-  const hint = h("p", { class: "hint" }, HINTS.A);
-  const input = h("input", { class: "input", type: "text", placeholder: "代码", "aria-label": "要添加的代码", autocomplete: "off", autocapitalize: "characters", spellcheck: false, maxLength: 16, enterKeyHint: "search" });
-  const results = h("div", { class: "mk-results", role: "status" });
-  const marketBox = h(
-    "div",
-    { class: "segmented mk-markets", role: "radiogroup", "aria-label": "市场" },
-    GROUPS.map((g) => {
-      const radio = h("input", {
-        type: "radio",
-        name: "mk-market",
-        value: g.id,
-        checked: g.id === market,
-        onchange: () => {
-          market = g.id;
-          hint.textContent = HINTS[g.id];
-          results.replaceChildren();
-          input.focus();
-        },
-      });
-      return h("label", null, radio, h("span", null, g.name));
-    })
-  );
-  const form = h("form", { class: "inline-form" }, input, h("button", { type: "submit", class: "btn btn-primary" }, icon("search"), "查询"));
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const ids = candidatesFor(market, input.value);
-    if (!ids.length) return results.replaceChildren(h("p", { class: "mk-fail" }, "代码格式不对。" + HINTS[market]));
-    if (list().length >= MAX_IDS) return results.replaceChildren(h("p", { class: "mk-fail" }, `最多关注 ${MAX_IDS} 个。`));
-    results.replaceChildren(h("p", { class: "hint" }, "正在查询…"));
-    const result = await request(ids, { lookup: true });
+  const input = h("input", {
+    class: "input",
+    type: "search",
+    placeholder: "搜名称、拼音或代码",
+    "aria-label": "搜索要添加的行情",
+    autocomplete: "off",
+    autocapitalize: "off",
+    spellcheck: false,
+    maxLength: 20,
+    enterKeyHint: "search",
+  });
+  const results = h("ul", { class: "mk-found", "aria-label": "搜索结果" });
+  const status = h("p", { class: "hint mk-search-status", role: "status" }, "例：茅台、txkg、600519、腾讯、NVDA、纳斯达克、澳元、美元离岸");
+  let seq = 0; // 第几次搜索：慢的旧结果回来时不要盖掉新的
+  let timer = 0;
+
+  async function run(q) {
+    const mine = ++seq;
+    if (!q) {
+      results.replaceChildren();
+      status.textContent = "例：茅台、txkg、600519、腾讯、NVDA、纳斯达克、澳元、美元离岸";
+      return;
+    }
+    status.textContent = "正在搜索…";
+    const result = await searchRequest(q);
+    if (mine !== seq) return;
     if (!result.ok) {
       if (result.kind === "auth") {
         phase = "auth";
@@ -526,39 +531,75 @@ function buildAddPanel() {
         setView("list");
         return;
       }
-      return results.replaceChildren(h("p", { class: "mk-fail" }, result.kind === "offline" ? "连不上服务器，请稍后再试。" : "查询失败，请稍后再试。"));
+      results.replaceChildren();
+      status.textContent = result.kind === "offline" ? "连不上服务器，请稍后再试。" : "搜索出了点问题，请稍后再试。";
+      return;
     }
-    const found = result.data.quotes.filter((q) => ids.includes(q.id));
-    if (!found.length) {
-      const why = result.data.errors?.[0]?.reason;
-      return results.replaceChildren(h("p", { class: "mk-fail" }, "查不到这个代码" + (why ? `（${why}）` : "") + "。"));
-    }
-    const choices = found.map((q) =>
-        h(
-          "button",
-          {
-            type: "button",
-            class: "btn mk-pick",
-            onclick: () => {
-              if (list().some((x) => x.id === q.id)) return toast("已经在列表里了");
-              cache.quotes[q.id] = q;
-              updateList((all) => all.push({ id: q.id, name: String(q.name || "").slice(0, 40) }));
-              saveCache();
-              input.value = "";
-              results.replaceChildren(h("p", { class: "hint" }, `已添加 ${q.name || shortCode(q.id)}`));
-              input.focus();
-            },
-          },
-          icon("plus"),
-          `${q.name || shortCode(q.id)}（${shortCode(q.id)}）`
-        )
+    const found = result.data.results.filter((r) => r && typeof r.id === "string" && r.quote);
+    results.replaceChildren(...found.map((r) => resultRow(r)));
+    status.textContent = found.length ? "" : `没有找到“${q}”。可以换个说法，或者直接输代码。`;
+  }
+
+  /** 一条结果：名称、种类和代码、现价和涨跌；点一下加入 */
+  function resultRow(r) {
+    const q = r.quote;
+    const d = decimals(r.id, q.price);
+    const added = () => list().some((x) => x.id === r.id);
+    const mark = h("span", { class: "mk-found-add", "aria-hidden": "true" }, icon(added() ? "check" : "plus"));
+    const btn = h(
+      "button",
+      {
+        type: "button",
+        class: "mk-found-btn",
+        disabled: added(),
+        dataset: { dir: dirOf(q.change) },
+        onclick: () => {
+          if (added()) return;
+          if (list().length >= MAX_IDS) return toast(`最多关注 ${MAX_IDS} 个`);
+          cache.quotes[r.id] = q;
+          updateList((all) => all.push({ id: r.id, name: String(r.name || q.name || "").slice(0, 40) }));
+          saveCache();
+          btn.disabled = true;
+          mark.replaceChildren(icon("check"));
+          btn.setAttribute("aria-label", `${r.name}，已添加`);
+          toast(`已添加 ${r.name}`);
+        },
+      },
+      h("span", { class: "mk-found-name" }, h("span", { class: "mk-title" }, r.name), h("span", { class: "mk-code" }, `${r.kind} · ${shortCode(r.id)}`)),
+      h("span", { class: "mk-found-price" }, h("span", { class: "mk-num" }, fmt(q.price, d)), h("span", { class: "mk-num mk-pct" }, signed(q.changePct, 2) + "%")),
+      mark
     );
-    // （replaceChildren 遇到 null 会把它当成文字 "null" 显示出来，所以只在需要时才放提示）
-    if (found.length > 1) choices.unshift(h("p", { class: "hint" }, "这个代码对应不止一个，请选一个："));
-    results.replaceChildren(...choices);
+    btn.setAttribute("aria-label", `${r.name}（${shortCode(r.id)}），${added() ? "已添加" : "点一下添加"}`);
+    return h("li", null, btn);
+  }
+
+  // 边输入边搜（停顿 0.35 秒再搜）；中文输入法选字时不搜，选完再搜
+  input.addEventListener("input", (e) => {
+    if (e.isComposing) return;
+    clearTimeout(timer);
+    timer = setTimeout(() => run(input.value.trim()), 350);
+  });
+  input.addEventListener("compositionend", () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => run(input.value.trim()), 350);
+  });
+  const form = h("form", { class: "mk-search", role: "search" }, input);
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    clearTimeout(timer);
+    run(input.value.trim());
   });
   const back = h("button", { type: "button", class: "btn btn-ghost mk-back", onclick: () => setView("edit") }, icon("chevron-left"), "返回");
   // 手机键盘弹起后，确保输入框在看得见的地方
   input.addEventListener("focus", () => setTimeout(() => input.scrollIntoView({ block: "nearest" }), 300));
-  return h("div", { class: "mk-add" }, h("div", { class: "mk-add-head" }, back, h("h3", null, "添加关注")), marketBox, form, hint, results);
+  const panel = h("div", { class: "mk-add" }, h("div", { class: "mk-add-head" }, back, h("h3", null, "添加关注")), form, status, results);
+  /** 进入添加页时清空上次的搜索 */
+  panel.reset = () => {
+    seq++;
+    clearTimeout(timer);
+    input.value = "";
+    results.replaceChildren();
+    status.textContent = "例：茅台、txkg、600519、腾讯、NVDA、纳斯达克、澳元、美元离岸";
+  };
+  return panel;
 }

@@ -376,20 +376,81 @@ dialog.mk-dialog::backdrop {
 .mk-add .hint {
   margin: 8px 0 0;
 }
-.mk-markets {
-  margin-bottom: 8px;
+/* 搜索框和结果 */
+.mk-search .input {
+  width: 100%;
 }
-.mk-results {
+.mk-search-status:empty {
+  display: none;
+}
+.mk-found {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.mk-found li + li {
+  border-top: 1px solid var(--border);
+}
+.mk-found-btn {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 52px;
+  padding: 6px 2px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.mk-found-btn:hover:not(:disabled) {
+  background: var(--hover);
+  border-radius: 10px;
+}
+.mk-found-btn:disabled {
+  cursor: default;
+}
+.mk-found-name {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: 6px 0;
+  flex-direction: column;
+  min-width: 0;
 }
-.mk-results p {
-  margin: 0;
+.mk-found-price {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
 }
-.mk-pick {
-  max-width: 100%;
+.mk-found-price .mk-pct {
+  font-size: calc(12px * var(--fs));
+}
+.mk-found-btn[data-dir="up"] .mk-found-price {
+  color: var(--mk-up);
+}
+.mk-found-btn[data-dir="down"] .mk-found-price {
+  color: var(--mk-down);
+}
+.mk-found-btn[data-dir="flat"] .mk-found-price {
+  color: var(--text-3);
+}
+.mk-found-add {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-text);
+}
+.mk-found-add .icon {
+  width: 18px;
+  height: 18px;
+}
+.mk-found-btn:disabled .mk-found-add {
+  background: var(--hover);
+  color: var(--text-3);
 }
 .mk-foot {
   display: flex;

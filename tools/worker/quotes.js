@@ -4,6 +4,9 @@
 //   → { quotes: [一条条行情], errors: [{ id, reason }], at: 时间戳 }
 //   加 &lookup=1：添加关注时查名称用（优先用有中文名的数据源）
 //
+//   GET /api/quotes/search?q=茅台   按名称、拼音首字母或代码搜，A 股、港股、美股、汇率一起找，每条带上现价
+//   → { results: [{ id, name, kind（股票 / 指数 / 基金 / 汇率）, quote }], at }   只返回查得到行情的
+//
 //   GET /api/quotes/selftest  在浏览器里直接打开：一个小页面，点一下就检查；页面去要数据时：把每个数据源各查一次，返回结果、耗时和原始样例
 //
 // 规矩：
@@ -13,9 +16,11 @@
 //   - 一次最多 40 个代码；每个代码先按市场的格式核对，核对过的才会拼进上游地址。
 //   - 同一个代码在缓存有效期内不重复去上游取：先看这台服务器的内存，再看 Cloudflare 的缓存（Cache API，
 //     只在 callaum.com 这类自己的域名上起作用，workers.dev 上自动跳过）。
-import { normalizeId, groupOf, isIndex, MAX_IDS } from "./market-ids.js";
+import { normalizeId, groupOf, isIndex, fxName, MAX_IDS } from "./market-ids.js";
+import { localCandidates, kindOf } from "./market-words.js";
 import { marketStatus, isLive } from "./market-hours.js";
 import { SOURCES, SOURCE_NAMES, chainFor, sina } from "./quote-sources.js";
+import { findCandidates, cleanQuery, tencentSearch, sinaSearch, finnhubSearch } from "./quote-search.js";
 
 const memory = new Map(); // 代码 → { quote, expires }
 const MEMORY_MAX = 500;
@@ -144,6 +149,7 @@ export async function handleQuotes(request, url, env = {}, ctx, { fetcher = fetc
     return json({ error: "bad_token", message: "访问口令不对" }, 401);
   }
   if (selftest) return json(await runSelftest(env, fetcher, now));
+  if (url.pathname === "/api/quotes/search") return handleSearch(url, { env, fetcher, now, ctx });
 
   const raw = (url.searchParams.get("ids") || "").split(",").map((s) => s.trim()).filter(Boolean);
   if (raw.length > MAX_IDS) return json({ error: "too_many", message: `一次最多查 ${MAX_IDS} 个代码` }, 400);
@@ -155,10 +161,17 @@ export async function handleQuotes(request, url, env = {}, ctx, { fetcher = fetc
     else if (!ids.includes(id)) ids.push(id);
   }
   const lookup = url.searchParams.get("lookup") === "1";
+  const { found, errors: failed } = await quotesFor(ids, { url, env, fetcher, now, ctx, lookup, useCache: !lookup });
+  return json({ quotes: ids.filter((id) => found.has(id)).map((id) => found.get(id)), errors: [...errors, ...failed], at: now });
+}
+
+/** 取一批代码的行情：先看缓存，没有的再去数据源取。返回 { found: Map, errors: [{ id, reason }] } */
+async function quotesFor(ids, { url, env, fetcher, now, ctx, lookup = false, useCache = true }) {
   const found = new Map();
+  const errors = [];
   const pending = [];
   for (const id of ids) {
-    const hit = lookup ? null : await readCache(url, id, now);
+    const hit = useCache ? await readCache(url, id, now) : null;
     if (hit) found.set(id, hit);
     else pending.push(id);
   }
@@ -170,7 +183,53 @@ export async function handleQuotes(request, url, env = {}, ctx, { fetcher = fetc
     }
     for (const [id, reason] of result.errors) errors.push({ id, reason });
   }
-  return json({ quotes: ids.filter((id) => found.has(id)).map((id) => found.get(id)), errors, at: now });
+  return { found, errors };
+}
+
+// ---------- 按名称搜 ----------
+const searchMemo = new Map(); // 搜索词 → { body, expires }
+
+async function handleSearch(url, { env, fetcher, now, ctx }) {
+  const q = cleanQuery(url.searchParams.get("q"));
+  if (!q) return json({ error: "bad_query", message: "搜索词不能为空，最长 20 个字" }, 400);
+  const memo = searchMemo.get(q);
+  if (memo && memo.expires > now) return json(memo.body);
+  // 看一眼就认得出的（代码、汇率）排在前面，然后是腾讯 / 新浪 / Finnhub 搜到的
+  const local = localCandidates(q).map((id) => ({ id, name: "", kind: kindOf(id) }));
+  const { results: searched, problems } = await findCandidates(q, { env, fetcher, now });
+  const candidates = [];
+  for (const c of [...local, ...searched]) {
+    const same = candidates.find((x) => x.id === c.id);
+    if (!same) candidates.push({ ...c });
+    else if (!same.name && c.name) Object.assign(same, { name: c.name, kind: c.kind }); // 本地认出的代码，用搜到的中文名
+  }
+  const ids = candidates.slice(0, 12).map((c) => c.id);
+  // 只返回查得到行情的（"查得到才能加"）
+  const { found } = await quotesFor(ids, { url, env, fetcher, now, ctx, lookup: true, useCache: true });
+  // 排序：名称或代码和搜索词完全一样的最前，其次是开头一样的；基金排在股票和指数后面；其余保持原来的顺序
+  const word = q.toUpperCase();
+  const rank = (c, quote) => {
+    const name = String(quote.name || c.name).toUpperCase();
+    const code = c.id.split(":")[1].replace(/^\./, "");
+    const match = name === word || code === word ? 0 : name.startsWith(word) || code.startsWith(word) ? 1 : 2;
+    return match * 2 + (c.kind === "基金" ? 1 : 0);
+  };
+  const results = candidates
+    .map((c, i) => ({ c, i, quote: found.get(c.id) }))
+    .filter((x) => x.quote)
+    .sort((a, b) => rank(a.c, a.quote) - rank(b.c, b.quote) || a.i - b.i)
+    .slice(0, 8)
+    .map(({ c, quote }) => ({
+      id: c.id,
+      // 名称优先用行情里的正式名称（腾讯搜索给的英文名会被改成小写）
+      name: quote.name || c.name || (c.id.startsWith("FX:") ? fxName(c.id) : c.id),
+      kind: c.kind || kindOf(c.id),
+      quote,
+    }));
+  const body = { results, at: now, ...(problems.length && !results.length ? { problems } : {}) };
+  if (searchMemo.size > 200) searchMemo.delete(searchMemo.keys().next().value);
+  searchMemo.set(q, { body, expires: now + 60000 });
+  return json(body);
 }
 
 // ---------- 自检 ----------
@@ -203,6 +262,21 @@ export async function runSelftest(env, fetcher, now) {
       }
     })
   );
+  // 名称搜索各查一次
+  const searches = [
+    ["tencent-search", "腾讯搜索（茅台）", () => tencentSearch("茅台", { fetcher })],
+    ["sina-search", "新浪搜索（腾讯）", () => sinaSearch("腾讯", { fetcher })],
+    ["finnhub-search", "Finnhub 搜索（apple）", () => finnhubSearch("apple", { fetcher, env })],
+  ];
+  for (const [source, name, run] of searches) {
+    const started = Date.now();
+    try {
+      const r = await run();
+      results.push({ source, name, ok: r.results.length > 0, ms: Date.now() - started, quotes: r.results.map((x) => ({ id: x.id, name: x.name, kind: x.kind })), errors: [], raw: String(r.raw || "").slice(0, 600) });
+    } catch (err) {
+      results.push({ source, name, ok: false, ms: Date.now() - started, quotes: [], errors: [{ id: "*", reason: String(err?.message || err) }], raw: "" });
+    }
+  }
   return { at: now, token: !!env.QUOTES_TOKEN, keys: { FINNHUB_KEY: !!env.FINNHUB_KEY, TWELVEDATA_KEY: !!env.TWELVEDATA_KEY }, results };
 }
 
@@ -230,7 +304,7 @@ document.getElementById("f").addEventListener("submit", async (e) => {
     if (!res.ok) { out.innerHTML = '<p class="bad">' + esc(data.message || res.status) + "</p>"; return; }
     out.innerHTML = "<p>访问口令：" + (data.token ? "已设置" : "未设置（谁都能用）") + "；Key：FINNHUB_KEY " + (data.keys.FINNHUB_KEY ? "已设置" : "未设置") + "，TWELVEDATA_KEY " + (data.keys.TWELVEDATA_KEY ? "已设置" : "未设置") + "</p>" +
       data.results.map((r) => '<div class="r"><b>' + esc(r.name) + '</b> <span class="' + (r.ok ? "ok" : "bad") + '">' + (r.ok ? "正常" : "有问题") + "</span> · " + r.ms + " 毫秒" +
-        r.quotes.map((q) => "<div>" + esc(q.id + " " + q.name + " " + q.price + " " + (q.change >= 0 ? "+" : "") + q.change + "（" + q.changePct + "%）" + (q.extended ? " " + q.extended.label + " " + q.extended.price : "") + (q.delayed ? " 延时" : "") + " 时间 " + (q.time ? new Date(q.time).toLocaleString() : "无")) + "</div>").join("") +
+        r.quotes.map((q) => "<div>" + esc(q.price === undefined ? q.id + " " + q.name + "（" + q.kind + "）" : q.id + " " + q.name + " " + q.price + " " + (q.change >= 0 ? "+" : "") + q.change + "（" + q.changePct + "%）" + (q.extended ? " " + q.extended.label + " " + q.extended.price : "") + (q.delayed ? " 延时" : "") + " 时间 " + (q.time ? new Date(q.time).toLocaleString() : "无")) + "</div>").join("") +
         r.errors.map((x) => '<div class="bad">' + esc(x.id + "：" + x.reason) + "</div>").join("") +
         (r.raw ? "<details><summary>原始返回</summary><pre>" + esc(r.raw) + "</pre></details>" : "") + "</div>").join("");
   } catch (err) { out.innerHTML = '<p class="bad">请求失败：' + esc(err.message) + "</p>"; }

@@ -447,3 +447,84 @@ test("自检：在浏览器里直接打开是一个小页面；页面去要数�
   res = await call("/api/quotes/selftest", { token: "wrong", headers: { Accept: "application/json" } });
   assert.equal(res.status, 401); // 设了口令时，自检也要口令
 });
+
+// ---------- 按名称搜 ----------
+// 下面的样例来自 2026-11-16 线上自检拿到的真实返回（腾讯、新浪、Finnhub 的搜索接口）
+import { parseTencentSearch, parseSinaSearch, parseFinnhubSearch, cleanQuery } from "../tools/worker/quote-search.js";
+import { fxCandidates, localCandidates, kindOf } from "../assets/js/market/words.js";
+
+const REAL_TENCENT_SEARCH = 'v_hint="sh~600519~\\u8d35\\u5dde\\u8305\\u53f0~gzmt~GP-A"';
+const REAL_SINA_SEARCH =
+  'var suggestdata="腾讯,41,tcehy,tcehy,腾讯(ADR),,腾讯(ADR),99,1,ADR|ESG,,,;腾讯控股,31,00700,00700,腾讯控股,,腾讯控股,99,1,ESG,,,;腾讯济安,11,000847,sh000847,腾讯济安,,腾讯济安,99,1,,,,;银河定投宝腾讯济安指数,201,519677,of519677,银河定投宝腾讯济安指数,,银河定投宝腾讯济安指数,99,1,,,,;腾讯瑞银五七沽A,32,22355,22355,腾讯瑞银五七沽A,,腾讯瑞银五七沽A,99,1,,,,";';
+const REAL_FINNHUB_SEARCH = { count: 3, result: [{ description: "Apple Inc.", displaySymbol: "AAPL", symbol: "AAPL", type: "Common Stock" }, { description: "APPLE INC", displaySymbol: "AAPL.SW", symbol: "AAPL.SW", type: "Common Stock" }, { description: "Apple Hospitality REIT Inc", displaySymbol: "APLE", symbol: "APLE", type: "Common Stock" }] };
+
+test("搜索·腾讯：真实返回能解析（\\u 写法的中文名）；美股指数代码补上点；权证不要", () => {
+  assert.deepEqual(parseTencentSearch(REAL_TENCENT_SEARCH), [{ id: "SH:600519", name: "贵州茅台", kind: "股票" }]);
+  const many = parseTencentSearch('v_hint="hk~00700~\\u817e\\u8baf\\u63a7\\u80a1~txkg~GP^us~ixic~\\u7eb3\\u65af\\u8fbe\\u514b~nsdk~ZS^us~nvda.oq~\\u82f1\\u4f1f\\u8fbe~ywd~GP^sz~159659~ETF~nsdk~ETF^hk~12345~\\u6d4b\\u8bd5~cs~QZ"');
+  assert.deepEqual(many.map((x) => [x.id, x.kind]), [["HK:00700", "股票"], ["US:.IXIC", "指数"], ["US:NVDA", "股票"], ["SZ:159659", "基金"]]);
+  assert.deepEqual(parseTencentSearch('v_hint="N";'), []);
+  assert.throws(() => parseTencentSearch("<html>"), /格式变了/);
+});
+
+test("搜索·新浪：真实返回能解析；美股、港股、A 股都认，基金代码（of…）、权证不要", () => {
+  const r = parseSinaSearch(REAL_SINA_SEARCH);
+  assert.deepEqual(r.map((x) => [x.id, x.name, x.kind]), [["US:TCEHY", "腾讯(ADR)", "股票"], ["HK:00700", "腾讯控股", "股票"], ["SH:000847", "腾讯济安", "指数"]]);
+});
+
+test("搜索·Finnhub：只要美股本身（带交易所后缀的不要）", () => {
+  assert.deepEqual(parseFinnhubSearch(REAL_FINNHUB_SEARCH).map((x) => x.id), ["US:AAPL", "US:APLE"]);
+});
+
+test("搜索：本地就能认出代码、汇率和常用指数的叫法", () => {
+  assert.deepEqual(localCandidates("600519"), ["SH:600519"]);
+  assert.deepEqual(localCandidates("000001"), ["SZ:000001", "SH:000001"]);
+  assert.deepEqual(localCandidates("700"), ["HK:00700"]);
+  assert.deepEqual(localCandidates("nvda"), ["US:NVDA"]);
+  assert.deepEqual(localCandidates("纳斯达克"), ["US:.IXIC"]);
+  assert.deepEqual(localCandidates("恒生科技"), ["HK:HSTECH"]);
+  assert.deepEqual(localCandidates("标普"), ["US:.INX"]);
+  assert.deepEqual(localCandidates("茅台"), []);
+  assert.deepEqual(fxCandidates("澳元"), ["FX:AUDCNY", "FX:AUDCNH"]);
+  assert.deepEqual(fxCandidates("美元 离岸"), ["FX:USDCNH", "FX:USDCNY"]);
+  assert.deepEqual(fxCandidates("离岸人民币"), ["FX:USDCNH", "FX:USDCNY"]);
+  assert.deepEqual(fxCandidates("澳元美元"), ["FX:AUDUSD"]);
+  assert.deepEqual(fxCandidates("aud/cny"), ["FX:AUDCNY"]);
+  assert.deepEqual(fxCandidates("茅台"), []);
+  assert.equal(kindOf("FX:AUDCNY"), "汇率");
+  assert.equal(kindOf("US:.DJI"), "指数");
+  assert.equal(cleanQuery("  茅台 "), "茅台");
+  assert.equal(cleanQuery(""), "");
+  assert.equal(cleanQuery("x".repeat(21)), "");
+});
+
+test("接口·搜索：本地认出的和搜到的合在一起，只返回查得到行情的，名称用行情里的正式名称；搜索词有误给 400", async () => {
+  const { fetcher, seen } = upstream([
+    ["https://smartbox.gtimg.cn/", () => new Response(gbk('v_hint="hk~00700~\\u817e\\u8baf\\u63a7\\u80a1~txkg~GP^hk~80700~\\u817e\\u8baf\\u63a7\\u80a1r~txkgr~GP"'))],
+    ["https://qt.gtimg.cn/", () => new Response(gbk(T.tencentHk))],
+  ]);
+  let res = await call("/api/quotes/search?q=" + encodeURIComponent("腾讯"), { env: {}, token: "", fetcher, now: at("2026-11-16T09:00:00Z") });
+  let data = await res.json();
+  assert.equal(res.status, 200);
+  assert.deepEqual(data.results.map((r) => [r.id, r.name, r.kind, r.quote.price]), [["HK:00700", "腾讯控股", "股票", 380.2]]); // 80700 查不到行情，不给
+  assert.equal(seen.filter((x) => x.url.startsWith("https://smartbox.gtimg.cn/")).length, 1);
+  assert.match(seen.find((x) => x.url.startsWith("https://smartbox.gtimg.cn/")).url, /q=%E8%85%BE%E8%AE%AF/);
+  // 一分钟内同样的搜索不重复去问
+  await call("/api/quotes/search?q=" + encodeURIComponent("腾讯"), { env: {}, token: "", fetcher, now: at("2026-11-16T09:00:30Z") });
+  assert.equal(seen.filter((x) => x.url.startsWith("https://smartbox.gtimg.cn/")).length, 1);
+  res = await call("/api/quotes/search?q=", { env: {}, token: "", fetcher });
+  assert.equal(res.status, 400);
+  // 设了口令时，搜索也要口令
+  res = await call("/api/quotes/search?q=x", { token: "", fetcher });
+  assert.equal(res.status, 401);
+});
+
+test("接口·搜索：腾讯搜索挂了换新浪；输入代码时即使两个都挂了也能直接按代码找到", async () => {
+  const { fetcher } = upstream([
+    ["https://smartbox.gtimg.cn/", new Response("down", { status: 503 })],
+    ["https://suggest3.sinajs.cn/", new Response("down", { status: 503 })],
+    ["https://qt.gtimg.cn/", () => new Response(gbk(T.maotai))],
+  ]);
+  const res = await call("/api/quotes/search?q=600519", { env: {}, token: "", fetcher, now: at("2026-11-16T09:05:00Z") });
+  const data = await res.json();
+  assert.deepEqual(data.results.map((r) => r.id), ["SH:600519"]);
+});

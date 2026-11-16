@@ -93,10 +93,12 @@ files.forEach((rel, i) => {
 const workerModules = fs.readdirSync(path.join(ROOT, "tools/worker")).filter((f) => f.endsWith(".js"));
 for (const f of workerModules) fs.copyFileSync(path.join(ROOT, "tools/worker", f), path.join(OUT, f));
 // 和页面共用的文件：仓库里 tools/worker 下只是"转一下手"，发布时换成原文（包里只有一层目录，引用不到 assets/）
-const SHARED = { "market-ids.js": "assets/js/market/ids.js", "market-hours.js": "assets/js/market/hours.js" };
+// 共用文件之间只允许引用 ./ids.js（改成包里的名字 ./market-ids.js），别的引用一律报错
+const SHARED = { "market-ids.js": "assets/js/market/ids.js", "market-hours.js": "assets/js/market/hours.js", "market-words.js": "assets/js/market/words.js" };
 for (const [name, from] of Object.entries(SHARED)) {
-  const text = fs.readFileSync(path.join(ROOT, from), "utf8");
-  if (/^\s*import\s/m.test(text)) throw new Error(`${from} 不能引用别的文件（发布时它会被单独放进后台的包里）`);
+  const text = fs.readFileSync(path.join(ROOT, from), "utf8").replace(/from "\.\/ids\.js";/g, 'from "./market-ids.js";');
+  const imports = [...text.matchAll(/^\s*import\s[^;]*from\s+"([^"]+)"/gm)].map((m) => m[1]);
+  if (imports.some((x) => x !== "./market-ids.js")) throw new Error(`${from} 只能引用 ./ids.js（发布时它会被单独放进后台的包里）`);
   fs.writeFileSync(path.join(OUT, name), text);
 }
 // 搬走的旧地址（比如以前挂在这个域名下的别的应用）：旧路径前缀 → 新地址

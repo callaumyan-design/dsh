@@ -47,3 +47,11 @@ export function demoQuotes(ids, now = Date.now()) {
   }
   return { quotes, errors, at: now };
 }
+
+/** 演示用的搜索：在上面这张表里按名称或代码找，格式和 /api/quotes/search 一样 */
+export function demoSearch(q, now = Date.now()) {
+  const text = String(q || "").trim().toLowerCase();
+  const ids = Object.keys(TABLE).filter((id) => id.toLowerCase().includes(text) || TABLE[id][0].toLowerCase().includes(text));
+  const { quotes } = demoQuotes(ids, now);
+  return { results: quotes.map((quote) => ({ id: quote.id, name: quote.name, kind: quote.id.startsWith("FX:") ? "汇率" : INDEX.test(quote.id) ? "指数" : "股票", quote })), at: now };
+}

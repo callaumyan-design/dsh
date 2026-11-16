@@ -53,7 +53,7 @@ export function createHandler(files, redirects = {}, build = "") {
     // 在线壁纸：由这里代为去图库取图（见 wallpaper.js）
     if (url.pathname === "/api/wallpaper") return handleWallpaper(request, url);
     // 行情（见 quotes.js）：要访问口令，只给本站页面用
-    if (url.pathname === "/api/quotes" || url.pathname === "/api/quotes/selftest") return handleQuotes(request, url, env, ctx);
+    if (url.pathname === "/api/quotes" || url.pathname === "/api/quotes/search" || url.pathname === "/api/quotes/selftest") return handleQuotes(request, url, env, ctx);
     if (request.method !== "GET" && request.method !== "HEAD") {
       return new Response("Method Not Allowed", { status: 405, headers: { Allow: "GET, HEAD" } });
     }
