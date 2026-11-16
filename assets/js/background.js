@@ -212,10 +212,23 @@ function loadImage(src, cors) {
   return img.decode().then(() => img); // 等图片完全解码好再显示，避免一截一截地出现
 }
 
+/** 背景算上暗度遮罩后的实际亮度。遮罩是按"颜色值"压暗的，换算到亮度上大约是 (1 - 暗度) 的 2.4 次方 */
+const dimmed = (lum, dim) => lum * (1 - dim / 100) ** 2.4;
+
 /** 把亮度（考虑暗度遮罩后）换算成"时钟用白字还是深字" */
 function toneFor(lum, dim) {
-  // 暗度遮罩是按"颜色值"压暗的，换算到亮度上大约是 (1 - 暗度) 的 2.4 次方
-  return lum * (1 - dim / 100) ** 2.4 >= LIGHT_TONE_FROM ? "light" : "dark";
+  return dimmed(lum, dim) >= LIGHT_TONE_FROM ? "light" : "dark";
+}
+
+/**
+ * 搜索框里的文字用白字还是深字：搜索框是半透明的，
+ * 实际看到的底色 = 它自己的底色（浅色主题是白、深色主题是深蓝黑）和透出来的背景按透明度混在一起。
+ */
+function searchToneFor(bgLum, alpha) {
+  const glassLum = root.dataset.theme === "light" ? 1 : 0.008;
+  const gray = (lum) => lum ** (1 / 2.2); // 亮度 → 大致的灰度值，混色要在灰度上算
+  const mixed = (alpha * gray(glassLum) + (1 - alpha) * gray(bgLum)) ** 2.2;
+  return mixed >= LIGHT_TONE_FROM ? "light" : "dark";
 }
 
 function showCss(css) {
@@ -278,13 +291,17 @@ async function apply() {
     view.lum = preset.tone === "light" ? 0.8 : 0.15;
   }
   const tone = toneFor(view.lum, bg.dim);
+  const searchAlpha = 1 - store.get().search.transparency / 100;
+  const searchTone = searchToneFor(dimmed(view.lum, bg.dim), searchAlpha);
 
+  root.style.setProperty("--search-alpha", String(searchAlpha));
+  root.dataset.searchtone = searchTone;
   root.style.setProperty("--blur", bg.blur + "px");
   root.style.setProperty("--dim", String(bg.dim / 100));
   root.style.setProperty("--bg-base", view.color);
   root.dataset.bgtone = tone;
   $('meta[name="theme-color"]')?.setAttribute("content", view.color);
-  writeJSON(CACHE_KEY, { color: view.color, css: view.css || "", tone, blur: bg.blur, dim: bg.dim });
+  writeJSON(CACHE_KEY, { color: view.color, css: view.css || "", tone, blur: bg.blur, dim: bg.dim, searchAlpha, searchTone });
 
   if (view.key === shownKey) return; // 只是调了模糊/暗度，画面内容没变
   shownKey = view.key;
@@ -328,6 +345,8 @@ export function initBackground() {
   }
   apply();
   store.subscribe(apply);
+  // 系统在深色 / 浅色之间切换时，搜索框的底色跟着变，文字颜色要重新判断（等主题先切换完）
+  matchMedia("(prefers-color-scheme: light)").addEventListener("change", () => setTimeout(apply, 0));
 }
 
 /** 现在显示的是哪张图片（设置面板里用来高亮） */

@@ -545,7 +545,9 @@ function build() {
       "theme",
       "palette",
       "外观",
-      segmented("主题", [["system", "跟随系统", "monitor"], ["light", "浅色", "sun"], ["dark", "深色", "moon"]], (s) => s.theme, (v) => store.update((s) => (s.theme = v)))
+      segmented("主题", [["system", "跟随系统", "monitor"], ["light", "浅色", "sun"], ["dark", "深色", "moon"]], (s) => s.theme, (v) => store.update((s) => (s.theme = v))),
+      rangeRow("搜索框透明度", 0, 100, "%", (s) => s.search.transparency, (s, v) => (s.search.transparency = v), 5),
+      h("p", { class: "hint" }, "0% 是完全不透明，100% 是完全透明。里面的文字会自动在白字和深字之间切换，保证看得清。")
     ),
     backgroundSection(),
     textSection(),

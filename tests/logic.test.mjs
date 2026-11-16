@@ -95,6 +95,11 @@ test("设置校验：文字和在线壁纸", () => {
   // 自定义壁纸接口：地址不安全或没填 → 退回默认来源
   assert.equal(normalizeSettings({ bg: { online: { source: "custom", url: "javascript:alert(1)" } } }).bg.online.source, "picsum");
   assert.equal(normalizeSettings({ bg: { online: { every: "weekly" } } }).bg.online.every, "open");
+  // 搜索框透明度：默认半透明，范围 0~100
+  assert.equal(d.search.transparency, 50);
+  assert.equal(normalizeSettings({ search: { transparency: 250 } }).search.transparency, 100);
+  assert.equal(normalizeSettings({ search: { transparency: -3 } }).search.transparency, 0);
+  assert.equal(normalizeSettings({ search: { transparency: "x" } }).search.transparency, 50);
 });
 
 test("导航：合并默认入口和本地改动", () => {

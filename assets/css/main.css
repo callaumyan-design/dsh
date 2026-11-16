@@ -44,6 +44,7 @@
   color-scheme: dark;
   --glass: rgb(17 22 34 / 0.8);
   --glass-strong: rgb(17 22 34 / 0.94);
+  --glass-rgb: 17 22 34; /* 搜索框的底色（透明度单独控制） */
   --panel: #131a27;
   --panel-2: #1c2536;
   --field: #0e1420;
@@ -65,6 +66,7 @@
   color-scheme: light;
   --glass: rgb(255 255 255 / 0.82);
   --glass-strong: rgb(255 255 255 / 0.95);
+  --glass-rgb: 255 255 255;
   --panel: #ffffff;
   --panel-2: #f1f5f9;
   --field: #ffffff;
@@ -90,6 +92,29 @@
 :root[data-bgtone="light"] {
   --on-bg: #0b1220;
   --on-bg-shadow: 0 1px 1px rgb(255 255 255 / 0.7), 0 0 22px rgb(255 255 255 / 0.6);
+}
+
+/* 搜索框是半透明的（透明度可在设置里调），里面的文字用白字还是深字，
+   要看"底色 + 透出来的背景"合起来偏暗还是偏亮 —— 由 background.js 判断后写到 data-searchtone 上 */
+:root {
+  --search-alpha: 0.5; /* 搜索框底色的不透明度：1 = 完全不透明，0 = 完全透明 */
+}
+:root,
+:root[data-searchtone="dark"] {
+  --sb-text: #ffffff;
+  --sb-text-2: rgb(255 255 255 / 0.86);
+  --sb-mark-bg: rgb(255 255 255 / 0.22);
+  --sb-mark-fg: #ffffff;
+  --sb-hover: rgb(255 255 255 / 0.16);
+  --sb-shadow: 0 1px 2px rgb(0 0 0 / 0.5);
+}
+:root[data-searchtone="light"] {
+  --sb-text: #0f172a;
+  --sb-text-2: #334155;
+  --sb-mark-bg: rgb(15 23 42 / 0.12);
+  --sb-mark-fg: #1e3a8a;
+  --sb-hover: rgb(15 23 42 / 0.08);
+  --sb-shadow: none;
 }
 
 /* ---------- 2. 基础 ---------- */
@@ -336,6 +361,7 @@ main {
   padding: 0 7px;
   border-radius: 29px;
   box-shadow: var(--shadow);
+  background: rgb(var(--glass-rgb) / var(--search-alpha)); /* 半透明：透明度由设置里的滑块决定 */
 }
 .search-box:focus-within {
   border-color: var(--border-strong);
@@ -368,7 +394,7 @@ main {
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  color: var(--text-2);
+  color: var(--sb-text-2);
 }
 /* 左边的引擎标记：带一个小箭头，提示可以点开切换 */
 .engine-badge {
@@ -379,7 +405,7 @@ main {
   height: 44px;
   padding: 0 5px 0 7px;
   border-radius: 22px;
-  color: var(--text-3);
+  color: var(--sb-text-2);
 }
 .badge-caret {
   width: 14px;
@@ -387,7 +413,7 @@ main {
 }
 .engine-badge:hover,
 .search-clear:hover {
-  background: var(--hover);
+  background: var(--sb-hover);
 }
 
 .badge-mark {
@@ -396,8 +422,8 @@ main {
   width: 30px;
   height: 30px;
   border-radius: 50%;
-  background: var(--accent-soft);
-  color: var(--accent-fg);
+  background: var(--sb-mark-bg);
+  color: var(--sb-mark-fg);
   font-size: calc(14px * var(--fs));
   font-weight: var(--fw-heavy);
 }
@@ -420,10 +446,11 @@ main {
   box-shadow: none;
   background: none;
   font-size: max(16px, calc(17px * var(--fs))); /* 不小于 16px，iPhone 点输入框时不会自动放大页面 */
-  color: var(--text);
+  color: var(--sb-text);
+  text-shadow: var(--sb-shadow);
 }
 .search-box input::placeholder {
-  color: var(--text-3);
+  color: var(--sb-text-2);
   opacity: 1;
 }
 
@@ -616,62 +643,84 @@ main {
   margin-top: 0;
 }
 
+/* 应用栏：没有底板，图标直接摆在背景上，全部排成一行 */
 .dock {
-  width: fit-content;
-  max-width: 100%;
-  margin: 0 auto;
-  padding: 12px 14px 10px;
-  border-radius: 28px;
+  width: 100%;
 }
 .dock .nav-group + .nav-group {
-  margin-top: 6px;
+  margin-top: 4px;
 }
 .dock .group-title {
   display: block;
-  margin: 2px 8px 4px;
+  margin: 2px 0 2px;
   padding: 0;
+  text-align: center;
   font-size: calc(12px * var(--fs));
-  color: var(--text-3);
+  color: var(--on-bg);
+  text-shadow: var(--on-bg-shadow);
 }
 .app-grid {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 4px;
+  flex-wrap: nowrap; /* 不换行：放不下时每个格子先收窄，再不够就可以左右滑动 */
+  gap: 2px;
   margin: 0;
-  padding: 0;
+  padding: 4px 0 2px;
   list-style: none;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+.app-grid::-webkit-scrollbar {
+  display: none;
+}
+.app-grid > li {
+  flex: 1 1 72px;
+  min-width: 54px;
+  max-width: 76px;
+}
+/* 两头用自动留白：一行放得下时整体居中，放不下时可以从最左边开始滑 */
+.app-grid > li:first-child {
+  margin-left: auto;
+}
+.app-grid > li:last-child {
+  margin-right: auto;
 }
 .app {
   position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  width: 78px;
-  padding: 6px 2px 4px;
-  border-radius: 18px;
-  color: var(--text);
+  gap: 5px;
+  padding: 5px 1px 3px;
+  border-radius: 16px;
+  /* 名字直接压在背景上：和时钟一样，背景偏暗用白字、偏亮用深字 */
+  color: var(--on-bg);
+  text-shadow: var(--on-bg-shadow);
   text-decoration: none;
 }
 .app-icon {
   display: grid;
   place-items: center;
-  width: 54px;
-  height: 54px;
-  border-radius: 15px;
+  width: 46px;
+  height: 46px;
+  border-radius: 13px;
   background: var(--accent-soft);
   color: var(--accent-fg);
-  font-size: 24px;
+  font-size: 21px;
   font-weight: var(--fw-heavy);
   line-height: 1;
+  text-shadow: none;
   overflow: hidden;
-  box-shadow: 0 2px 8px rgb(0 0 0 / 0.18);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.22);
   transition: transform 0.15s;
 }
+/* 没指定底色的图标（比如自己加的入口）：没有底板垫着，所以用不透明的底色 */
+.app-icon:not([style]) {
+  background: var(--panel);
+}
 .app-icon svg.icon {
-  width: 26px;
-  height: 26px;
+  width: 22px;
+  height: 22px;
 }
 .app-icon img {
   width: 100%;
@@ -683,41 +732,33 @@ main {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: calc(12.5px * var(--fs));
+  font-size: calc(12px * var(--fs));
   line-height: 1.3;
-}
-/* 手机上把每个图标的格子收窄一点，让五个图标刚好排成一行 */
-@media (max-width: 430px) {
-  .app {
-    width: calc((100vw - 82px) / 5);
-    min-width: 54px;
-    max-width: 78px;
-  }
 }
 @media (hover: hover) {
   .app:hover .app-icon {
-    transform: translateY(-3px) scale(1.04);
+    transform: translateY(-3px) scale(1.05);
   }
 }
 .app:active .app-icon {
   transform: scale(0.94);
 }
-/* 状态小圆点：在图标的右上角，外面一圈底色把它和图标隔开 */
+/* 状态小圆点：在图标的右上角，外面一圈白边把它和图标、背景隔开 */
 .app .status {
-  top: 2px;
-  right: 8px;
+  top: 1px;
+  right: calc(50% - 28px);
   width: 8px;
   height: 8px;
   box-sizing: content-box;
-  border: 2px solid var(--panel);
-  box-shadow: none;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 2px rgb(0 0 0 / 0.35);
 }
 .app .status[data-state="unknown"] {
   width: 4px;
   height: 4px;
-  border: 2px solid var(--text-3);
-  background: var(--panel);
-  outline: 2px solid var(--panel);
+  border: 2px solid #64748b;
+  background: #ffffff;
+  outline: 2px solid #ffffff;
 }
 .nav-group + .nav-group {
   margin-top: 22px;
@@ -1355,6 +1396,9 @@ input[type="color"] {
 }
 .range-row {
   margin-bottom: 10px;
+}
+.segmented + .range-row {
+  margin-top: 16px;
 }
 .range-row .range-head {
   display: flex;

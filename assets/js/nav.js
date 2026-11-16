@@ -131,8 +131,8 @@ export function render() {
         : h("ul", { class: "app-grid", dataset: { group: group.name } }, group.items.map(renderApp))
     )
   );
-  // 平时所有图标装在一个毛玻璃底座里；编辑模式是普通的列表
-  root.replaceChildren(...(editor ? [editor.bar, ...sections] : sections.length ? [h("div", { class: "dock glass" }, sections)] : []));
+  // 平时图标直接摆在背景上、排成一行；编辑模式是普通的列表
+  root.replaceChildren(...(editor ? [editor.bar, ...sections] : sections.length ? [h("div", { class: "dock" }, sections)] : []));
   // 一个入口都没有时，导航区（和"跳到功能导航"的快捷链接）整个不显示，页面保持干净
   const empty = !editor && !sections.length;
   root.hidden = empty;

@@ -80,6 +80,7 @@ export function defaultSettings() {
       last: "", // 上次用的引擎
       history: true, // 记录本地搜索历史
       tabSwitch: true, // 在搜索框里按 Tab 切换引擎
+      transparency: 50, // 搜索框透明度 %：0 = 完全不透明，100 = 完全透明
       custom: [], // 自定义引擎 [{id, name, url, bang}]
     },
     widgets: { clock: true },
@@ -133,6 +134,7 @@ export function normalizeSettings(raw) {
     last: str(s.last, 40),
     history: bool(s.history, d.search.history),
     tabSwitch: bool(s.tabSwitch, d.search.tabSwitch),
+    transparency: Math.round(num(s.transparency, 0, 100, d.search.transparency)),
     custom,
   };
 
