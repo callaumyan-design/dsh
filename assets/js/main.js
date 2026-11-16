@@ -6,6 +6,7 @@ import { initClock } from "./widgets.js";
 import { initTypography } from "./typography.js";
 import { initSearch, openUrl } from "./search.js";
 import { initNav } from "./nav.js";
+import { initMarketTrigger } from "./market/trigger.js";
 import { aiMode, catgptUrl } from "./ai/link.js";
 import { $, h, toast, isFramed, BUILD } from "./ui.js";
 
@@ -65,6 +66,9 @@ const search = initSearch({
   },
   onAddEngine: () => openSettings("search"),
 });
+
+// ---------- 行情卡片：轻点页面空白处（或按 M）打开，卡片本身用到时才加载 ----------
+initMarketTrigger();
 
 // ---------- 导航 ----------
 // 配置文件单独加载：万一里面有笔误，也只影响导航，搜索等功能照常可用

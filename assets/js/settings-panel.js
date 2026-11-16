@@ -1,7 +1,7 @@
 // 设置面板（右上角齿轮）：背景、搜索、链接、主题、小组件、数据导出/导入/恢复默认。
 // 所有改动立刻生效，并保存在浏览器本地。
 import { BACKGROUND_PRESETS, AI } from "../../config/site.js";
-import { store, safeTemplate, safeUrl, uid, defaultSettings } from "./store.js";
+import { store, safeTemplate, safeUrl, uid, defaultSettings, removeKey } from "./store.js";
 import { addUploads, addImageUrl, removeImage, selectImage, shownImageId, shuffleBackground, thumbFor, nextOnlineWallpaper, ONLINE_SOURCES, onCredit } from "./background.js";
 import { FONT_CHOICES, WEIGHT_NAMES } from "./typography.js";
 import { listEngines } from "./engines.js";
@@ -10,6 +10,7 @@ import { buildExport, applyImport, pruneImages } from "./backup.js";
 import { aiAuth } from "./ai/auth.js";
 import { userApi } from "./ai/api.js";
 import { AI_PRESETS, testApi, fetchModels } from "./ai/api-tools.js";
+import { quotesAuth } from "./market/auth.js";
 import { h, icon, iconButton, toast, openDialog, confirmDialog, downloadText } from "./ui.js";
 
 let dialog = null;
@@ -453,7 +454,7 @@ function searchSection() {
     switchRow("按 Tab 切换引擎", "在搜索框里按 Tab 换引擎，按 Esc 离开搜索框", (s) => s.search.tabSwitch, (s, v) => (s.search.tabSwitch = v)),
     switchRow("记录搜索历史", "只保存在这台设备上，不会上传", (s) => s.search.history, (s, v) => (s.search.history = v)),
     h("div", { class: "btn-row" }, clearBtn),
-    h("p", { class: "hint" }, "快捷键：按 / 聚焦搜索框，Enter 搜索。输入“!g 关键词”直接用 Google 搜，“!b”Bing，“!bd”百度，“!d”DuckDuckGo，“!ai 问题”直接问 AI。"),
+    h("p", { class: "hint" }, "快捷键：按 / 聚焦搜索框，Enter 搜索。输入“!g 关键词”直接用 Google 搜，“!b”Bing，“!bd”百度，“!d”DuckDuckGo，“!ai 问题”直接问 AI。按 M 打开行情卡片（焦点不在输入框时）。"),
     h("h4", { class: "field-label" }, "自定义搜索引擎"),
     list,
     form
@@ -620,6 +621,46 @@ function aiSection() {
   );
 }
 
+// ---------- 行情卡片 ----------
+function marketSection() {
+  const tokenStatus = h("p", { class: "hint" });
+  const clearToken = h(
+    "button",
+    {
+      type: "button",
+      class: "btn",
+      onclick: () => {
+        quotesAuth.clear();
+        toast("已清除行情访问口令");
+        refresh();
+      },
+    },
+    "清除访问口令"
+  );
+  syncers.push(() => {
+    const days = quotesAuth.daysLeft();
+    tokenStatus.textContent = days ? `访问口令已保存在本机，还有 ${days} 天到期。` : "还没有保存访问口令：第一次打开卡片时会请你输入。";
+    clearToken.hidden = !days;
+  });
+  return section(
+    "market",
+    "trending-up",
+    "行情",
+    switchRow("启用行情卡片", "轻点页面空白处打开；电脑上焦点不在输入框时按 M", (s) => s.market.enabled, (s, v) => (s.market.enabled = v)),
+    selectRow("涨跌颜色", null, () => [["red-up", "红涨绿跌"], ["green-up", "绿涨红跌"]], (s) => s.market.colors, (s, v) => (s.market.colors = v)),
+    selectRow(
+      "自动刷新",
+      "卡片开着、页面在前台时才刷新；关注的市场都休市时最多 30 分钟一次",
+      () => [["1", "每 1 分钟"], ["5", "每 5 分钟"], ["15", "每 15 分钟"]],
+      (s) => String(s.market.refresh),
+      (s, v) => (s.market.refresh = Number(v))
+    ),
+    h("p", { class: "hint" }, "关注列表在卡片里点铅笔编辑，只保存在这台设备的浏览器里，“导出设置”会带上它。行情由本站后台代取，部分是延时行情，卡片上会标出。"),
+    tokenStatus,
+    h("div", { class: "btn-row" }, clearToken)
+  );
+}
+
 // ---------- 数据 ----------
 function dataSection() {
   const withImages = h("input", { type: "checkbox", id: "export-images", role: "switch", checked: true });
@@ -635,7 +676,7 @@ function dataSection() {
           const data = await buildExport(withImages.checked);
           // 文件名只用英文和数字，避免个别系统把中文文件名弄乱
           downloadText(`start-page-settings-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(data));
-          toast("已导出。搜索历史、AI 的 API Key 和访问密码不会包含在文件里");
+          toast("已导出。搜索历史、AI 的 API Key 和访问密码、行情访问口令不会包含在文件里");
         } catch {
           toast("导出失败，请重试");
         }
@@ -676,12 +717,14 @@ function dataSection() {
       onclick: async () => {
         const ok = await confirmDialog({
           title: "恢复默认设置？",
-          message: "所有设置回到初始状态，上传的背景图片、搜索历史和填写的 AI 接口（含 API Key）会被删除。导航的改动不受影响（在编辑模式里单独恢复）。",
+          message: "所有设置回到初始状态，上传的背景图片、搜索历史、填写的 AI 接口（含 API Key）、行情关注列表和访问口令会被删除。导航的改动不受影响（在编辑模式里单独恢复）。",
           okText: "恢复默认",
           danger: true,
         });
         if (!ok) return;
         userApi.clear(); // 先清掉，下面换设置时界面会跟着刷新
+        quotesAuth.clear();
+        removeKey("sp:quotes-cache");
         store.replace(null);
         searchHistory.clear();
         await pruneImages();
@@ -731,6 +774,7 @@ function build() {
       )
     ),
     section("widgets", "layout-dashboard", "小组件", switchRow("时间、日期和问候语", null, (s) => s.widgets.clock, (s, v) => (s.widgets.clock = v))),
+    marketSection(),
     aiSection(),
     dataSection(),
     h("p", { class: "hint panel-foot" }, h("a", { href: "about/index.html" }, "关于本站"))

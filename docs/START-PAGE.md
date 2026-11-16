@@ -17,6 +17,7 @@
 | /about 页面 | `about/index.html`（README 改了要手动同步这里） |
 | Duo 报告、UQ 校历的副本 | `duo/`、`uq/`（用 `tools/refresh-apps.sh` 更新，不要手改） |
 | 发布到 Cloudflare | `tools/deploy-cloudflare.mjs`、`tools/worker/handler.js` |
+| 行情卡片 | 页面：`assets/js/market/`、`assets/css/market.css`；后台：`tools/worker/quotes.js`、`quote-sources.js`（见下面“行情卡片”） |
 
 ## 新增一个导航入口
 
@@ -147,6 +148,53 @@
    用账号默认的模型回答，按 SSE（OpenAI 兼容格式）流式返回；没带凭证返回 `401`，太频繁返回 `429`。
 2. 跨域白名单：`Access-Control-Allow-Origin: <起始页域名>`，`Access-Control-Allow-Headers: Content-Type, Authorization`，
    并正确回应 `OPTIONS` 预检请求。如果起始页和 CatGPT 部署在同一个域名下，就不需要这一条。
+
+## 行情卡片（隐藏的）
+
+主界面上没有入口：**轻点页面空白处**（背景本身；按钮、输入框、时钟、搜索框、导航那一排都不算），
+或者在电脑上焦点不在输入框时**按 M**，壁纸雾化、卡片出现在屏幕中间。点卡片外面、按 Esc 或点 × 收起。
+
+- 规则：引擎菜单、搜索历史开着时，第一下只关掉它们；手机键盘弹着时，第一下只收起键盘；导航编辑模式下不响应；
+  设置 → 行情 里关掉“启用行情卡片”后完全不响应。
+- 内容：按 A 股、港股、美股、汇率分组，每组标题是市场状态（按交易所时区算，夏令时自动处理；
+  交易时段里最新成交不是今天就显示“休市”，不写死节假日）。底部是更新时间、“延时”标记、刷新和编辑按钮。
+- 关注列表：卡片里点铅笔编辑（添加、删除、上下移动），只存在浏览器里，“导出设置”会带上它。
+  代码统一写成 `SH:600519`、`SZ:000001`、`BJ:920118`、`HK:00700`、`HK:HSI`、`US:NVDA`、`US:.IXIC`、`FX:AUDCNY`（CNY 在岸，CNH 离岸）。
+- 刷新：打开时先显示上次的数据，同时去拿新的；卡片开着、页面在前台时按设置每 1 / 5 / 15 分钟刷新，
+  关注的市场都不在交易时最多 30 分钟一次；收起或切到后台就停。
+- 演示：网址后面加 `?demo=quotes`（如 `https://callaum.com/?demo=quotes`），不连后台，卡片上标“演示数据”。
+
+### 后台接口 `/api/quotes`
+
+代码在 `tools/worker/quotes.js`（接口、缓存、自检）和 `tools/worker/quote-sources.js`（各数据源的解析）。
+代码格式和交易时间的规则在 `assets/js/market/ids.js`、`hours.js`，页面和后台共用（发布时会打进后台的包里）。
+
+| 市场 | 主数据源 | 备用 |
+| --- | --- | --- |
+| A 股、港股、各种指数 | 腾讯（不用 Key） | 新浪（必须带 Referer，只能在后台调） |
+| 美股个股 | Finnhub（要 `FINNHUB_KEY`，免费档每分钟 60 次） | 腾讯 → 新浪 |
+| 汇率 | Twelve Data（要 `TWELVEDATA_KEY`，免费档每分钟 8 次、每天 800 次，按代码计） | 新浪外汇（实时，有离岸 CNH）→ 欧洲央行参考价 Frankfurter（每天一次，没有 CNH） |
+
+- 腾讯、新浪是非官方接口，格式随时可能变。解析时会核对代码、核对“涨跌额 / 涨跌幅”和“现价 − 昨收”对不对得上，
+  对不上就当作取不到（那一行变灰、写明暂时取不到），绝不显示可能错位的数字。
+- 哪些行情算“延时”写在 `quote-sources.js` 的 `DELAYED` 里（港股、腾讯和新浪的美股先按延时标）。用自检核对后可以改。
+- 美股盘前盘后价：只有新浪给，而且要和常规价核对得上才显示；拿不到就不显示。
+- 缓存：同一个代码交易时 1 分钟、休市收盘时 15 分钟、参考价 1 小时内不重复去取。先看服务器内存，
+  再看 Cloudflare 的缓存（只在 callaum.com 这类自己的域名上起作用，workers.dev 上自动跳过）。**请用 callaum.com 打开起始页。**
+- 一次最多 40 个代码；每个代码先按格式核对才会拼进上游地址；不开跨域；每次请求上游 5 秒超时。
+
+### 第一次启用要做的事
+
+1. 申请两个免费 Key（可选，不填也能用，只是美股改走腾讯、汇率改走新浪 / 参考价）：
+   - Finnhub：在 finnhub.io 注册，Dashboard 里能看到 API Key；
+   - Twelve Data：在 twelvedata.com 注册，Dashboard → API Keys。
+2. 在 Cloudflare 后台：Workers & Pages → `start-page` → Settings → Variables and Secrets → Add，类型选 **Secret**，添加：
+   - `QUOTES_TOKEN`：自己编的访问口令（24 位以上随机字符，必填）；
+   - `FINNHUB_KEY`、`TWELVEDATA_KEY`：上面的两个 Key。
+   最后点 Deploy。之后用 `node tools/deploy-cloudflare.mjs` 发布新版本时，这些密钥会保留（发布脚本带了 `keep_bindings`）。
+3. 手机打开 `https://callaum.com/api/quotes/selftest`，输入口令，看各数据源是不是“正常”，可以展开看原始返回。
+4. 轻点起始页空白处，第一次会请你输入口令，之后在这台设备上记住（天数同 `config/site.js` 里的 `passwordDays`）。
+   口令不会被“导出设置”带走；“恢复默认”会把它和关注列表一起清掉。
 
 ## 五个应用在哪
 

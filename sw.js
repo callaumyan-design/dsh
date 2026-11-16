@@ -5,9 +5,9 @@
 //   2. 样式、脚本、配置——线上的地址前面带着版本号（v/版本号/…，见 tools/deploy-cloudflare.mjs）。
 //      同一个地址的内容永远不变，所以"存过就直接用"；发了新版，首页里的地址跟着变，自然会去取新的。
 //      （在本机预览、或者放在没有版本号的地方时，这类文件也按"网络优先"处理。）
-// 其他一律不经手：站外请求（搜索引擎、壁纸、AI 接口），
+// 其他一律不经手：站外请求（搜索引擎、壁纸、AI 接口）、本站的接口（/api/…，比如行情），
 // 以及同一个域名下别的应用（如 /duo/、/uq/）的页面和接口。
-const CACHE = "start-page-v6";
+const CACHE = "start-page-v7";
 
 // 页面本身：安装时预先存好
 const PAGES = [
@@ -46,6 +46,13 @@ const FILES = [
   "assets/js/backup.js",
   "assets/js/settings-panel.js",
   "assets/js/ai/link.js",
+  "assets/js/market/ids.js",
+  "assets/js/market/hours.js",
+  "assets/js/market/trigger.js",
+  "assets/js/market/auth.js",
+  "assets/js/market/card.js",
+  "assets/js/market/demo.js",
+  "assets/css/market.css",
   "assets/js/ai/api.js",
   "assets/js/ai/api-tools.js",
   "assets/js/ai/auth.js",

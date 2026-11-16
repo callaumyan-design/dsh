@@ -1,5 +1,6 @@
 // 设置的读取、保存和校验。所有设置都只存在浏览器本地（localStorage）。
 import { BACKGROUND_PRESETS, DEFAULT_BACKGROUND } from "../../config/site.js";
+import { normalizeId, DEFAULT_WATCHLIST, MAX_IDS } from "./market/ids.js";
 
 const SETTINGS_KEY = "sp:settings";
 
@@ -84,6 +85,13 @@ export function defaultSettings() {
       custom: [], // 自定义引擎 [{id, name, url, bang}]
     },
     widgets: { clock: true },
+    // 行情卡片（轻点页面空白处打开）：关注列表只存在这台设备的浏览器里，会跟着"导出设置"一起导出
+    market: {
+      enabled: true, // 关掉后点空白处没有任何反应
+      colors: "red-up", // red-up 红涨绿跌 | green-up 绿涨红跌
+      refresh: 5, // 卡片开着时多少分钟刷新一次：1 | 5 | 15
+      list: DEFAULT_WATCHLIST.map((x) => ({ ...x })), // [{ id: "SH:600519", name: "贵州茅台" }]
+    },
     // 文字：字体、字号、粗细，以及时钟单独的大小和粗细
     font: {
       family: "system", // system | serif | kai | round | mono | custom
@@ -139,6 +147,23 @@ export function normalizeSettings(raw) {
   };
 
   out.widgets = { clock: bool(isObj(raw.widgets) ? raw.widgets.clock : undefined, d.widgets.clock) };
+
+  const mk = isObj(raw.market) ? raw.market : {};
+  const list = [];
+  const listed = new Set();
+  // 没有这一项（比如旧版导出的文件）就用示例；有但是空的，说明是自己删光的，保持为空
+  for (const item of Array.isArray(mk.list) ? mk.list.slice(0, MAX_IDS * 2) : d.market.list) {
+    const id = normalizeId(isObj(item) ? item.id : "");
+    if (!id || listed.has(id) || list.length >= MAX_IDS) continue;
+    listed.add(id);
+    list.push({ id, name: str(item.name, 40).trim() });
+  }
+  out.market = {
+    enabled: bool(mk.enabled, d.market.enabled),
+    colors: oneOf(mk.colors, ["red-up", "green-up"], d.market.colors),
+    refresh: oneOf(Number(mk.refresh), [1, 5, 15], d.market.refresh),
+    list,
+  };
 
   const f = isObj(raw.font) ? raw.font : {};
   const step100 = (v, min, max, dflt) => Math.round(num(v, min, max, dflt) / 100) * 100;

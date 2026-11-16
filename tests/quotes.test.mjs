@@ -119,6 +119,9 @@ const at = (iso) => Date.parse(iso);
 test("交易时间：A 股、港股的各个时段（按交易所时区）", () => {
   // 2026-11-16 是星期一。北京时间 = UTC+8
   assert.equal(marketStatus("A", at("2026-11-16T01:20:00Z")), "pre"); // 9:20 集合竞价
+  assert.equal(marketStatus("A", at("2026-11-16T00:00:00Z")), "closed"); // 8:00 还没到竞价时间
+  assert.equal(marketStatus("HK", at("2026-11-16T01:10:00Z")), "pre"); // 9:10 开市前时段
+  assert.equal(marketStatus("HK", at("2026-11-15T23:30:00Z")), "closed"); // UTC 周日 23:30 = 香港周一 7:30，还没开市
   assert.equal(marketStatus("A", at("2026-11-16T02:00:00Z")), "open"); // 10:00
   assert.equal(marketStatus("A", at("2026-11-16T03:45:00Z")), "lunch"); // 11:45
   assert.equal(marketStatus("A", at("2026-11-16T06:00:00Z")), "open"); // 14:00
