@@ -1,17 +1,13 @@
-<!-- CatGPT：一个长着猫耳朵的对话气泡。白色图形，底是透明的：主页上由网页垫一块毛玻璃。 -->
+<!-- CatGPT：一个长着猫耳朵的对话气泡。白色图形，底是透明的：主页上由网页垫一块毛玻璃。
+     不要给它加 filter（投影、模糊）或 mask：iPhone 的 Safari 会把带这些效果的 svg 图片按低分辨率画，图标会糊。 -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
-  <defs>
-    <filter id="sh" x="-20%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="2.5" stdDeviation="2.6" flood-color="#000" flood-opacity=".24"/></filter>
-  </defs>
-  <g filter="url(#sh)">
-    <g fill="#fff" stroke="#fff" stroke-width="5" stroke-linejoin="round">
-      <path d="M31 50 L33 27 L53 40 Z"/>
-      <path d="M89 50 L87 27 L67 40 Z"/>
-    </g>
-    <rect x="24" y="37" width="72" height="50" rx="23" fill="#fff"/>
-    <path d="M38 82 L32 99 L55 86 Z" fill="#fff" stroke="#fff" stroke-width="3" stroke-linejoin="round"/>
-    <ellipse cx="46" cy="60" rx="4.6" ry="6.6" fill="rgba(15,23,42,.55)"/>
-    <ellipse cx="74" cy="60" rx="4.6" ry="6.6" fill="rgba(15,23,42,.55)"/>
-    <path d="M55.5 70.5 q4.5 4.6 9 0" fill="none" stroke="rgba(15,23,42,.55)" stroke-width="3.2" stroke-linecap="round"/>
+  <g fill="#fff" stroke="#fff" stroke-width="5" stroke-linejoin="round">
+    <path d="M31 50 L33 27 L53 40 Z"/>
+    <path d="M89 50 L87 27 L67 40 Z"/>
   </g>
+  <rect x="24" y="37" width="72" height="50" rx="23" fill="#fff"/>
+  <path d="M38 82 L32 99 L55 86 Z" fill="#fff" stroke="#fff" stroke-width="3" stroke-linejoin="round"/>
+  <ellipse cx="46" cy="60" rx="4.6" ry="6.6" fill="#0f172a" fill-opacity=".55"/>
+  <ellipse cx="74" cy="60" rx="4.6" ry="6.6" fill="#0f172a" fill-opacity=".55"/>
+  <path d="M55.5 70.5 q4.5 4.6 9 0" fill="none" stroke="#0f172a" stroke-opacity=".55" stroke-width="3.2" stroke-linecap="round"/>
 </svg>

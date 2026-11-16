@@ -5,6 +5,12 @@ const SVG_NS = "http://www.w3.org/2000/svg";
 
 export const $ = (sel, root = document) => root.querySelector(sel);
 
+/** 这一版的版本号（发布到线上时写进首页）。本机预览时是 "dev"，这里当作没有，返回空 */
+export const BUILD = (() => {
+  const value = document.querySelector('meta[name="build"]')?.content || "";
+  return /^[A-Za-z0-9]{1,40}$/.test(value) && value !== "dev" ? value : "";
+})();
+
 /**
  * 创建元素。用法：h("button", { class: "btn", onclick: fn }, "文字")
  * 文字一律按纯文本插入，不会被当成 HTML 执行。

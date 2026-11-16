@@ -7,7 +7,7 @@
 //      （在本机预览、或者放在没有版本号的地方时，这类文件也按"网络优先"处理。）
 // 其他一律不经手：站外请求（搜索引擎、壁纸、AI 接口），
 // 以及同一个域名下别的应用（如 /duo/、/uq/）的页面和接口。
-const CACHE = "start-page-v5";
+const CACHE = "start-page-v6";
 
 // 页面本身：安装时预先存好
 const PAGES = [
@@ -160,7 +160,8 @@ async function networkFirst(request) {
     if (response.ok && response.type === "basic") cache.put(request, response.clone());
     return response;
   } catch (error) {
-    const cached = await cache.match(request, { ignoreSearch: request.mode === "navigate" });
+    // 起始页自己的文件不看问号后面的部分（比如图标地址后面的 ?v=版本号），断网时有存过的就用
+    const cached = await cache.match(request, { ignoreSearch: true });
     if (cached) return cached;
     throw error;
   }

@@ -7,7 +7,7 @@ import { initTypography } from "./typography.js";
 import { initSearch, openUrl } from "./search.js";
 import { initNav } from "./nav.js";
 import { aiMode, catgptUrl } from "./ai/link.js";
-import { $, h, toast, isFramed } from "./ui.js";
+import { $, h, toast, isFramed, BUILD } from "./ui.js";
 
 const root = document.documentElement;
 
@@ -81,8 +81,7 @@ import("../../config/nav.js")
 // ---------- 发现有新版本就自动刷新一次 ----------
 // 首页里写着自己的版本号（发布时写入）。页面可能是很久以前打开、一直留在后台的，
 // 也可能是浏览器从缓存里恢复出来的旧页面：这时问一下服务器现在是哪一版，不一样就重新加载。
-const BUILD = $('meta[name="build"]')?.content || "";
-const hasBuild = /^[A-Za-z0-9]{1,40}$/.test(BUILD) && BUILD !== "dev"; // 本机预览时是 "dev"，不检查
+const hasBuild = !!BUILD; // 本机预览时没有版本号，不检查
 let lastBuildCheck = 0;
 
 async function checkForNewBuild() {

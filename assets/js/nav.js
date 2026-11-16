@@ -3,7 +3,7 @@
 // 默认入口来自 config/nav.js；用户在编辑模式里的改动存在浏览器本地，两者合并显示。
 import { store, readJSON, writeJSON, removeKey, safeUrl } from "./store.js";
 import { buildGroups, normalizeNavState } from "./nav-model.js";
-import { $, h, icon, hasIcon, isFramed } from "./ui.js";
+import { $, h, icon, hasIcon, isFramed, BUILD } from "./ui.js";
 
 const NAV_KEY = "sp:nav";
 
@@ -34,6 +34,15 @@ export function groupNames() {
 
 // ---------- 图标 ----------
 /** 入口图标：本地图标库的名字 / 图片地址 / 一个表情或一两个字 / 都没有就用名称首字 */
+/**
+ * 本站自己的图片（相对路径）在地址后面带上版本号：图标换了新的，手机就不会再用缓存里的旧图。
+ * 站外的图片、本机预览（没有版本号）时原样返回。
+ */
+function withBuild(src) {
+  if (!src || !BUILD || /^[a-z][a-z0-9+.-]*:|^\/\//i.test(src)) return src;
+  return src + (src.includes("?") ? "&" : "?") + "v=" + BUILD;
+}
+
 export function entryIcon(entry, cls = "card-icon") {
   const box = h("span", { class: cls, "aria-hidden": "true" });
   // 指定了底色的入口：底色用它，图标用白色
@@ -46,7 +55,7 @@ export function entryIcon(entry, cls = "card-icon") {
   if (hasIcon(value)) {
     box.append(icon(value));
   } else if (/[/.]|^data:image\//.test(value)) {
-    const src = /^data:image\/(png|jpeg|webp|gif);base64,/.test(value) ? value : safeUrl(value, { allowRelative: true });
+    const src = /^data:image\/(png|jpeg|webp|gif);base64,/.test(value) ? value : withBuild(safeUrl(value, { allowRelative: true }));
     if (src) {
       const img = h("img", { src, alt: "", loading: "lazy", decoding: "async" });
       img.addEventListener("error", () => {
