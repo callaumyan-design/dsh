@@ -285,9 +285,9 @@ async function run({ typedPassword } = {}) {
   }
 
   // 自己填的接口：带上自己的 API Key。catgpt：带上它的访问密码（如果有）
-  const mine = setup.source === "user";
-  const saved = mine ? "" : aiAuth.get();
-  const password = mine ? setup.key : typedPassword || saved;
+  const own = setup.source === "user";
+  const saved = own ? "" : aiAuth.get();
+  const password = own ? setup.key : typedPassword || saved;
   const answer = addAnswer();
   let text = "";
   setBusy(true);
@@ -309,7 +309,7 @@ async function run({ typedPassword } = {}) {
       },
     });
     if (id !== runId) return; // 期间用户开了新对话，这次的结果作废
-    if (typedPassword && !mine) aiAuth.save(typedPassword); // 新密码验证通过了才记住
+    if (typedPassword && !own) aiAuth.save(typedPassword); // 新密码验证通过了才记住
     messages.push({ role: "assistant", content: text });
     answer.finish(text);
     liveEl.textContent = "回答完成";

@@ -80,6 +80,8 @@ export async function testApi({ url, key, model }) {
     const withV1 = url.replace(/\/+$/, "") + "/v1";
     const retry = await request(chatEndpoint(withV1), key, postJson(testBody(model))).catch(() => null);
     if (retry?.ok) return withV1;
+    // 补上 /v1 以后不再是"找不到"了：说明地址就该带 /v1，出的是别的问题（比如 Key 不对），按这次的结果来说明
+    if (retry && retry.status !== 404) res = retry;
   }
   throw new Error(await explain(res));
 }

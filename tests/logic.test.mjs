@@ -164,3 +164,36 @@ test("配置文件本身没有问题", () => {
   // 配置里只有地址，没有任何密钥字段
   assert.deepEqual(Object.keys(AI).sort(), ["apiUrl", "model", "name", "pageUrl", "passwordDays"]);
 });
+
+// ---------- 自己填的 AI 接口 ----------
+import { chatEndpoint, modelsEndpoint, userApi } from "../assets/js/ai/api.js";
+
+test("AI 接口地址：填基础地址或完整地址都行", () => {
+  assert.equal(chatEndpoint("https://api.deepseek.com"), "https://api.deepseek.com/chat/completions");
+  assert.equal(chatEndpoint("https://api.deepseek.com/"), "https://api.deepseek.com/chat/completions");
+  assert.equal(chatEndpoint("https://api.openai.com/v1"), "https://api.openai.com/v1/chat/completions");
+  assert.equal(chatEndpoint("https://api.openai.com/v1/chat/completions"), "https://api.openai.com/v1/chat/completions");
+  assert.equal(chatEndpoint("https://api.openai.com/v1/chat/completions/"), "https://api.openai.com/v1/chat/completions");
+  // 带参数的地址（如某些云服务）当作已经写全了，原样使用
+  assert.equal(chatEndpoint("https://x.example/openai/deployments/a/chat/completions?api-version=1"), "https://x.example/openai/deployments/a/chat/completions?api-version=1");
+  assert.equal(modelsEndpoint("https://api.deepseek.com"), "https://api.deepseek.com/models");
+  assert.equal(modelsEndpoint("https://api.openai.com/v1/"), "https://api.openai.com/v1/models");
+  assert.equal(modelsEndpoint("https://api.openai.com/v1/chat/completions"), "https://api.openai.com/v1/models");
+});
+
+test("AI 接口的保存：只接受 http(s) 地址，去掉首尾空格；地址和模型都有才算能用", () => {
+  userApi.clear();
+  assert.deepEqual(userApi.get(), { url: "", key: "", model: "" });
+  assert.equal(userApi.ready(), false);
+  assert.deepEqual(userApi.save({ url: "  https://api.deepseek.com ", key: " sk-abc ", model: " deepseek-chat " }), { url: "https://api.deepseek.com", key: "sk-abc", model: "deepseek-chat" });
+  assert.equal(userApi.ready(), true);
+  // 危险或不完整的内容不会被存成可用的接口
+  assert.equal(userApi.save({ url: "javascript:alert(1)", key: "k", model: "m" }).url, "");
+  assert.equal(userApi.ready(), false);
+  assert.equal(userApi.save({ url: "https://a.example", key: "", model: "" }) && userApi.ready(), false);
+  // 本机的 Ollama 不需要 Key
+  userApi.save({ url: "http://localhost:11434/v1", key: "", model: "qwen2.5" });
+  assert.equal(userApi.ready(), true);
+  userApi.clear();
+  assert.equal(userApi.ready(), false);
+});
