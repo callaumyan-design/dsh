@@ -59,11 +59,13 @@ async function explain(res) {
   return reason ? `${base}（对方的说明：${reason}）` : base;
 }
 
-const testBody = (model) => JSON.stringify({ model, messages: [{ role: "user", content: "你好" }], max_tokens: 8, stream: false });
+// 测试时发的内容：让它只回一个字，省时间也省额度。
+// 不带"最多回答多少字"这类参数：各家模型认的参数名不一样（有的只认 max_tokens，有的只认 max_completion_tokens），带了反而会被拒绝。
+const testBody = (model) => JSON.stringify({ model, messages: [{ role: "user", content: "只回复一个字：好" }], stream: false });
 const postJson = (body) => ({ method: "POST", headers: { "Content-Type": "application/json" }, body });
 
 /**
- * 测试接口能不能用：发一句很短的"你好"。
+ * 测试接口能不能用：发一句很短的话。
  * 成功返回最终可用的接口地址（如果地址少写了 /v1，会自动补上再试一次）；失败抛出一句说明。
  */
 export async function testApi({ url, key, model }) {
