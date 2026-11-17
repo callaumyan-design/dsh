@@ -249,6 +249,15 @@ svg.icon {
   background: var(--bg-base);
 }
 
+/* 壁纸的模糊小图（boot.js / background.js 设置）：清晰的图还没下载好之前先垫在下面，不再先灰一下 */
+:root[data-bgthumb] #bg::before {
+  content: "";
+  position: absolute;
+  inset: -40px;
+  background: var(--bg-thumb) center / cover no-repeat;
+  filter: blur(20px);
+}
+
 .bg-layer {
   position: absolute;
   inset: calc(var(--blur) * -2); /* 模糊时向外扩一圈，避免边缘发虚露底 */

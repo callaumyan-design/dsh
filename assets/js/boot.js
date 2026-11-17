@@ -35,6 +35,11 @@
       root.style.setProperty("--bg-instant", cache.css);
       root.setAttribute("data-bginstant", "");
     }
+    // 壁纸的模糊小图（几百字节，background.js 记下的）：清晰的图还没下载好之前先铺满，不再先灰一下
+    if (typeof cache.thumb === "string" && cache.thumb.length < 16000 && /^data:image\/jpeg;base64,[A-Za-z0-9+\/=]+$/.test(cache.thumb)) {
+      root.style.setProperty("--bg-thumb", 'url("' + cache.thumb + '")');
+      root.setAttribute("data-bgthumb", "");
+    }
     if (cache.tone === "light" || cache.tone === "dark") root.setAttribute("data-bgtone", cache.tone);
     if (typeof cache.blur === "number" && cache.blur > 0) {
       root.style.setProperty("--blur", cache.blur + "px");
