@@ -11,7 +11,6 @@ import { aiAuth } from "./ai/auth.js";
 import { userApi } from "./ai/api.js";
 import { AI_PRESETS, testApi, fetchModels } from "./ai/api-tools.js";
 import { quotesAuth } from "./market/auth.js";
-import { searchPlaces } from "./weather-places.js";
 import { h, icon, iconButton, toast, openDialog, confirmDialog, downloadText } from "./ui.js";
 
 let dialog = null;
@@ -679,7 +678,7 @@ function widgetsSection() {
     id: queryId,
     type: "search",
     enterKeyHint: "search",
-    placeholder: "城市名，如 布里斯班、Tokyo",
+    placeholder: "城市名，如 布里斯班、东京、London",
     maxLength: 60,
     autocomplete: "off",
     spellcheck: false,
@@ -716,16 +715,16 @@ function widgetsSection() {
     list.replaceChildren();
     say("正在查找…");
     try {
+      const { searchPlaces } = await import("./weather-places.js"); // 搜城市的代码用到才加载
       const places = await searchPlaces(q);
       if (mine !== seq) return;
-      if (!places.length) say("没找到这个城市。试试英文名，如 Tokyo、London、New York。", "bad");
+      if (!places.length) say("没找到这个城市。换个叫法试试，或者用英文名（如 Tokyo、London）。", "bad");
       else {
         list.replaceChildren(...places.map((p) => h("li", null, h("button", { type: "button", onclick: () => pick(p) }, p.name, p.area && h("small", null, p.area)))));
-        // 中文名有时只找到同名的小地方（如"东京"找到的是江苏的东京镇），所以总是提示一句可以用英文名
-        say(`找到 ${places.length} 个，点一下选用。没有想要的城市？试试英文名，如 Tokyo、London。`);
+        say(`找到 ${places.length} 个，点一下选用。`);
       }
     } catch (err) {
-      if (mine === seq) say(`没查到：${err.message}`, "bad");
+      if (mine === seq) say(`没查到：${err?.message || "加载失败，刷新页面再试"}`, "bad");
     }
     if (mine === seq) findBtn.disabled = false;
   });

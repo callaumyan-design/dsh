@@ -39,6 +39,7 @@ const FILES = [
   "assets/js/widgets.js",
   "assets/js/weather.js",
   "assets/js/weather-places.js",
+  "assets/js/zh-hans.js",
   "assets/js/typography.js",
   "assets/js/engines.js",
   "assets/js/search.js",
