@@ -358,6 +358,10 @@ main {
   padding-top: clamp(68px, 15vh, 170px);
   text-align: center;
 }
+/* 首页显示行情时，上面少留点空，尽量让应用栏也在第一屏里 */
+.hero:has(> .market:not([hidden])) {
+  padding-top: clamp(48px, 6vh, 120px);
+}
 
 .clock {
   margin-bottom: clamp(18px, 4vh, 34px);
@@ -431,6 +435,7 @@ main {
 }
 
 .search-clear,
+.search-mic,
 .search-go {
   flex: none;
   display: grid;
@@ -456,7 +461,8 @@ main {
   height: 14px;
 }
 .engine-badge:hover,
-.search-clear:hover {
+.search-clear:hover,
+.search-mic:hover {
   background: var(--sb-hover);
 }
 
@@ -511,6 +517,32 @@ main {
   background: linear-gradient(135deg, var(--ai-1), var(--ai-2));
   color: #ffffff;
   box-shadow: none;
+}
+
+/* 语音输入：正在听的时候，麦克风按钮变成红色并一圈圈往外扩（表示"在听"） */
+.is-listening .search-mic {
+  position: relative;
+  background: #ef4444;
+  color: #ffffff;
+}
+.is-listening .search-mic::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  box-shadow: 0 0 0 0 rgb(239 68 68 / 0.55);
+  animation: mic-pulse 1.4s ease-out infinite;
+  pointer-events: none;
+}
+@keyframes mic-pulse {
+  to {
+    box-shadow: 0 0 0 12px rgb(239 68 68 / 0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .is-listening .search-mic::after {
+    animation: none;
+  }
 }
 
 /* 搜索历史下拉 */
@@ -727,7 +759,7 @@ main {
   margin-top: 0;
 }
 
-/* 应用栏：没有底板，图标直接摆在背景上，全部排成一行 */
+/* 应用栏：没有底板，图标直接摆在背景上 */
 .dock {
   width: 100%;
 }
@@ -743,31 +775,15 @@ main {
   color: var(--wall-text);
   text-shadow: var(--wall-shadow);
 }
+/* 一行放得下就排成一行；放不下就平均分成几行（比如手机上 8 个排成 4 + 4），每行多少个由 nav.js 算好写进 --per-row */
 .app-grid {
-  display: flex;
-  flex-wrap: nowrap; /* 不换行：放不下时每个格子先收窄，再不够就可以左右滑动 */
-  gap: 2px;
+  display: grid;
+  grid-template-columns: repeat(var(--per-row, 5), minmax(0, 76px));
+  justify-content: center;
+  gap: 6px 2px;
   margin: 0;
   padding: 4px 0 2px;
   list-style: none;
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
-  scrollbar-width: none;
-}
-.app-grid::-webkit-scrollbar {
-  display: none;
-}
-.app-grid > li {
-  flex: 1 1 72px;
-  min-width: 54px;
-  max-width: 76px;
-}
-/* 两头用自动留白：一行放得下时整体居中，放不下时可以从最左边开始滑 */
-.app-grid > li:first-child {
-  margin-left: auto;
-}
-.app-grid > li:last-child {
-  margin-right: auto;
 }
 .app {
   position: relative;
@@ -1957,24 +1973,6 @@ input[type="color"] {
 }
 
 /* 用户在系统里选了"减少动态效果"时，关掉动画 */
-/* ---------- 行情卡片（轻点空白处打开） ---------- */
-/* 卡片本身的样式在 market.css 里，第一次打开卡片时才加载。这里只放打开时"主界面淡出"这一点 */
-/* 打开时主界面淡出（只改透明度，不做模糊动画）；壁纸由预先模糊好的一层"雾"盖住 */
-.topbar,
-main {
-  transition: opacity 0.25s ease;
-}
-.mk-open .topbar,
-.mk-open main {
-  opacity: 0;
-}
-@media (prefers-reduced-motion: reduce) {
-  .topbar,
-  main {
-    transition: none;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

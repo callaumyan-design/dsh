@@ -454,8 +454,15 @@ function searchSection() {
     switchRow("记住上次用的引擎", "关掉后，每次打开都用默认引擎", (s) => s.search.remember, (s, v) => (s.search.remember = v)),
     switchRow("按 Tab 切换引擎", "在搜索框里按 Tab 换引擎，按 Esc 离开搜索框", (s) => s.search.tabSwitch, (s, v) => (s.search.tabSwitch = v)),
     switchRow("记录搜索历史", "只保存在这台设备上，不会上传", (s) => s.search.history, (s, v) => (s.search.history = v)),
+    selectRow(
+      "语音输入的语言",
+      "点搜索框里的麦克风说话，说完直接搜。声音由浏览器交给它自己的语音服务识别（Safari 是苹果，Chrome 是谷歌），不经过本站",
+      () => [["zh-CN", "普通话"], ["en-US", "English"]],
+      (s) => s.search.voiceLang,
+      (s, v) => (s.search.voiceLang = v)
+    ),
     h("div", { class: "btn-row" }, clearBtn),
-    h("p", { class: "hint" }, "快捷键：按 / 聚焦搜索框，Enter 搜索。输入“!g 关键词”直接用 Google 搜，“!b”Bing，“!bd”百度，“!d”DuckDuckGo，“!ai 问题”直接问 AI。按 M 打开行情卡片（焦点不在输入框时）。"),
+    h("p", { class: "hint" }, "快捷键：按 / 聚焦搜索框，Enter 搜索。输入“!g 关键词”直接用 Google 搜，“!b”Bing，“!bd”百度，“!d”DuckDuckGo，“!ai 问题”直接问 AI。"),
     h("h4", { class: "field-label" }, "自定义搜索引擎"),
     list,
     form
@@ -622,7 +629,7 @@ function aiSection() {
   );
 }
 
-// ---------- 行情卡片 ----------
+// ---------- 行情 ----------
 function marketSection() {
   const tokenStatus = h("p", { class: "hint" });
   const clearToken = h(
@@ -649,16 +656,16 @@ function marketSection() {
     "market",
     "trending-up",
     "行情",
-    switchRow("启用行情卡片", "轻点页面空白处打开；电脑上焦点不在输入框时按 M", (s) => s.market.enabled, (s, v) => (s.market.enabled = v)),
+    switchRow("在首页显示行情", "显示在搜索框下面；关掉后不显示，也不去取数据", (s) => s.market.enabled, (s, v) => (s.market.enabled = v)),
     selectRow("涨跌颜色", null, () => [["red-up", "红涨绿跌"], ["green-up", "绿涨红跌"]], (s) => s.market.colors, (s, v) => (s.market.colors = v)),
     selectRow(
       "自动刷新",
-      "卡片开着、页面在前台时才刷新；关注的市场都休市时最多 30 分钟一次",
+      "页面在前台时才刷新；关注的市场都休市时最多 30 分钟一次",
       () => [["1", "每 1 分钟"], ["5", "每 5 分钟"], ["15", "每 15 分钟"]],
       (s) => String(s.market.refresh),
       (s, v) => (s.market.refresh = Number(v))
     ),
-    h("p", { class: "hint" }, "关注列表在卡片里点铅笔编辑，只保存在这台设备的浏览器里，“导出设置”会带上它。行情由本站后台代取，部分是延时行情，卡片上会标出。"),
+    h("p", { class: "hint" }, "关注列表在首页行情右上角点铅笔编辑，只保存在这台设备的浏览器里，“导出设置”会带上它。行情由本站后台代取，部分是延时行情，会标出“延时”。"),
     tokenStatus,
     h("div", { class: "btn-row" }, clearToken)
   );

@@ -51,7 +51,6 @@
     <link rel="modulepreload" href="assets/js/ai/link.js" />
     <link rel="modulepreload" href="assets/js/ai/api.js" />
     <link rel="modulepreload" href="assets/js/market/ids.js" />
-    <link rel="modulepreload" href="assets/js/market/trigger.js" />
     <link rel="modulepreload" href="config/site.js" />
     <link rel="modulepreload" href="config/nav.js" />
     <script type="module" src="assets/js/main.js"></script>
@@ -132,6 +131,14 @@
                 <path d="m6 6 12 12" />
               </svg>
             </button>
+            <!-- 语音输入：浏览器支持语音识别时才显示；框里有字时换成上面的清空按钮 -->
+            <button type="button" class="search-mic" id="q-mic" aria-label="语音输入" title="语音输入" hidden>
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="9" y="2" width="6" height="12" rx="3" />
+                <path d="M19 10v1a7 7 0 0 1-14 0v-1" />
+                <path d="M12 18v4" />
+              </svg>
+            </button>
             <button type="submit" class="search-go" id="q-go" aria-label="搜索">
               <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
                 <circle cx="11" cy="11" r="8" />
@@ -152,6 +159,9 @@
             </div>
           </div>
         </form>
+
+        <!-- 行情：搜索框下面的一块（内容由 assets/js/market/panel.js 填入；设置里关掉时不显示） -->
+        <section class="market glass" id="market" aria-label="行情" hidden></section>
 
         <!-- 快捷键说明：页面上不显示（设置面板里有），只读给读屏软件 -->
         <p class="sr-only" id="kbd-hints">按 Tab 切换搜索引擎，按 Enter 搜索，按 Esc 离开输入框。</p>

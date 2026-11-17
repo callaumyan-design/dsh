@@ -81,14 +81,15 @@ export function defaultSettings() {
       last: "", // 上次用的引擎
       history: true, // 记录本地搜索历史
       tabSwitch: true, // 在搜索框里按 Tab 切换引擎
+      voiceLang: "zh-CN", // 语音输入的识别语言：zh-CN 普通话 | en-US 英语
       transparency: 50, // 搜索框透明度 %：0 = 完全不透明，100 = 完全透明
       custom: [], // 自定义引擎 [{id, name, url, bang}]
     },
     // 小组件：时钟（含日期和问候语）；天气跟在问候语后面，按定位显示（见 weather.js）
     widgets: { clock: true, weather: true },
-    // 行情卡片（轻点页面空白处打开）：关注列表只存在这台设备的浏览器里，会跟着"导出设置"一起导出
+    // 行情（首页搜索框下面）：关注列表只存在这台设备的浏览器里，会跟着"导出设置"一起导出
     market: {
-      enabled: true, // 关掉后点空白处没有任何反应
+      enabled: true, // 在首页显示；关掉后不显示、不加载、不联网
       colors: "red-up", // red-up 红涨绿跌 | green-up 绿涨红跌
       refresh: 5, // 卡片开着时多少分钟刷新一次：1 | 5 | 15
       list: DEFAULT_WATCHLIST.map((x) => ({ ...x })), // [{ id: "SH:600519", name: "贵州茅台" }]
@@ -154,6 +155,7 @@ export function normalizeSettings(raw) {
     last: str(s.last, 40),
     history: bool(s.history, d.search.history),
     tabSwitch: bool(s.tabSwitch, d.search.tabSwitch),
+    voiceLang: oneOf(s.voiceLang, ["zh-CN", "en-US"], d.search.voiceLang),
     transparency: Math.round(num(s.transparency, 0, 100, d.search.transparency)),
     custom,
   };

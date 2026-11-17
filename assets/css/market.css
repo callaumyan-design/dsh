@@ -1,112 +1,75 @@
-/* 行情卡片的样式。第一次打开卡片时由 assets/js/market/card.js 加载，不占首屏。
-   颜色、圆角等变量都来自 main.css（:root 上定义的那些）。 */
-/* 对话框占满"看得见的那一块"：手机键盘弹起时，--mk-top / --mk-h 由 card.js 按可见区域更新 */
-dialog.mk-dialog {
-  position: fixed;
-  top: var(--mk-top, 0px);
-  right: 0;
-  bottom: auto;
-  left: 0;
-  width: 100%;
-  height: var(--mk-h, 100%);
-  max-width: none;
-  max-height: none;
-  margin: 0;
-  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
-  border: 0;
-  background: transparent;
-  box-shadow: none;
-  overflow: hidden;
-}
-dialog.mk-dialog[open] {
-  display: grid;
-  place-items: center;
-}
-dialog.mk-dialog::backdrop {
-  background: transparent;
-}
-.mk-fog {
-  position: fixed;
-  inset: 0;
-  background: rgb(var(--glass-rgb) / 0.22);
-  -webkit-backdrop-filter: blur(26px) saturate(1.3);
-  backdrop-filter: blur(26px) saturate(1.3);
-  opacity: 0;
-  transition: opacity 0.28s ease;
-}
-/* 不支持背景模糊的浏览器：用一层半透明的深色代替 */
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .mk-fog {
-    background: rgb(2 6 23 / 0.72);
-  }
-}
-.mk-card {
-  position: relative;
-  width: min(520px, 100%);
-  max-height: min(88vh, calc(var(--mk-h, 100vh) - 24px));
-  display: flex;
-  flex-direction: column;
+/* 行情：首页搜索框下面的一块。和 assets/js/market/panel.js 一起加载。
+   一块比搜索框更实一点的毛玻璃（像手机桌面上的小组件）：里面全是小字和数字，太透的话壁纸一花就看不清。
+   文字颜色跟着主题（浅色主题深色字、深色主题浅色字），不管什么壁纸都看得清。 */
+.market {
+  width: min(680px, 100%);
+  margin: 14px auto 0;
   border-radius: 22px;
-  border: 1px solid var(--border);
-  background: var(--glass-strong);
+  background: rgb(var(--glass-rgb) / 0.88);
+  box-shadow: var(--shadow);
   color: var(--text);
-  box-shadow: 0 24px 70px rgb(0 0 0 / 0.35);
-  opacity: 0;
-  transform: translateY(14px) scale(0.98);
-  transition: opacity 0.24s ease, transform 0.28s ease;
-  outline: none;
+  text-align: left;
   overflow: hidden;
-  /* 涨跌颜色：红涨绿跌（默认） */
+  /* 次要文字、分隔线、涨跌颜色（红涨绿跌是默认） */
+  --mk-text-2: var(--text-2);
+  --mk-line: var(--border);
   --mk-up: #f87171;
   --mk-down: #4ade80;
 }
-:root[data-theme="light"] .mk-card {
-  --mk-up: #dc2626;
-  --mk-down: #16a34a;
+:root[data-theme="light"] .market {
+  --mk-up: #b91c1c;
+  --mk-down: #166534;
 }
-.mk-card[data-colors="green-up"] {
+.market[data-colors="green-up"] {
   --mk-up: #4ade80;
   --mk-down: #f87171;
 }
-:root[data-theme="light"] .mk-card[data-colors="green-up"] {
-  --mk-up: #16a34a;
-  --mk-down: #dc2626;
+:root[data-theme="light"] .market[data-colors="green-up"] {
+  --mk-up: #166534;
+  --mk-down: #b91c1c;
 }
-.mk-dialog.is-in .mk-fog,
-.mk-dialog.is-in .mk-card {
-  opacity: 1;
+.market[hidden] {
+  display: none;
 }
-.mk-dialog.is-in .mk-card {
-  transform: none;
+/* 编辑模式（导航展开成列表）时不显示行情，免得页面太长 */
+.editing .market {
+  display: none;
 }
+
+/* 标题行：行情 · 更新时间 · 标记 …… 刷新、编辑 */
 .mk-head {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 14px 10px 8px 18px;
+  gap: 4px 8px;
+  padding: 6px 6px 2px 16px;
 }
 .mk-head h2 {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  flex: none;
   margin: 0;
-  font-size: calc(17px * var(--fs));
+  font-size: calc(15px * var(--fs));
   font-weight: var(--fw-bold);
 }
-.mk-head h2 .icon {
-  width: 19px;
-  height: 19px;
-  color: var(--accent-fg);
+.mk-info {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 6px;
+  min-width: 0;
+  font-size: calc(12px * var(--fs));
+  color: var(--mk-text-2);
 }
-.mk-close {
+.mk-tools {
+  display: flex;
+  flex: none;
   margin-left: auto;
 }
 .mk-tool {
-  width: 40px;
-  height: 40px;
-  background: transparent;
+  width: 44px;
+  height: 44px;
   border-color: transparent;
+  background: transparent;
   box-shadow: none;
+  color: inherit;
 }
 .mk-tool:hover {
   background: var(--hover);
@@ -118,6 +81,9 @@ dialog.mk-dialog::backdrop {
 .mk-tool:disabled {
   opacity: 0.35;
 }
+.mk-tool[hidden] {
+  display: none;
+}
 .mk-tool.is-spinning .icon {
   animation: mk-spin 0.9s linear infinite;
 }
@@ -128,11 +94,10 @@ dialog.mk-dialog::backdrop {
 }
 .mk-tag {
   display: inline-block;
-  padding: 1px 7px;
+  padding: 0 7px;
   border-radius: 999px;
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--mk-line);
   font-size: calc(11.5px * var(--fs));
-  color: var(--text-2);
   white-space: nowrap;
 }
 .mk-tag-demo {
@@ -145,25 +110,27 @@ dialog.mk-dialog::backdrop {
   border-color: transparent;
   background: var(--hover);
 }
+
+/* 提示：取不到、连不上、要口令、列表是空的 */
 .mk-notice:empty {
   display: none;
 }
 .mk-notice {
-  padding: 0 16px;
+  padding: 0 14px;
 }
 .mk-msg,
 .mk-empty {
-  margin: 4px 0 10px;
-  padding: 12px 14px;
+  margin: 4px 0 8px;
+  padding: 10px 12px;
   border-radius: 14px;
-  background: var(--panel-2);
+  background: var(--hover);
 }
 .mk-msg h3 {
   display: flex;
   align-items: center;
   gap: 6px;
   margin: 0 0 4px;
-  font-size: calc(14.5px * var(--fs));
+  font-size: calc(14px * var(--fs));
 }
 .mk-msg h3 .icon {
   width: 16px;
@@ -173,61 +140,54 @@ dialog.mk-dialog::backdrop {
 .mk-empty p {
   margin: 0 0 8px;
   font-size: calc(13px * var(--fs));
-  color: var(--text-2);
+  color: var(--mk-text-2);
 }
 .mk-loading {
-  margin: 6px 0;
-  color: var(--text-2);
+  margin: 4px 0 8px;
+  color: var(--mk-text-2);
   font-size: calc(13px * var(--fs));
 }
-/* 中间这一块（提示、行情列表、添加页）：内容多了在这里面滚动，标题栏和底栏不动 */
-.mk-body {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
-}
+
+/* 行情列表：按市场分组 */
 .mk-groups {
-  padding: 0 16px 6px;
+  padding: 0 16px 8px;
 }
 .mk-group + .mk-group {
-  margin-top: 10px;
+  margin-top: 4px;
 }
 .mk-group-title {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 6px 0 2px;
-  font-size: calc(13px * var(--fs));
+  margin: 4px 0 0;
+  font-size: calc(12.5px * var(--fs));
   font-weight: var(--fw-bold);
-  color: var(--text-2);
+  color: var(--mk-text-2);
 }
 .mk-status {
-  padding: 1px 7px;
+  padding: 0 7px;
   border-radius: 999px;
-  font-size: calc(11.5px * var(--fs));
+  font-size: calc(11px * var(--fs));
   font-weight: var(--fw);
   background: var(--hover);
-  color: var(--text-3);
 }
 .mk-status.is-open {
   background: rgb(34 197 94 / 0.16);
-  color: #22c55e;
+  color: #4ade80;
 }
 :root[data-theme="light"] .mk-status.is-open {
-  color: #15803d;
+  color: #166534;
 }
 .mk-status.is-pre,
 .mk-status.is-post,
 .mk-status.is-lunch {
-  background: rgb(245 158 11 / 0.16);
-  color: #f59e0b;
+  background: rgb(245 158 11 / 0.2);
+  color: #fbbf24;
 }
 :root[data-theme="light"] .mk-status.is-pre,
 :root[data-theme="light"] .mk-status.is-post,
 :root[data-theme="light"] .mk-status.is-lunch {
-  color: #b45309;
+  color: #92400e;
 }
 .mk-rows {
   margin: 0;
@@ -237,11 +197,12 @@ dialog.mk-dialog::backdrop {
 /* 一行：名称 + 代码 | 现价 + 币种 | 涨跌额 + 涨跌幅 */
 .mk-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(84px, auto);
+  grid-template-columns: minmax(0, 1fr) auto minmax(80px, auto);
   align-items: center;
   column-gap: 12px;
-  padding: 7px 0;
-  border-bottom: 1px solid var(--border);
+  padding: 4px 0;
+  border-bottom: 1px solid var(--mk-line);
+  line-height: 1.25;
 }
 .mk-row:last-child {
   border-bottom: 0;
@@ -261,9 +222,10 @@ dialog.mk-dialog::backdrop {
 .mk-code,
 .mk-cur {
   font-size: calc(11.5px * var(--fs));
-  color: var(--text-3);
+  color: var(--mk-text-2);
 }
-.mk-price {
+.mk-price,
+.mk-chg {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
@@ -277,11 +239,6 @@ dialog.mk-dialog::backdrop {
 .mk-price .mk-num {
   font-weight: var(--fw-bold);
 }
-.mk-chg {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-}
 .mk-chg .mk-num {
   font-size: calc(12.5px * var(--fs));
 }
@@ -294,21 +251,20 @@ dialog.mk-dialog::backdrop {
   color: var(--mk-down);
 }
 .mk-row[data-dir="flat"] .mk-chg {
-  color: var(--text-3);
+  color: var(--mk-text-2);
 }
 /* 这次没取到：保留上次的价格，整行变灰 */
 .mk-row.is-stale .mk-num,
 .mk-row.is-stale .mk-title {
-  color: var(--text-3) !important;
+  color: var(--mk-text-2) !important;
 }
 .mk-notes {
   grid-column: 1 / -1;
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 10px;
-  margin-top: 2px;
+  gap: 2px 10px;
   font-size: calc(11.5px * var(--fs));
-  color: var(--text-3);
+  color: var(--mk-text-2);
 }
 .mk-ext {
   font-family: var(--mono);
@@ -322,40 +278,46 @@ dialog.mk-dialog::backdrop {
 }
 .mk-fail {
   margin: 0;
-  color: var(--text-3);
-  font-size: calc(12px * var(--fs));
 }
+
+/* 编辑列表：每行只留名称和代码，右边是上移、下移、删除 */
 .mk-edit-tools {
   display: flex;
   justify-content: flex-end;
   gap: 2px;
 }
-/* 编辑列表：每行只留名称和代码，右边是上移、下移、删除，一行一个，不再撑高 */
-.mk-card.is-editing .mk-row {
+.market.is-editing .mk-row {
   grid-template-columns: minmax(0, 1fr) auto;
-  padding: 4px 0;
+  padding: 2px 0;
 }
-.mk-card.is-editing .mk-price,
-.mk-card.is-editing .mk-chg,
-.mk-card.is-editing .mk-notes {
+.market.is-editing .mk-price,
+.market.is-editing .mk-chg,
+.market.is-editing .mk-notes {
   display: none;
 }
 .mk-add-btn {
   width: 100%;
-  margin: 12px 0 6px;
+  margin: 10px 0 4px;
 }
 .mk-del {
-  color: var(--danger, #ef4444);
+  color: #f87171;
 }
-/* 添加页：单独一页，上面一行是"返回"和标题 */
+:root[data-theme="light"] .mk-del {
+  color: #b91c1c;
+}
+
+/* 添加页：上面一行是"返回"和标题，下面一个搜索框和结果 */
 .mk-add {
   padding: 0 16px 14px;
+}
+.mk-add[hidden] {
+  display: none;
 }
 .mk-add-head {
   display: flex;
   align-items: center;
   gap: 4px;
-  margin: 0 0 10px -8px;
+  margin: 0 0 8px -8px;
 }
 .mk-add-head h3 {
   margin: 0;
@@ -367,7 +329,10 @@ dialog.mk-dialog::backdrop {
   padding: 0 8px 0 4px;
   border-color: transparent;
   background: transparent;
-  color: var(--accent-fg);
+  color: inherit;
+}
+.mk-back:hover {
+  background: var(--hover);
 }
 .mk-back .icon {
   width: 18px;
@@ -375,8 +340,8 @@ dialog.mk-dialog::backdrop {
 }
 .mk-add .hint {
   margin: 8px 0 0;
+  color: var(--mk-text-2);
 }
-/* 搜索框和结果 */
 .mk-search .input {
   width: 100%;
 }
@@ -389,7 +354,7 @@ dialog.mk-dialog::backdrop {
   list-style: none;
 }
 .mk-found li + li {
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--mk-line);
 }
 .mk-found-btn {
   display: grid;
@@ -397,8 +362,8 @@ dialog.mk-dialog::backdrop {
   align-items: center;
   gap: 10px;
   width: 100%;
-  min-height: 52px;
-  padding: 6px 2px;
+  min-height: 50px;
+  padding: 5px 4px;
   border: 0;
   background: none;
   color: inherit;
@@ -433,7 +398,7 @@ dialog.mk-dialog::backdrop {
   color: var(--mk-down);
 }
 .mk-found-btn[data-dir="flat"] .mk-found-price {
-  color: var(--text-3);
+  color: var(--mk-text-2);
 }
 .mk-found-add {
   display: grid;
@@ -450,41 +415,12 @@ dialog.mk-dialog::backdrop {
 }
 .mk-found-btn:disabled .mk-found-add {
   background: var(--hover);
-  color: var(--text-3);
+  color: var(--mk-text-2);
 }
-.mk-foot {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 8px 8px 16px;
-  border-top: 1px solid var(--border);
-}
-.mk-foot-info {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 8px;
-  min-width: 0;
-  font-size: calc(12px * var(--fs));
-  color: var(--text-3);
-}
-.mk-foot-tools {
-  display: flex;
-  margin-left: auto;
-}
-/* 减少动态效果：卡片和雾直接出现、直接消失 */
-@media (prefers-reduced-motion: reduce) {
-  .mk-fog,
-  .mk-card {
-    transition: none;
-  }
-  .mk-card {
-    transform: none;
-  }
-}
+
 @media (max-width: 380px) {
   .mk-row {
     column-gap: 8px;
-    grid-template-columns: minmax(0, 1fr) auto minmax(72px, auto);
+    grid-template-columns: minmax(0, 1fr) auto minmax(70px, auto);
   }
 }

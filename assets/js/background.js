@@ -441,7 +441,9 @@ async function apply() {
   root.toggleAttribute("data-credit", hasCredit);
   if (!hasCredit) setCredit("", null);
   const edgeColor = paintEdge(view, bg);
-  writeJSON(CACHE_KEY, { color: view.color, edge: edgeColor, css: view.css || "", tone, blur: bg.blur, dim: bg.dim, searchAlpha, searchTone, credit: hasCredit });
+  // edgeKey / edgeRaw：这张壁纸最下面一条的颜色（还没压暗）。下次打开同一张时直接用，不用等图片下载完再取色
+  const known = edge.key === view.key && edge.color;
+  writeJSON(CACHE_KEY, { color: view.color, edge: edgeColor, edgeKey: known ? edge.key : "", edgeRaw: known ? edge.color : "", css: view.css || "", tone, blur: bg.blur, dim: bg.dim, searchAlpha, searchTone, credit: hasCredit });
 
   if (view.key === shownKey) return; // 只是调了模糊/暗度，画面内容没变
   shownKey = view.key;
@@ -472,6 +474,10 @@ async function apply() {
 
 export function initBackground() {
   layers = [$("#bg-a"), $("#bg-b")];
+  // 上次记下的"壁纸最下面一条的颜色"：还是同一张壁纸的话，打开时直接用它
+  // （不然在图片下载完、重新取色之前，iPhone 工具栏下面那一块会先闪一下整张图的平均色）
+  const saved = readJSON(CACHE_KEY, {});
+  if (saved && typeof saved.edgeKey === "string" && saved.edgeKey && /^#[0-9a-f]{6}$/i.test(saved.edgeRaw || "")) edge = { key: saved.edgeKey, color: saved.edgeRaw };
   // boot.js 已经把上次的渐变画在第一层了：接管过来，后面按正常流程切换
   if (root.hasAttribute("data-bginstant")) {
     const cache = readJSON(CACHE_KEY, {});

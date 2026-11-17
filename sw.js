@@ -7,7 +7,7 @@
 //      （在本机预览、或者放在没有版本号的地方时，这类文件也按"网络优先"处理。）
 // 其他一律不经手：站外请求（搜索引擎、壁纸、AI 接口）、本站的接口（/api/…，比如行情），
 // 以及同一个域名下别的应用（如 /duo/、/uq/）的页面和接口。
-const CACHE = "start-page-v10";
+const CACHE = "start-page-v11";
 
 // 页面本身：安装时预先存好
 const PAGES = [
@@ -22,6 +22,9 @@ const PAGES = [
   "assets/icons/apps/uq.svg",
   "assets/icons/apps/yanlu.svg",
   "assets/icons/apps/wifidrop.svg",
+  "assets/icons/apps/claude.svg",
+  "assets/icons/apps/chatgpt.svg",
+  "assets/icons/apps/muse.svg",
 ];
 
 // 样式、脚本、配置：每个版本各存一份（由页面告诉这里"现在是哪一版"）
@@ -39,6 +42,7 @@ const FILES = [
   "assets/js/widgets.js",
   "assets/js/weather.js",
   "assets/js/weather-where.js",
+  "assets/js/voice.js",
   "assets/js/zh-hans.js",
   "assets/js/typography.js",
   "assets/js/engines.js",
@@ -51,11 +55,9 @@ const FILES = [
   "assets/js/ai/link.js",
   "assets/js/market/ids.js",
   "assets/js/market/hours.js",
-  "assets/js/market/trigger.js",
+  "assets/js/market/panel.js",
   "assets/js/market/auth.js",
-  "assets/js/market/card.js",
   "assets/js/market/demo.js",
-  "assets/js/market/words.js",
   "assets/css/market.css",
   "assets/js/ai/api.js",
   "assets/js/ai/api-tools.js",

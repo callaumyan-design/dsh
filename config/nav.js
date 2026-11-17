@@ -22,7 +22,7 @@
 //     请在页面右上角的"编辑"模式里添加（只保存在你自己的浏览器里）。
 
 export default [
-  // 页面最下面的五个应用。图标是专门画的（assets/icons/apps/ 里的 svg：白色图形、透明底），垫在毛玻璃底上。
+  // 页面最下面的应用。图标是专门画的（assets/icons/apps/ 里的 svg：白色图形、透明底），垫在毛玻璃底上。
   // ./duo/ 和 ./uq/ 是本网站自己的子目录（文件就在仓库的 duo/ 和 uq/ 文件夹里）；
   // CatGPT、砚录、WiFi Drop 是另外部署的，写的是它们现在的真实地址。
   // （CatGPT 和 WiFi Drop 原来在 callaum.com，起始页接管这个域名后搬到了 chat.callaum.com。）
@@ -63,6 +63,31 @@ export default [
     icon: "./assets/icons/apps/wifidrop.svg",
     url: "https://chat.callaum.com/drop/",
     desc: "同一个 WiFi 下互传文件",
+    group: "应用",
+    newTab: false,
+  },
+  // 三个外部 AI 的网页版，点开直达
+  {
+    name: "Claude",
+    icon: "./assets/icons/apps/claude.svg",
+    url: "https://claude.ai/",
+    desc: "Anthropic 的 AI 助手",
+    group: "应用",
+    newTab: false,
+  },
+  {
+    name: "ChatGPT",
+    icon: "./assets/icons/apps/chatgpt.svg",
+    url: "https://chatgpt.com/",
+    desc: "OpenAI 的 AI 助手",
+    group: "应用",
+    newTab: false,
+  },
+  {
+    name: "Muse",
+    icon: "./assets/icons/apps/muse.svg",
+    url: "https://muse.ai/",
+    desc: "Meta 的个人 AI 助手",
     group: "应用",
     newTab: false,
   },

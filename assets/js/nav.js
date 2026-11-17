@@ -132,6 +132,7 @@ export function render() {
   );
   // 平时图标直接摆在背景上、排成一行；编辑模式是普通的列表
   root.replaceChildren(...(editor ? [editor.bar, ...sections] : sections.length ? [h("div", { class: "dock" }, sections)] : []));
+  fitRows();
   // 一个入口都没有时，导航区（和"跳到功能导航"的快捷链接）整个不显示，页面保持干净
   const empty = !editor && !sections.length;
   root.hidden = empty;
@@ -140,8 +141,28 @@ export function render() {
   document.body.classList.toggle("editing", !!editor);
 }
 
+/**
+ * 应用栏每行放几个：一行放得下就一行；放不下就平均分（8 个放不下时排成 4 + 4，而不是 5 + 3）。
+ * 每个格子至少 62 像素宽（图标 46 + 两边留白），格子之间 2 像素。
+ */
+const CELL = 62;
+const GAP = 2;
+function fitRows() {
+  const width = $("#nav")?.clientWidth || 0;
+  if (!width) return;
+  const fit = Math.max(1, Math.floor((width + GAP) / (CELL + GAP)));
+  for (const grid of document.querySelectorAll("#nav .app-grid")) {
+    const n = grid.children.length;
+    const rows = Math.ceil(n / fit);
+    grid.style.setProperty("--per-row", String(Math.max(1, Math.ceil(n / rows))));
+  }
+}
+
 // ---------- 启动 ----------
 export function initNav(defaultEntries) {
+  // 窗口宽度变了（转屏、折叠屏展开）：重新算每行放几个
+  if (typeof ResizeObserver === "function") new ResizeObserver(() => fitRows()).observe($("#nav"));
+  else window.addEventListener("resize", fitRows);
   defaults = defaultEntries;
   render();
 

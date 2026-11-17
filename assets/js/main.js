@@ -6,7 +6,6 @@ import { initClock } from "./widgets.js";
 import { initTypography } from "./typography.js";
 import { initSearch, openUrl } from "./search.js";
 import { initNav } from "./nav.js";
-import { initMarketTrigger } from "./market/trigger.js";
 import { aiMode, catgptUrl } from "./ai/link.js";
 import { $, h, toast, isFramed, BUILD } from "./ui.js";
 
@@ -67,8 +66,20 @@ const search = initSearch({
   onAddEngine: () => openSettings("search"),
 });
 
-// ---------- 行情卡片：轻点页面空白处（或按 M）打开，卡片本身用到时才加载 ----------
-initMarketTrigger();
+// ---------- 行情：搜索框下面的一块 ----------
+// 代码单独加载（不挡页面出来）；设置里关掉时不加载，之后再打开时才加载
+let marketLoading = null;
+function startMarket() {
+  if (marketLoading || !store.get().market.enabled) return;
+  marketLoading = import("./market/panel.js")
+    .then((mod) => mod.initMarket())
+    .catch((err) => {
+      marketLoading = null;
+      console.error("行情加载失败：", err);
+    });
+}
+startMarket();
+store.subscribe(startMarket);
 
 // ---------- 导航 ----------
 // 配置文件单独加载：万一里面有笔误，也只影响导航，搜索等功能照常可用
