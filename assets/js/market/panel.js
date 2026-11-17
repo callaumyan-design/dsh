@@ -1,5 +1,6 @@
 // 行情：首页搜索框下面的一小块，透明底、白字直接压在壁纸上（和时钟一样）。打开页面后马上加载（main.js 里），设置里关掉时不加载、不联网。
-// 平时分左右两列：左边股票和指数，右边汇率，各自从上往下排；每个上面是名称，下面是现价和涨跌幅。
+// 平时分左右两列：左边股票和指数，右边汇率，各自从上往下排；每个一行：名称、现价、涨跌幅。
+// 屏幕太窄、两列并排放不下时，自动排成一列（股票在上、汇率在下），数字照样对齐。
 // 最下面一行小字是更新时间，旁边是刷新和编辑按钮。代码、币种、涨跌额、市场状态在编辑时才显示。
 //
 // 数据：先显示上次存下的行情（连同它的更新时间），同时去后台 /api/quotes 拿新的（一分钟内刚拿过的不重复拿）。
@@ -9,7 +10,7 @@
 // 演示：网址带 ?demo=quotes 时不连后台，用本地假数据，标出"演示数据"。
 import { store, readJSON, writeJSON } from "../store.js";
 import { $, h, icon, iconButton, toast } from "../ui.js";
-import { GROUPS, groupOf, isIndex, MAX_IDS } from "./ids.js";
+import { GROUPS, groupOf, isIndex, MAX_IDS, CURRENCIES } from "./ids.js";
 import { marketStatus, isLive, STATUS_TEXT } from "./hours.js";
 import { quotesAuth, tokenDays } from "./auth.js";
 
@@ -87,10 +88,21 @@ function timeText(at) {
   return `${sameDay ? "" : `${d.getMonth() + 1}月${d.getDate()}日 `}${hm} 更新`;
 }
 
-/** 首页上显示的名字：汇率去掉"（在岸）"，离岸的写成"…… 离岸"，省地方 */
+// 首页上用的短名字：常用指数用大家平时的叫法
+const SHORT = { "US:.IXIC": "纳斯达克", "US:.DJI": "道琼斯", "US:.INX": "标普500", "HK:HSTECH": "恒生科技", "HK:HSCEI": "国企指数" };
+const currencyName = (code) => (CURRENCIES[code] || "").replace(/（.*）/, "");
+
+/** 首页上显示的名字（省地方）：常用指数用短叫法；对人民币的汇率只写外币（澳元、美元），离岸的写"美元 离岸" */
 function displayName(item, q) {
-  const name = item.name || q?.name || shortCode(item.id);
-  return item.id.startsWith("FX:") ? name.replace("（在岸）", "").replace("（离岸）", " 离岸") : name;
+  if (SHORT[item.id]) return SHORT[item.id];
+  if (item.id.startsWith("FX:")) {
+    const base = currencyName(item.id.slice(3, 6));
+    const quote = item.id.slice(6);
+    if (base && quote === "CNY") return base;
+    if (base && quote === "CNH") return `${base} 离岸`;
+    if (base && currencyName(quote)) return `${base}/${currencyName(quote)}`;
+  }
+  return item.name || q?.name || shortCode(item.id);
 }
 
 // ---------- 搭建 ----------
@@ -108,6 +120,8 @@ function build() {
   footEl = h("div", { class: "mk-foot" }, infoEl, h("div", { class: "mk-tools" }, refreshBtn, editBtn));
   root.replaceChildren(h("h2", { id: "mk-title", class: "sr-only" }, "行情"), bodyEl, footEl);
   root.setAttribute("aria-labelledby", "mk-title");
+  if (typeof ResizeObserver === "function") new ResizeObserver(() => view === "list" && fitCols()).observe(root.parentElement);
+  document.fonts?.ready.then(() => view === "list" && fitCols());
 
   // Esc：添加页 → 编辑列表 → 看行情，一层一层退（焦点在这一块里时）
   root.addEventListener("keydown", (e) => {
@@ -353,10 +367,12 @@ function renderGroups() {
     const order = (x) => GROUPS.findIndex((g) => g.id === groupOf(x.id));
     const stocks = items.filter((x) => groupOf(x.id) !== "FX").sort((a, b) => order(a) - order(b));
     const fx = items.filter((x) => groupOf(x.id) === "FX");
-    const col = (name, list) => h("ul", { class: "mk-rows mk-col", "aria-label": name }, list.map((item) => row(item, GROUPS.find((g) => g.id === groupOf(item.id)))));
+    // role="list"：排成一列时这两个列表在样式上会"拆开"，写明是列表，读屏软件才照样当列表读
+    const col = (name, list) => h("ul", { class: "mk-rows mk-col", role: "list", "aria-label": name }, list.map((item) => row(item, GROUPS.find((g) => g.id === groupOf(item.id)))));
     listEl.replaceChildren(
       h("div", { class: "mk-cols" }, stocks.length ? col("股票和指数", stocks) : null, fx.length ? col("汇率", fx) : null)
     );
+    fitCols();
     return;
   }
   const groups = GROUPS.map((g) => ({ ...g, items: items.filter((x) => groupOf(x.id) === g.id) })).filter((g) => g.items.length);
@@ -381,7 +397,18 @@ function renderGroups() {
   listEl.replaceChildren(...sections);
 }
 
-/** 一个：平时上面是名称，下面是现价和涨跌幅；编辑时是名称和代码 + 上移、下移、删除 */
+/**
+ * 两列并排放不下（屏幕窄、名字长）时，排成一列：股票在上、汇率在下，共用一套对齐。
+ * 每次画完和屏幕宽度变了的时候看一次。
+ */
+function fitCols() {
+  const cols = listEl?.querySelector(".mk-cols");
+  if (!cols) return;
+  cols.classList.remove("is-stacked");
+  if (cols.children.length > 1 && cols.scrollWidth > cols.clientWidth + 1) cols.classList.add("is-stacked");
+}
+
+/** 一个：平时一行（名称、现价、涨跌幅）；编辑时是名称和代码 + 上移、下移、删除 */
 function row(item, group) {
   const q = cache.quotes[item.id];
   const stale = failed.has(item.id) || (!q && !loading && phase !== "idle");
