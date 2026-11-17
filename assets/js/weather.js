@@ -18,6 +18,7 @@ const CACHE_KEY = "sp:weather";
 export const WHERE_KEY = "sp:where";
 const REFRESH = 30 * 60 * 1000; // 多久更新一次
 const RETRY = 5 * 60 * 1000; // 没取到时，过多久再试
+const RETRY_SOON = 15 * 1000; // 第一次没取到（多半是网络闪了一下）：先过 15 秒再试一次
 const KEEP = 3 * 3600 * 1000; // 取不到新的时，存着的最多再显示多久
 const TIMEOUT = 8000; // 等对方回应最多多久
 
@@ -143,6 +144,7 @@ export function weatherPlace() {
  */
 export function initWeather(onText) {
   let timer = 0;
+  let misses = 0; // 连着几次没取到
   let busy = false;
   let shown = null;
   let last = null;
@@ -206,7 +208,8 @@ export function initWeather(onText) {
       }
     }
     busy = false;
-    if (enabled()) later(ok ? REFRESH : RETRY);
+    misses = ok ? 0 : misses + 1;
+    if (enabled()) later(ok ? REFRESH : misses === 1 ? RETRY_SOON : RETRY);
   }
 
   relocateNow = async () => {
