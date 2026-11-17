@@ -1,8 +1,10 @@
 /* 行情：首页搜索框下面的一小块。和 assets/js/market/panel.js 一起加载。
-   平时：透明底，白字加阴影直接压在壁纸上（和时钟、应用名称一样），每行只有名称、现价、涨跌幅。
+   平时：透明底，白字加阴影直接压在壁纸上（和时钟、应用名称一样）。左边一列股票和指数、右边一列汇率，
+   每个占两行：上面名称，下面现价和涨跌幅。整块只有内容那么宽，居中。
    编辑、添加时：垫一块毛玻璃，文字跟着主题（按钮、输入框多，得看得清）。 */
 .market {
-  width: min(400px, 100%);
+  width: fit-content;
+  max-width: 100%;
   margin: 12px auto 0;
   color: var(--wall-text);
   text-align: left;
@@ -56,7 +58,7 @@
 
 /* ---------- 一行一个 ---------- */
 .mk-groups {
-  padding: 0 4px;
+  padding: 0;
 }
 .mk-rows {
   margin: 0;
@@ -66,14 +68,37 @@
 .mk-group + .mk-group {
   margin-top: 2px;
 }
-/* 平时：名称 | 现价 | 涨跌幅，一行；代码、币种、涨跌额、市场状态都不显示 */
+/* 平时：左右两列，每列只有内容那么宽，中间隔开一点 */
+.mk-cols {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, max-content);
+  justify-content: center;
+  align-items: start;
+  column-gap: 30px;
+}
+/* 一个：上面名称，下面"现价 涨跌幅"（涨跌幅靠这一列的右边，几行对齐）；代码、币种、涨跌额、市场状态都不显示 */
 .mk-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto 72px;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: baseline;
-  column-gap: 14px;
+  column-gap: 10px;
   padding: 3px 0;
-  line-height: 1.35;
+  line-height: 1.3;
+}
+.market[data-view="list"] .mk-row {
+  grid-template-areas:
+    "name name"
+    "price chg";
+}
+.market[data-view="list"] .mk-name {
+  grid-area: name;
+}
+.market[data-view="list"] .mk-price {
+  grid-area: price;
+}
+.market[data-view="list"] .mk-chg {
+  grid-area: chg;
 }
 .mk-group-title,
 .market[data-view="list"] .mk-code,
@@ -93,6 +118,19 @@
   white-space: nowrap;
   font-size: calc(14.5px * var(--fs));
   font-weight: var(--fw-medium);
+}
+.market[data-view="list"] .mk-title {
+  font-size: calc(13px * var(--fs));
+}
+.market[data-view="list"] .mk-price,
+.market[data-view="list"] .mk-chg {
+  align-items: baseline;
+}
+.market[data-view="list"] .mk-price {
+  align-items: flex-start;
+}
+.market[data-view="list"] .mk-chg .mk-num {
+  font-size: calc(12.5px * var(--fs));
 }
 .mk-ref {
   margin-left: 6px;
@@ -159,7 +197,7 @@
   align-items: center;
   gap: 6px;
   margin-top: -4px;
-  padding: 0 0 0 4px;
+  padding: 0;
 }
 .mk-foot[hidden] {
   display: none;

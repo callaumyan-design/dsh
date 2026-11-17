@@ -1,5 +1,6 @@
 // 行情：首页搜索框下面的一小块，透明底、白字直接压在壁纸上（和时钟一样）。打开页面后马上加载（main.js 里），设置里关掉时不加载、不联网。
-// 平时每行只有名称、现价、涨跌幅；最下面一行小字是更新时间，旁边是刷新和编辑按钮。代码、币种、涨跌额、市场状态在编辑时才显示。
+// 平时分左右两列：左边股票和指数，右边汇率，各自从上往下排；每个上面是名称，下面是现价和涨跌幅。
+// 最下面一行小字是更新时间，旁边是刷新和编辑按钮。代码、币种、涨跌额、市场状态在编辑时才显示。
 //
 // 数据：先显示上次存下的行情（连同它的更新时间），同时去后台 /api/quotes 拿新的（一分钟内刚拿过的不重复拿）。
 // 刷新：页面在前台时，按设置每 1 / 5 / 15 分钟刷新一次；关注的市场都不在交易时，最多 30 分钟一次。
@@ -344,6 +345,17 @@ function tokenForm() {
 function renderGroups() {
   const items = list();
   const now = Date.now();
+  // 平时：两列，左边股票和指数（A 股、港股、美股的顺序），右边汇率，各自从上往下排；只有一种时就一列
+  if (view === "list") {
+    const order = (x) => GROUPS.findIndex((g) => g.id === groupOf(x.id));
+    const stocks = items.filter((x) => groupOf(x.id) !== "FX").sort((a, b) => order(a) - order(b));
+    const fx = items.filter((x) => groupOf(x.id) === "FX");
+    const col = (name, list) => h("ul", { class: "mk-rows mk-col", "aria-label": name }, list.map((item) => row(item, GROUPS.find((g) => g.id === groupOf(item.id)))));
+    listEl.replaceChildren(
+      h("div", { class: "mk-cols" }, stocks.length ? col("股票和指数", stocks) : null, fx.length ? col("汇率", fx) : null)
+    );
+    return;
+  }
   const groups = GROUPS.map((g) => ({ ...g, items: items.filter((x) => groupOf(x.id) === g.id) })).filter((g) => g.items.length);
   const sections = groups.map((g) => {
     const status = groupStatus(g.id, now);
@@ -355,20 +367,18 @@ function renderGroups() {
     );
   });
   // 编辑时，列表最后是"添加关注"
-  if (view === "edit") {
-    sections.push(
-      h(
-        "button",
-        { type: "button", class: "btn mk-add-btn", disabled: items.length >= MAX_IDS, onclick: () => setView("add") },
-        icon("plus"),
-        items.length >= MAX_IDS ? `最多关注 ${MAX_IDS} 个` : "添加关注"
-      )
-    );
-  }
+  sections.push(
+    h(
+      "button",
+      { type: "button", class: "btn mk-add-btn", disabled: items.length >= MAX_IDS, onclick: () => setView("add") },
+      icon("plus"),
+      items.length >= MAX_IDS ? `最多关注 ${MAX_IDS} 个` : "添加关注"
+    )
+  );
   listEl.replaceChildren(...sections);
 }
 
-/** 一行：名称（代码在名称下面，小字）| 现价 | 涨跌额 | 涨跌幅 */
+/** 一个：平时上面是名称，下面是现价和涨跌幅；编辑时是名称和代码 + 上移、下移、删除 */
 function row(item, group) {
   const q = cache.quotes[item.id];
   const stale = failed.has(item.id) || (!q && !loading && phase !== "idle");
