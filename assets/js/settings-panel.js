@@ -679,7 +679,7 @@ function widgetsSection() {
     id: queryId,
     type: "search",
     enterKeyHint: "search",
-    placeholder: "城市名，中文、英文都行",
+    placeholder: "城市名，如 布里斯班、Tokyo",
     maxLength: 60,
     autocomplete: "off",
     spellcheck: false,
@@ -718,10 +718,11 @@ function widgetsSection() {
     try {
       const places = await searchPlaces(q);
       if (mine !== seq) return;
-      if (!places.length) say("没找到这个城市。换个写法试试，比如用英文名（Brisbane）。", "bad");
+      if (!places.length) say("没找到这个城市。试试英文名，如 Tokyo、London、New York。", "bad");
       else {
         list.replaceChildren(...places.map((p) => h("li", null, h("button", { type: "button", onclick: () => pick(p) }, p.name, p.area && h("small", null, p.area)))));
-        say(places.length > 1 ? `找到 ${places.length} 个，点一下选用。` : "找到 1 个，点一下选用。");
+        // 中文名有时只找到同名的小地方（如"东京"找到的是江苏的东京镇），所以总是提示一句可以用英文名
+        say(`找到 ${places.length} 个，点一下选用。没有想要的城市？试试英文名，如 Tokyo、London。`);
       }
     } catch (err) {
       if (mine === seq) say(`没查到：${err.message}`, "bad");

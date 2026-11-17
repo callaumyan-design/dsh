@@ -66,6 +66,9 @@ test("读城市搜索结果", () => {
     { name: "新加坡", area: "", lat: 1.29, lon: 103.85 },
     { name: "Brisbane", area: "加利福尼亚州 · 美国", lat: 37.68, lon: -122.4 },
   ]);
+  // "香港"会同时返回地区和市区两条（没有省和国家），算同一个地方
+  const hk = { results: [{ name: "香港", latitude: 22.27832, longitude: 114.17469, feature_code: "PCLS" }, { name: "香港", latitude: 22.27832, longitude: 114.17469, feature_code: "PPLC" }, { name: "香港", latitude: 22.5, longitude: 114.1, admin1: "广东", country: "中国" }] };
+  assert.deepEqual(parsePlaces(hk), [{ name: "香港", area: "", lat: 22.28, lon: 114.17 }, { name: "香港", area: "广东 · 中国", lat: 22.5, lon: 114.1 }]);
   // 什么都没找到时 Open-Meteo 不带 results
   assert.deepEqual(parsePlaces({ generationtime_ms: 0.5 }), []);
   assert.deepEqual(parsePlaces(null), []);
