@@ -377,6 +377,17 @@ main {
   font-size: calc(clamp(15px, 3.6vw, 18px) * var(--fs));
   font-weight: var(--fw-medium);
 }
+/* 天气：跟在问候语后面；这一行放不下时整句换到下一行，前面的小圆点去掉（见 widgets.js） */
+.clock-weather {
+  white-space: nowrap;
+}
+.clock-sub.wrap .clock-sep {
+  display: none;
+}
+.clock-sub.wrap .clock-weather {
+  display: block;
+  margin-top: 2px;
+}
 
 /* ---------- 6. 搜索 ---------- */
 .search {
@@ -1565,23 +1576,67 @@ input[type="color"] {
 .ai-form-set .inline-form .btn {
   flex: none;
 }
-.ai-status:empty {
+.ai-status:empty,
+.place-status:empty {
   display: none;
 }
-.ai-status {
+.ai-status,
+.place-status {
   margin-top: 10px;
   overflow-wrap: anywhere;
 }
-.ai-status[data-kind="ok"] {
+/* 设置 → 小组件：选天气的城市 */
+.place-form {
+  margin: 4px 0 0;
+}
+.place-form .inline-form .btn {
+  flex: none;
+}
+.place-list {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.place-list:empty {
+  display: none;
+}
+.place-list button {
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel-2);
+  color: inherit;
+  font: inherit;
+  font-size: calc(14px * var(--fs));
+  text-align: left;
+  cursor: pointer;
+}
+.place-list button:hover {
+  border-color: var(--accent);
+}
+.place-list small {
+  display: block;
+  font-size: calc(12.5px * var(--fs));
+  color: var(--text-3);
+}
+.ai-status[data-kind="ok"],
+.place-status[data-kind="ok"] {
   color: #4ade80;
 }
-.ai-status[data-kind="bad"] {
+.ai-status[data-kind="bad"],
+.place-status[data-kind="bad"] {
   color: #f87171;
 }
-:root[data-theme="light"] .ai-status[data-kind="ok"] {
+:root[data-theme="light"] .ai-status[data-kind="ok"],
+:root[data-theme="light"] .place-status[data-kind="ok"] {
   color: #15803d;
 }
-:root[data-theme="light"] .ai-status[data-kind="bad"] {
+:root[data-theme="light"] .ai-status[data-kind="bad"],
+:root[data-theme="light"] .place-status[data-kind="bad"] {
   color: #b91c1c;
 }
 

@@ -10,7 +10,7 @@
 | 想改什么 | 改哪个文件 |
 | --- | --- |
 | 底部的应用图标（导航入口） | `config/nav.js` |
-| 默认背景、AI（catgpt）地址 | `config/site.js` |
+| 默认背景、天气的默认城市、AI（catgpt）地址 | `config/site.js` |
 | 页面名称（浏览器标签、主屏幕图标下的名字） | `index.html` 里的 `<title>`，`manifest.webmanifest` 里的 `name` / `short_name` |
 | 样式 | `assets/css/main.css` |
 | 功能代码 | `assets/js/`（每个文件开头有一句话说明它管什么） |
@@ -93,6 +93,19 @@
 所以网页底色（`html` 的背景）取的是**壁纸最下面一条的颜色**（再按暗度遮罩压暗），由 `background.js` 的 `paintEdge()` 算好；
 手机上壁纸最下面还有一小段从透明渐变到这个颜色的过渡（`#bg-edge`），让壁纸自然地融进工具栏。
 `body` 不能设底色：`html` 有底色以后，`body` 的底色会盖在壁纸上面。
+
+## 天气
+
+问候语后面的一句，如“布里斯班 28° 多云”。代码在 `assets/js/weather.js`（设置里搜城市的部分在 `weather-places.js`）。
+
+- 数据来自 [Open-Meteo](https://open-meteo.com/)：免费，不用 API Key，也不用在 Cloudflare 后台设置任何东西。
+- 由**浏览器直接去取**，不经过本站后台：Open-Meteo 按来访的网络地址限制次数，而 Cloudflare 后台的出口地址是很多网站共用的，代取容易被限流。
+  发过去的只有所选城市的经纬度（两位小数），不带别的信息，也不带来源网址。
+- 默认城市在 `config/site.js` 的 `WEATHER_PLACE`；每台设备可以在“设置 → 小组件”里搜城市换掉（中文、英文都行），也可以关掉天气。
+- 取到的结果存在本机：打开页面先显示存着的，再去更新；页面在前台时每 30 分钟更新一次，在后台时不取。
+  取不到就不显示，不弹提示（3 小时以内存着的照常显示）。
+- 这一行放不下时（比如手机竖屏），天气整句换到下一行。
+- 天气文字（WMO 天气代码 → 中文）在 `weather.js` 的 `WEATHER_TEXT` 里改。
 
 ## 文字
 

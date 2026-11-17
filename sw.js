@@ -7,7 +7,7 @@
 //      （在本机预览、或者放在没有版本号的地方时，这类文件也按"网络优先"处理。）
 // 其他一律不经手：站外请求（搜索引擎、壁纸、AI 接口）、本站的接口（/api/…，比如行情），
 // 以及同一个域名下别的应用（如 /duo/、/uq/）的页面和接口。
-const CACHE = "start-page-v8";
+const CACHE = "start-page-v9";
 
 // 页面本身：安装时预先存好
 const PAGES = [
@@ -37,6 +37,8 @@ const FILES = [
   "assets/js/idb.js",
   "assets/js/background.js",
   "assets/js/widgets.js",
+  "assets/js/weather.js",
+  "assets/js/weather-places.js",
   "assets/js/typography.js",
   "assets/js/engines.js",
   "assets/js/search.js",

@@ -1,4 +1,4 @@
-// 设置面板（右上角齿轮）：背景、搜索、链接、主题、小组件、数据导出/导入/恢复默认。
+// 设置面板（右上角齿轮）：背景、搜索、链接、主题、小组件（时钟、天气）、数据导出/导入/恢复默认。
 // 所有改动立刻生效，并保存在浏览器本地。
 import { BACKGROUND_PRESETS, AI } from "../../config/site.js";
 import { store, safeTemplate, safeUrl, uid, defaultSettings, removeKey } from "./store.js";
@@ -11,6 +11,7 @@ import { aiAuth } from "./ai/auth.js";
 import { userApi } from "./ai/api.js";
 import { AI_PRESETS, testApi, fetchModels } from "./ai/api-tools.js";
 import { quotesAuth } from "./market/auth.js";
+import { searchPlaces } from "./weather-places.js";
 import { h, icon, iconButton, toast, openDialog, confirmDialog, downloadText } from "./ui.js";
 
 let dialog = null;
@@ -663,6 +664,94 @@ function marketSection() {
   );
 }
 
+// ---------- 小组件 ----------
+function widgetsSection() {
+  // 天气的城市：输入城市名去 Open-Meteo 查，从结果里点一个
+  const queryId = nextId("wx");
+  const current = h("p", { class: "hint" });
+  const status = h("p", { class: "hint place-status", role: "status" });
+  const say = (message, kind = "") => {
+    status.textContent = message;
+    status.dataset.kind = kind; // ok 绿色 / bad 红色 / 空 普通
+  };
+  const input = h("input", {
+    class: "input",
+    id: queryId,
+    type: "search",
+    enterKeyHint: "search",
+    placeholder: "城市名，中文、英文都行",
+    maxLength: 60,
+    autocomplete: "off",
+    spellcheck: false,
+  });
+  const findBtn = h("button", { type: "submit", class: "btn" }, icon("search"), "查找");
+  const list = h("ul", { class: "place-list", "aria-label": "找到的城市" });
+
+  function pick(place) {
+    store.update((s) => (s.widgets.place = place));
+    list.replaceChildren();
+    input.value = "";
+    say(`已换成${place.name}，天气马上更新。`, "ok");
+  }
+
+  let seq = 0; // 连着查好几次时，只认最后一次的结果
+  const form = h(
+    "form",
+    { class: "place-form", novalidate: true },
+    h("label", { class: "field-label", for: queryId }, "换个城市"),
+    h("div", { class: "inline-form" }, input, findBtn),
+    list,
+    status
+  );
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const q = input.value.trim();
+    if (!q) {
+      say("先输入城市名。", "bad");
+      input.focus();
+      return;
+    }
+    const mine = ++seq;
+    findBtn.disabled = true;
+    list.replaceChildren();
+    say("正在查找…");
+    try {
+      const places = await searchPlaces(q);
+      if (mine !== seq) return;
+      if (!places.length) say("没找到这个城市。换个写法试试，比如用英文名（Brisbane）。", "bad");
+      else {
+        list.replaceChildren(...places.map((p) => h("li", null, h("button", { type: "button", onclick: () => pick(p) }, p.name, p.area && h("small", null, p.area)))));
+        say(places.length > 1 ? `找到 ${places.length} 个，点一下选用。` : "找到 1 个，点一下选用。");
+      }
+    } catch (err) {
+      if (mine === seq) say(`没查到：${err.message}`, "bad");
+    }
+    if (mine === seq) findBtn.disabled = false;
+  });
+
+  const placeBox = h(
+    "div",
+    { class: "place-set" },
+    current,
+    form,
+    h("p", { class: "hint" }, "天气来自 Open-Meteo（免费，不用 Key），由浏览器直接去取，只发送所选城市的经纬度。")
+  );
+  syncers.push((s) => {
+    const p = s.widgets.place;
+    current.textContent = p ? `现在的城市：${p.name}${p.area ? `（${p.area}）` : ""}` : "还没选城市，选好以后才会显示天气。";
+    placeBox.hidden = !s.widgets.weather;
+  });
+
+  return section(
+    "widgets",
+    "layout-dashboard",
+    "小组件",
+    switchRow("时间、日期和问候语", null, (s) => s.widgets.clock, (s, v) => (s.widgets.clock = v)),
+    switchRow("天气", "跟在问候语后面，如“布里斯班 28° 多云”，每 30 分钟更新；上一项关掉时不显示", (s) => s.widgets.weather, (s, v) => (s.widgets.weather = v)),
+    placeBox
+  );
+}
+
 // ---------- 数据 ----------
 function dataSection() {
   const withImages = h("input", { type: "checkbox", id: "export-images", role: "switch", checked: true });
@@ -775,7 +864,7 @@ function build() {
         (s, v) => (s.linkTarget = v)
       )
     ),
-    section("widgets", "layout-dashboard", "小组件", switchRow("时间、日期和问候语", null, (s) => s.widgets.clock, (s, v) => (s.widgets.clock = v))),
+    widgetsSection(),
     marketSection(),
     aiSection(),
     dataSection(),
