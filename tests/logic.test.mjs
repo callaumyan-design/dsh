@@ -141,6 +141,9 @@ test("导航：合并默认入口和本地改动", () => {
   assert.equal(normalizeEntry({ name: "x", url: "./a/", color: "red; background:url(x)" }).color, "");
 });
 
+// 地址里碰巧有 dashboard 之类字样、但其实是公开网站的入口（不是自己服务的后台）。只列具体地址，不放宽规则本身
+const PUBLIC_SITES = ["https://portal.my.uq.edu.au/#/dashboard"];
+
 test("配置文件本身没有问题", () => {
   assert.ok(Array.isArray(navConfig)); // 允许是空的（还没有接入入口）
   const ids = new Set();
@@ -151,7 +154,9 @@ test("配置文件本身没有问题", () => {
     ids.add(entry.id);
     assert.ok(raw.group, `入口没写分组：${entry.name}`);
     assert.ok(Object.hasOwn(ICONS, raw.icon) || /[/.]/.test(raw.icon) || Array.from(raw.icon).length <= 2, `图标不存在：${raw.icon}`);
-    // 公开的配置文件里不放后台、管理面板这类私密入口
+    // 公开的配置文件里不放后台、管理面板这类私密入口。
+    // 例外：别人家的公开网站，地址里碰巧有这些词（比如 UQ 学生门户的首页就叫 dashboard，每个学生都是这个地址）
+    if (PUBLIC_SITES.includes(raw.url)) continue;
     assert.doesNotMatch(`${raw.name} ${raw.url} ${raw.desc || ""}`, /admin|后台|管理面板|dashboard|:\d{4,5}\//i, `疑似私密入口：${entry.name}`);
   }
   assert.equal(BACKGROUND_PRESETS.length, 3);

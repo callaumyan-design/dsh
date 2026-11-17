@@ -248,13 +248,14 @@
 
 ## 应用栏里的应用
 
-一行放得下就排成一行；放不下就平均分成几行（手机上 8 个排成 4 + 4），由 `nav.js` 的 `fitRows()` 按宽度算。
+一行放得下就排成一行；放不下就平均分成几行（手机上 9 个排成 5 + 4），由 `nav.js` 的 `fitRows()` 按宽度算。
 
 | 应用 | 地址 | 说明 |
 | --- | --- | --- |
 | Duo 适配 | `./duo/`（本网站的子目录） | 仓库里的 `duo/index.html`，是用 Duo 追踪器分支里的数据生成的报告 |
 | CatGPT | `https://chat.callaum.com/` | 另外部署在微软（Azure）的服务器上 |
 | UQ 校历 | `./uq/`（本网站的子目录） | 仓库里的 `uq/index.html`，是 UQ 校历分支上那个网页文件的副本 |
+| my.UQ | `https://portal.my.uq.edu.au/#/dashboard` | UQ 学生门户，图标是一顶学士帽 |
 | 砚录 | `https://ocr.callaum.com/` | 另外部署在 Cloudflare 上 |
 | WiFi Drop | `https://chat.callaum.com/drop/` | 和 CatGPT 在同一台服务器上 |
 | Claude | `https://claude.ai/` | Anthropic 的 AI 助手（网页版） |

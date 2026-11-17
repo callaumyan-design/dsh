@@ -51,6 +51,14 @@ export default [
     newTab: false,
   },
   {
+    name: "my.UQ",
+    icon: "./assets/icons/apps/myuq.svg",
+    url: "https://portal.my.uq.edu.au/#/dashboard",
+    desc: "UQ 学生门户（课表、成绩、选课）",
+    group: "应用",
+    newTab: false,
+  },
+  {
     name: "砚录",
     icon: "./assets/icons/apps/yanlu.svg",
     url: "https://ocr.callaum.com/",
