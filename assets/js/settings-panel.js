@@ -11,6 +11,7 @@ import { aiAuth } from "./ai/auth.js";
 import { userApi } from "./ai/api.js";
 import { AI_PRESETS, testApi, fetchModels } from "./ai/api-tools.js";
 import { quotesAuth } from "./market/auth.js";
+import { relocate, weatherPlace } from "./weather.js";
 import { h, icon, iconButton, toast, openDialog, confirmDialog, downloadText } from "./ui.js";
 
 let dialog = null;
@@ -664,81 +665,57 @@ function marketSection() {
 }
 
 // ---------- 小组件 ----------
+/** "3 分钟前""2 小时前" */
+function ago(at) {
+  const min = Math.max(0, Math.round((Date.now() - at) / 60000));
+  if (min < 1) return "刚刚";
+  if (min < 60) return `${min} 分钟前`;
+  if (min < 48 * 60) return `${Math.round(min / 60)} 小时前`;
+  return `${Math.round(min / 1440)} 天前`;
+}
+
 function widgetsSection() {
-  // 天气的城市：输入城市名去 Open-Meteo 查，从结果里点一个
-  const queryId = nextId("wx");
-  const current = h("p", { class: "hint" });
+  // 天气按定位显示，不用选城市；这里只显示现在按哪里显示，以及"重新定位"
+  const now = h("p", { class: "hint" });
   const status = h("p", { class: "hint place-status", role: "status" });
   const say = (message, kind = "") => {
     status.textContent = message;
     status.dataset.kind = kind; // ok 绿色 / bad 红色 / 空 普通
   };
-  const input = h("input", {
-    class: "input",
-    id: queryId,
-    type: "search",
-    enterKeyHint: "search",
-    placeholder: "城市名，如 布里斯班、东京、London",
-    maxLength: 60,
-    autocomplete: "off",
-    spellcheck: false,
-  });
-  const findBtn = h("button", { type: "submit", class: "btn" }, icon("search"), "查找");
-  const list = h("ul", { class: "place-list", "aria-label": "找到的城市" });
-
-  function pick(place) {
-    store.update((s) => (s.widgets.place = place));
-    list.replaceChildren();
-    input.value = "";
-    say(`已换成${place.name}，天气马上更新。`, "ok");
-  }
-
-  let seq = 0; // 连着查好几次时，只认最后一次的结果
-  const form = h(
-    "form",
-    { class: "place-form", novalidate: true },
-    h("label", { class: "field-label", for: queryId }, "换个城市"),
-    h("div", { class: "inline-form" }, input, findBtn),
-    list,
-    status
-  );
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const q = input.value.trim();
-    if (!q) {
-      say("先输入城市名。", "bad");
-      input.focus();
-      return;
-    }
-    const mine = ++seq;
-    findBtn.disabled = true;
-    list.replaceChildren();
-    say("正在查找…");
-    try {
-      const { searchPlaces } = await import("./weather-places.js"); // 搜城市的代码用到才加载
-      const places = await searchPlaces(q);
-      if (mine !== seq) return;
-      if (!places.length) say("没找到这个城市。换个叫法试试，或者用英文名（如 Tokyo、London）。", "bad");
-      else {
-        list.replaceChildren(...places.map((p) => h("li", null, h("button", { type: "button", onclick: () => pick(p) }, p.name, p.area && h("small", null, p.area)))));
-        say(`找到 ${places.length} 个，点一下选用。`);
-      }
-    } catch (err) {
-      if (mine === seq) say(`没查到：${err?.message || "加载失败，刷新页面再试"}`, "bad");
-    }
-    if (mine === seq) findBtn.disabled = false;
+  const showNow = () => {
+    const { where, fallback } = weatherPlace();
+    now.textContent = where
+      ? `现在按定位显示：${where.name || "你所在的位置"}（${ago(where.at)}定位）`
+      : fallback
+        ? `还没有定位，现在显示默认城市：${fallback.name}。`
+        : "还没有定位。";
+  };
+  const howTo = "要用定位：iPhone 上在 Safari 地址栏点网站设置按钮 → 网站设置 → 位置 → 允许；也可以到 iPhone 的 设置 → App → Safari → 位置 → 允许。";
+  const relocateBtn = h("button", { type: "button", class: "btn" }, icon("refresh-cw"), "重新定位");
+  relocateBtn.addEventListener("click", async () => {
+    relocateBtn.disabled = true;
+    say("正在定位…（浏览器问的话，点“允许”）");
+    const result = await relocate();
+    relocateBtn.disabled = false;
+    showNow();
+    const { where, fallback } = weatherPlace();
+    if (result === "moved" || result === "same") say(`已更新：${where?.name || "你所在的位置"}。`, "ok");
+    else if (result === "denied") say(`没有定位权限，先显示默认城市${fallback ? `（${fallback.name}）` : ""}。${howTo}`, "bad");
+    else if (result === "unsupported") say("这个浏览器不支持定位。", "bad");
+    else if (result === "off") say("天气关着。", "bad");
+    else say("暂时定位不了（信号不好，或者手机的定位服务关着），过一会儿再试。", "bad");
   });
 
   const placeBox = h(
     "div",
     { class: "place-set" },
-    current,
-    form,
-    h("p", { class: "hint" }, "天气来自 Open-Meteo（免费，不用 Key），由浏览器直接去取，只发送所选城市的经纬度。")
+    now,
+    h("div", { class: "btn-row" }, relocateBtn),
+    status,
+    h("p", { class: "hint" }, "天气来自 Open-Meteo，地名来自 OpenStreetMap（© OpenStreetMap 贡献者）。由浏览器直接去取，只发送大致位置（约 1 公里），不经过本站后台。")
   );
   syncers.push((s) => {
-    const p = s.widgets.place;
-    current.textContent = p ? `现在的城市：${p.name}${p.area ? `（${p.area}）` : ""}` : "还没选城市，选好以后才会显示天气。";
+    showNow();
     placeBox.hidden = !s.widgets.weather;
   });
 
@@ -747,7 +724,7 @@ function widgetsSection() {
     "layout-dashboard",
     "小组件",
     switchRow("时间、日期和问候语", null, (s) => s.widgets.clock, (s, v) => (s.widgets.clock = v)),
-    switchRow("天气", "跟在问候语后面，如“布里斯班 28° 多云”，每 30 分钟更新；上一项关掉时不显示", (s) => s.widgets.weather, (s, v) => (s.widgets.weather = v)),
+    switchRow("天气", "跟在问候语后面，如“布里斯班 28° 多云”，按你所在的位置显示，每 30 分钟更新；上一项关掉时不显示", (s) => s.widgets.weather, (s, v) => (s.widgets.weather = v)),
     placeBox
   );
 }
@@ -816,6 +793,8 @@ function dataSection() {
         userApi.clear(); // 先清掉，下面换设置时界面会跟着刷新
         quotesAuth.clear();
         removeKey("sp:quotes-cache");
+        removeKey("sp:where"); // 天气：上次定到的位置
+        removeKey("sp:weather");
         store.replace(null);
         searchHistory.clear();
         await pruneImages();

@@ -43,11 +43,11 @@ export const DEFAULT_BACKGROUND = "aurora";
 export const WALLPAPER_API = "./api/wallpaper";
 
 // ---------- 天气 ----------
-// 问候语后面那一句"布里斯班 28° 多云"。数据来自 Open-Meteo（免费，不用 API Key），由浏览器直接去取。
-// 这里是默认城市：只影响还没在"设置 → 小组件"里自己选过城市的设备。
-//   name: 显示的名字    area: 设置里显示的所在地区（可以留空）
+// 问候语后面那一句"布里斯班 28° 多云"：按浏览器定位到的位置显示（见 assets/js/weather.js）。
+// 这里是默认城市：定位没打开、被拒绝、或者暂时定位不了时，显示这里的天气。
+//   name: 显示的名字    area: 所在地区（可以留空）
 //   lat:  纬度（南纬为负数）    lon: 经度（西经为负数）
-// 不想要默认城市就改成 null：没选城市的设备上不显示天气。
+// 改成 null：定位不了时就不显示天气。
 export const WEATHER_PLACE = { name: "布里斯班", area: "昆士兰州 · 澳大利亚", lat: -27.47, lon: 153.03 };
 
 // ---------- AI（catgpt）----------

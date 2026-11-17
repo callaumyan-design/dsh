@@ -1,5 +1,5 @@
 // 设置的读取、保存和校验。所有设置都只存在浏览器本地（localStorage）。
-import { BACKGROUND_PRESETS, DEFAULT_BACKGROUND, WEATHER_PLACE } from "../../config/site.js";
+import { BACKGROUND_PRESETS, DEFAULT_BACKGROUND } from "../../config/site.js";
 import { normalizeId, DEFAULT_WATCHLIST, MAX_IDS } from "./market/ids.js";
 
 const SETTINGS_KEY = "sp:settings";
@@ -84,8 +84,8 @@ export function defaultSettings() {
       transparency: 50, // 搜索框透明度 %：0 = 完全不透明，100 = 完全透明
       custom: [], // 自定义引擎 [{id, name, url, bang}]
     },
-    // 小组件：时钟（含日期和问候语）；天气跟在问候语后面，place 是天气的城市（见 weather.js），没有城市时为 null
-    widgets: { clock: true, weather: true, place: normalizePlace(WEATHER_PLACE) },
+    // 小组件：时钟（含日期和问候语）；天气跟在问候语后面，按定位显示（见 weather.js）
+    widgets: { clock: true, weather: true },
     // 行情卡片（轻点页面空白处打开）：关注列表只存在这台设备的浏览器里，会跟着"导出设置"一起导出
     market: {
       enabled: true, // 关掉后点空白处没有任何反应
@@ -117,7 +117,7 @@ export function defaultSettings() {
   };
 }
 
-/** 天气用的城市：名称、所在地区、经纬度（只保留两位小数，约 1 公里，够查天气用了）。格式不对返回 null */
+/** 天气的默认城市（config/site.js）：名称、所在地区、经纬度（只保留两位小数，约 1 公里，够查天气用了）。格式不对返回 null */
 export function normalizePlace(p) {
   if (!isObj(p)) return null;
   const coord = (v, max) => (typeof v === "number" && Number.isFinite(v) && Math.abs(v) <= max ? Math.round(v * 100) / 100 : null);
@@ -162,7 +162,6 @@ export function normalizeSettings(raw) {
   out.widgets = {
     clock: bool(w.clock, d.widgets.clock),
     weather: bool(w.weather, d.widgets.weather),
-    place: normalizePlace(w.place) || d.widgets.place, // 没选过或格式不对：用默认城市（config/site.js）
   };
 
   const mk = isObj(raw.market) ? raw.market : {};

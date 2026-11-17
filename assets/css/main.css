@@ -1585,44 +1585,6 @@ input[type="color"] {
   margin-top: 10px;
   overflow-wrap: anywhere;
 }
-/* 设置 → 小组件：选天气的城市 */
-.place-form {
-  margin: 4px 0 0;
-}
-.place-form .inline-form .btn {
-  flex: none;
-}
-.place-list {
-  display: grid;
-  gap: 6px;
-  margin: 10px 0 0;
-  padding: 0;
-  list-style: none;
-}
-.place-list:empty {
-  display: none;
-}
-.place-list button {
-  width: 100%;
-  min-height: 44px;
-  padding: 8px 12px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--panel-2);
-  color: inherit;
-  font: inherit;
-  font-size: calc(14px * var(--fs));
-  text-align: left;
-  cursor: pointer;
-}
-.place-list button:hover {
-  border-color: var(--accent);
-}
-.place-list small {
-  display: block;
-  font-size: calc(12.5px * var(--fs));
-  color: var(--text-3);
-}
 .ai-status[data-kind="ok"],
 .place-status[data-kind="ok"] {
   color: #4ade80;
