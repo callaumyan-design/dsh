@@ -58,6 +58,15 @@ export default [
     group: "应用",
     newTab: false,
   },
+  // 本网站的子页面 /flywire/：另一个仓库 flywire-fx-compare 每周自动生成的报告，由后台转交（见 tools/worker/flywire.js）
+  {
+    name: "飞汇地区比价",
+    icon: "./assets/icons/apps/flywire.svg",
+    url: "./flywire/",
+    desc: "对比飞汇各地区刷卡的汇率加点，找最省的付款方式",
+    group: "应用",
+    newTab: false,
+  },
   {
     name: "砚录",
     icon: "./assets/icons/apps/yanlu.svg",

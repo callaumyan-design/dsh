@@ -156,6 +156,11 @@ function fitRows() {
     const rows = Math.ceil(n / fit);
     grid.style.setProperty("--per-row", String(Math.max(1, Math.ceil(n / rows))));
   }
+  // 名字放不下（比如手机上的"飞汇地区比价"）：字缩小一点，尽量完整显示，不出省略号
+  for (const name of document.querySelectorAll("#nav .app-name")) {
+    name.classList.remove("is-tight");
+    if (name.scrollWidth > name.clientWidth + 1) name.classList.add("is-tight");
+  }
 }
 
 // ---------- 启动 ----------

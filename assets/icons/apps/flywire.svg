@@ -1,0 +1,15 @@
+<!-- 飞汇地区比价：一张银行卡，右下角一个向下的箭头（找加点最低、最省钱的刷卡方式）。白色图形，底是透明的：主页上由网页垫一块毛玻璃。
+     不要给它加 filter（投影、模糊）或 mask：iPhone 的 Safari 会把带这些效果的 svg 图片按低分辨率画，图标会糊。 -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <defs>
+    <!-- 卡片在右下角的圆圈周围留一圈空隙：用"整个画布减去一个圆"来裁切 -->
+    <clipPath id="cut"><path clip-rule="evenodd" d="M0 0H120V120H0Z M66 83a19 19 0 1 0 38 0a19 19 0 1 0 -38 0Z"/></clipPath>
+  </defs>
+  <g clip-path="url(#cut)">
+    <rect x="16" y="32" width="80" height="54" rx="9" fill="#fff"/>
+    <rect x="16" y="44" width="80" height="10" fill="#0f172a" fill-opacity=".55"/>
+    <rect x="26" y="66" width="22" height="7" rx="3.5" fill="#0f172a" fill-opacity=".4"/>
+  </g>
+  <circle cx="85" cy="83" r="15" fill="#fff"/>
+  <path d="M85 74.5v15M78.5 83.5l6.5 6.5 6.5-6.5" fill="none" stroke="#0f172a" stroke-opacity=".6" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

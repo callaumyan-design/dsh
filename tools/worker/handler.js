@@ -1,5 +1,6 @@
 import { handleWallpaper } from "./wallpaper.js";
 import { handleQuotes } from "./quotes.js";
+import { handleFlywire } from "./flywire.js";
 
 // 起始页在 Cloudflare 上的"服务员"：收到网址，把对应的文件发回去。
 // 网站的所有文件在发布时直接打包进来（见 tools/deploy-cloudflare.mjs），这里不读硬盘、不连数据库。
@@ -54,6 +55,8 @@ export function createHandler(files, redirects = {}, build = "") {
     if (url.pathname === "/api/wallpaper") return handleWallpaper(request, url);
     // 行情（见 quotes.js）：要访问口令，只给本站页面用
     if (url.pathname === "/api/quotes" || url.pathname === "/api/quotes/search" || url.pathname === "/api/quotes/selftest") return handleQuotes(request, url, env, ctx);
+    // 飞汇地区比价：另一个仓库每周生成的报告，由这里去 GitHub 取最新的（见 flywire.js）
+    if (url.pathname === "/flywire/" || url.pathname === "/flywire/index.html") return handleFlywire(request, url, env, ctx, files);
     if (request.method !== "GET" && request.method !== "HEAD") {
       return new Response("Method Not Allowed", { status: 405, headers: { Allow: "GET, HEAD" } });
     }

@@ -839,6 +839,11 @@ main {
   font-size: calc(12px * var(--fs));
   line-height: 1.3;
 }
+/* 名字放不下时（nav.js 的 fitRows 判断）：字缩小一点 */
+.app-name.is-tight {
+  font-size: calc(11px * var(--fs));
+  letter-spacing: -0.03em;
+}
 @media (hover: hover) {
   .app:hover .app-icon {
     transform: translateY(-3px) scale(1.05);

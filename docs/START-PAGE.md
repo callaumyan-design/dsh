@@ -18,6 +18,7 @@
 | Duo 报告、UQ 校历的副本 | `duo/`、`uq/`（用 `tools/refresh-apps.sh` 更新，不要手改） |
 | 发布到 Cloudflare | `tools/deploy-cloudflare.mjs`、`tools/worker/handler.js` |
 | 不让搜索引擎和爬虫抓取 | `robots.txt`（整站都不让抓；这个文件谁都能看，不要在里面写私密地址） |
+| 飞汇地区比价（/flywire/） | `tools/worker/flywire.js`；备用副本 `flywire/index.html`（见下面“飞汇地区比价”） |
 | 首页的行情 | 页面：`assets/js/market/`、`assets/css/market.css`；后台：`tools/worker/quotes.js`、`quote-sources.js`（见下面“行情”） |
 
 ## 新增一个导航入口
@@ -248,7 +249,7 @@
 
 ## 应用栏里的应用
 
-一行放得下就排成一行；放不下就平均分成几行（手机上 9 个排成 5 + 4），由 `nav.js` 的 `fitRows()` 按宽度算。
+一行放得下就排成一行；放不下就平均分成几行（手机上 10 个排成 5 + 5），由 `nav.js` 的 `fitRows()` 按宽度算。
 
 | 应用 | 地址 | 说明 |
 | --- | --- | --- |
@@ -256,6 +257,7 @@
 | CatGPT | `https://chat.callaum.com/` | 另外部署在微软（Azure）的服务器上 |
 | UQ 校历 | `./uq/`（本网站的子目录） | 仓库里的 `uq/index.html`，是 UQ 校历分支上那个网页文件的副本 |
 | my.UQ | `https://portal.my.uq.edu.au/#/dashboard` | UQ 学生门户，图标是一顶学士帽 |
+| 飞汇地区比价 | `./flywire/`（本网站的子页面） | 另一个仓库每周自动生成的报告，见下面“飞汇地区比价” |
 | 砚录 | `https://ocr.callaum.com/` | 另外部署在 Cloudflare 上 |
 | WiFi Drop | `https://chat.callaum.com/drop/` | 和 CatGPT 在同一台服务器上 |
 | Claude | `https://claude.ai/` | Anthropic 的 AI 助手（网页版） |
@@ -271,6 +273,44 @@ bash tools/refresh-apps.sh
 ```
 
 它会从那两个分支取最新内容，重新生成这两个文件。检查改动后提交，再重新发布。
+
+## 飞汇地区比价（/flywire/）
+
+网址 `https://callaum.com/flywire/`，首页应用栏里“飞汇地区比价”点进去就是。对比在飞汇（Flywire）付澳洲学费时，
+选不同付款地区、用 Visa / 万事达 / 运通 / 银联，飞汇在汇率里分别加了多少，按加点从低到高排名。
+
+报告本身由另一个私有仓库 [flywire-fx-compare](https://github.com/callaumyan-design/flywire-fx-compare) 生成：
+那边的 GitHub Actions 每周一北京时间 10:07 左右自动抓取一次、检查、生成新的 `index.html` 提交回仓库，也可以手动运行并填金额
+（步骤写在那个仓库的 README 里）。抓取结果不合格时那边不提交，运行显示为失败。
+
+这边（`tools/worker/flywire.js`）怎么拿到最新的报告：
+
+- Cloudflare 后台设了密钥 `FLYWIRE_GITHUB_TOKEN` 时，去 GitHub 读那个仓库 main 分支上的 `index.html`，
+  检查通过的存 10 分钟——仓库更新后 **10 分钟内** 页面就跟上，不用重新发布。
+- 没设令牌、令牌过期、GitHub 取不到、取到的不是报告时，用本仓库 `flywire/index.html` 这份备用副本（发布时打包进去）。
+  两份都有时用抓取时间更新的那份。备用副本的更新方法见 `tools/refresh-apps.sh`（`FLYWIRE_REPO=<克隆目录>`）。
+- 响应头 `X-Flywire-Source: github` / `bundled` 写明这次用的是哪一份。
+- 只读 GitHub 上已经生成好的静态页面，**从不调用飞汇的接口**；页面里不含任何飞汇订单链接或 token。
+
+转交前加的东西（报告原来的样式、布局和计算脚本都不动）：页头“← 起始页”、页脚、和起始页一样的系统字体（不再从 Google 下载字体）、
+手机用的 viewport；页面上方一条提示：抓取时间、报价金额，和“报价随汇率变化，付款前请在飞汇页面再确认金额”；
+**抓取时间超过 14 天**时再加一条红色提示“数据已超过两周未更新，可能已过期”。
+
+隔离：响应头 `Content-Security-Policy: sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox`。
+报告页在浏览器眼里是一个“没有来历”的页面，它的脚本读不到起始页存在浏览器里的东西（设置、AI 接口 Key 等）——
+报告的数据来自飞汇的接口、每周自动更新、没人逐行检查，万一混进恶意内容也碰不到起始页。代价是报告记不住上次选的金额和卡种。
+
+### 第一次启用：建一个只读令牌，填到 Cloudflare
+
+1. 打开 GitHub → 右上角头像 → **Settings** → 左下 **Developer settings** → **Personal access tokens** → **Fine-grained tokens** → **Generate new token**。
+2. Token name 随便填（例如 `callaum-flywire-read`）；**Expiration** 选最长（最多 1 年，到期前 GitHub 会发邮件，到时重新建一个换上）。
+3. **Repository access** 选 **Only select repositories**，只勾 `callaumyan-design/flywire-fx-compare`。
+4. **Permissions → Repository permissions → Contents** 选 **Read-only**（其余都不用开），点 **Generate token**，复制它（只显示这一次）。
+5. 打开 Cloudflare 后台 → **Workers 和 Pages** → `start-page` → **设置** → **变量和机密** → **添加**：类型选 **密钥**，
+   名称 `FLYWIRE_GITHUB_TOKEN`，值粘贴刚才复制的令牌 → **部署**。
+6. 过一两分钟打开 `https://callaum.com/flywire/`，页面上的抓取时间是仓库里最新的那次就对了。
+
+令牌不要发到任何聊天里，也不要写进任何文件。之后用 `node tools/deploy-cloudflare.mjs` 发布新版本时，这个密钥会保留。
 
 ## 部署
 

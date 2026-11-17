@@ -24,7 +24,7 @@ const DRY_RUN = process.argv.includes("--dry-run");
 const API = "https://api.cloudflare.com/client/v4";
 
 // 网站由这些文件和文件夹组成；仓库里其他东西（说明文档、测试、工具）不发布
-const SITE = ["index.html", "manifest.webmanifest", "sw.js", "robots.txt", "assets", "config", "about", "uq", "duo"];
+const SITE = ["index.html", "manifest.webmanifest", "sw.js", "robots.txt", "assets", "config", "about", "uq", "duo", "flywire"];
 
 const TYPES = {
   ".html": "text/html; charset=utf-8",
