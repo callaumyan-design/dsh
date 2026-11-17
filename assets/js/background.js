@@ -32,6 +32,14 @@ let onlineSeed = ""; // 本次打开页面显示的在线壁纸编号
 let onlineFailed = false; // 在线壁纸这次加载失败了（只提示一次）
 let hideTimer = 0;
 let loadedKey = ""; // 清晰的图已经完全显示出来的那一张（之后就不用再垫模糊小图了）
+let bootImg = ""; // boot.js 直接画在第一层上的那张图（完整地址）；脚本加载好同一张以后接手，不再淡入一遍
+const absUrl = (src) => {
+  try {
+    return new URL(src, location.href).href;
+  } catch {
+    return "";
+  }
+};
 // 现在这张图最下面一条的颜色（还没算暗度遮罩）：给 iPhone Safari 填它工具栏下面那一块用，见 paintEdge()
 let edge = { key: "", color: "" };
 
@@ -339,13 +347,16 @@ function describe(bg) {
 }
 
 // ---------- 两层图片交替淡入 ----------
-function crossfade(paint) {
+function crossfade(paint, instant = false) {
   clearTimeout(hideTimer);
   const next = active === 0 ? 1 : 0;
   const nextEl = layers[next];
   const prevEl = active >= 0 ? layers[active] : null;
   paint(nextEl);
-  if (!prevEl) {
+  if (!prevEl && instant) {
+    // 刚打开页面、下面已经垫着这张图的模糊小图：清晰的图直接换上，不再慢慢淡入（不然会看到一层“雾”慢慢散开）
+    nextEl.classList.add("no-anim", "is-on");
+  } else if (!prevEl) {
     nextEl.classList.remove("no-anim");
     void nextEl.offsetWidth; // 强制浏览器先画一帧透明，再开始淡入
     nextEl.classList.add("is-on");
@@ -413,6 +424,7 @@ function paintEdge(view, bg) {
 }
 
 function showCss(css) {
+  bootImg = "";
   crossfade((el) => {
     el.replaceChildren();
     el.style.background = css;
@@ -436,11 +448,18 @@ async function showImage(view, src, mine, onDone) {
     return;
   }
   if (mine !== token) return onDone?.();
-  // 直接把下载好的这张 <img> 放进图层，不再让浏览器按地址重新请求一次
-  crossfade((el) => {
-    el.style.background = "";
-    el.replaceChildren(img);
-  });
+  if (bootImg && active === 0 && absUrl(src) === bootImg) {
+    // boot.js 已经把这张图画在第一层上了（屏幕上已经是清晰的图）：换成下载好的 <img>，画面不变
+    layers[0].style.background = "";
+    layers[0].replaceChildren(img);
+  } else {
+    // 直接把下载好的这张 <img> 放进图层，不再让浏览器按地址重新请求一次
+    crossfade((el) => {
+      el.style.background = "";
+      el.replaceChildren(img);
+    }, active < 0 && root.hasAttribute("data-bgthumb"));
+  }
+  bootImg = "";
   // 记下这张图最下面一条的颜色（读不到图片内容时就用整张的平均色）
   try {
     edge = { key: view.key, color: readable ? sampleEdge(img) : "" };
@@ -482,10 +501,21 @@ function showThumb(view, pv) {
   const on = !!pv && view.key !== loadedKey;
   // 刚打开页面、boot.js 已经垫上了上次记下的小图，但这张还没有预览（比如“每日一图”刚换了天）：
   // 先留着那张小图，等清晰的图出来再换，总比先灰一下好
-  if (!pv && !view.css && !loadedKey && active < 0 && root.hasAttribute("data-bgthumb")) return;
+  if (!pv && !view.css && !loadedKey && (active < 0 || bootImg) && root.hasAttribute("data-bgthumb")) return;
   if (on) root.style.setProperty("--bg-thumb", `url("${pv.thumb}")`);
   else root.style.removeProperty("--bg-thumb");
   root.toggleAttribute("data-bgthumb", on);
+}
+
+/** 下次打开页面时要显示的那张图的地址（只限普通网址；上传的图片、渐变返回空） */
+function nextSrc(bg, view) {
+  let src = view.src || "";
+  if (view.online && bg.online.every === "open" && !sourceOf(bg.online).daily) {
+    const st = onlineState();
+    src = st.source === bg.online.source && typeof st.next === "string" && st.next ? onlineUrl(bg.online, st.next) : "";
+  }
+  const abs = src ? absUrl(src) : "";
+  return /^https?:\/\//.test(abs) && abs.length < 2048 ? abs : "";
 }
 
 /** 下次打开页面时 boot.js 先显示哪张的预览（没有就返回 null） */
@@ -535,6 +565,9 @@ async function apply() {
   const cache = { color: view.color, edge: edgeColor, edgeKey: known ? edge.key : "", edgeRaw: known ? edge.color : "", css: view.css || "", tone, blur: bg.blur, dim: bg.dim, searchAlpha, searchTone, credit: hasCredit };
   // 下次打开时要先显示的那张的预览：一般就是现在这张；“每次打开换一张”时是已经提前下载好的下一张
   const next = nextOpen(bg, view, pv);
+  // 下次打开时那张图本身的地址：boot.js 直接把它画上去，浏览器缓存里有的话页面一出来就是清晰的
+  const src = nextSrc(bg, view);
+  if (src) cache.src = src;
   if (next) {
     Object.assign(cache, { color: next.color, edgeKey: next.key, edgeRaw: isHex(next.edge) ? next.edge : "", thumb: next.thumb });
     cache.edge = dimHex(isHex(next.edge) ? next.edge : next.color, bg.dim);
@@ -587,6 +620,19 @@ export function initBackground() {
     if (view.css === cache.css) shownKey = view.key;
     root.removeAttribute("data-bginstant");
     root.style.removeProperty("--bg-instant");
+  }
+  // boot.js 已经把上次那张图直接画在第一层了：接管过来（等脚本把同一张图加载好，原地换成 <img>，不再淡入）
+  if (root.hasAttribute("data-bgimg")) {
+    const src = readJSON(CACHE_KEY, {})?.src;
+    const abs = typeof src === "string" ? absUrl(src) : "";
+    if (abs) {
+      layers[0].style.background = `center / cover no-repeat url("${abs.replace(/["\\]/g, "")}")`;
+      layers[0].classList.add("no-anim", "is-on");
+      active = 0;
+      bootImg = abs;
+    }
+    root.removeAttribute("data-bgimg");
+    root.style.removeProperty("--bg-img");
   }
   // 主页最底下的"壁纸出处"
   const creditEl = $("#wall-credit");

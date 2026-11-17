@@ -287,6 +287,13 @@ svg.icon {
   transition: none;
 }
 
+/* 上次那张壁纸由 boot.js 直接画在第一层：浏览器缓存里有的话页面一出来就是清晰的图 */
+:root[data-bgimg] #bg-a {
+  background: center / cover no-repeat var(--bg-img);
+  opacity: 1;
+  transition: none;
+}
+
 /* 上次的渐变/纯色背景由 boot.js 提前写好，打开页面立刻显示，不闪 */
 :root[data-bginstant] #bg-a {
   background: var(--bg-instant);

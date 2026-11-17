@@ -40,6 +40,11 @@
       root.style.setProperty("--bg-thumb", 'url("' + cache.thumb + '")');
       root.setAttribute("data-bgthumb", "");
     }
+    // 上次那张壁纸本身：直接画上去。浏览器缓存里有的话，页面一出来就是清晰的图，不用等脚本（小图只在没缓存时垫底）
+    if (!cache.css && typeof cache.src === "string" && cache.src.length < 2048 && /^https?:\/\/[^"'\\\s()<>]+$/.test(cache.src)) {
+      root.style.setProperty("--bg-img", 'url("' + cache.src + '")');
+      root.setAttribute("data-bgimg", "");
+    }
     if (cache.tone === "light" || cache.tone === "dark") root.setAttribute("data-bgtone", cache.tone);
     if (typeof cache.blur === "number" && cache.blur > 0) {
       root.style.setProperty("--blur", cache.blur + "px");
