@@ -65,8 +65,11 @@ function decimals(id, price) {
   return 2;
 }
 const fmt = (n, d) => (Number.isFinite(n) ? n.toFixed(d) : "—");
-const signed = (n, d) => (Number.isFinite(n) ? (n > 0 ? "+" : n < 0 ? "−" : "") + Math.abs(n).toFixed(d) : "—");
+// 带正负号的数；四舍五入以后是 0 的（比如 −0.002%）不带符号，显示成 0.00
+const signed = (n, d) => (Number.isFinite(n) ? (Number(n.toFixed(d)) > 0 ? "+" : Number(n.toFixed(d)) < 0 ? "−" : "") + Math.abs(n).toFixed(d) : "—");
 const dirOf = (n) => (!Number.isFinite(n) || n === 0 ? "flat" : n > 0 ? "up" : "down");
+/** 涨还是跌：涨跌幅四舍五入到 0.00% 的算没变（不然会出现绿色的"0.00%"） */
+const moveOf = (q) => (q && Number.isFinite(q.changePct) && Math.abs(q.changePct) < 0.005 ? "flat" : dirOf(q?.change));
 
 /** 代码的简短写法：沪 600519、港 00700、美 NVDA、AUD/CNY */
 function shortCode(id) {
@@ -387,7 +390,7 @@ function row(item, group) {
   const currency = q ? q.currency || (isIndex(item.id) ? "点" : "") : "";
   const li = h(
     "li",
-    { class: `mk-row${stale ? " is-stale" : ""}`, dataset: { id: item.id, dir: stale ? "flat" : dirOf(q?.change) } },
+    { class: `mk-row${stale ? " is-stale" : ""}`, dataset: { id: item.id, dir: stale ? "flat" : moveOf(q) } },
     h(
       "div",
       { class: "mk-name" },
@@ -541,7 +544,7 @@ function buildAddPanel() {
         type: "button",
         class: "mk-found-btn",
         disabled: added(),
-        dataset: { dir: dirOf(q.change) },
+        dataset: { dir: moveOf(q) },
         onclick: () => {
           if (added()) return;
           if (list().length >= MAX_IDS) return toast(`最多关注 ${MAX_IDS} 个`);
