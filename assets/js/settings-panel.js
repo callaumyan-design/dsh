@@ -665,7 +665,7 @@ function marketSection() {
       (s) => String(s.market.refresh),
       (s, v) => (s.market.refresh = Number(v))
     ),
-    h("p", { class: "hint" }, "关注列表在首页行情右上角点铅笔编辑，只保存在这台设备的浏览器里，“导出设置”会带上它。行情由本站后台代取，部分是延时行情，会标出“延时”。"),
+    h("p", { class: "hint" }, "关注列表在首页行情下面那行小字右边点铅笔编辑，只保存在这台设备的浏览器里，“导出设置”会带上它。行情由本站后台代取，部分是延时行情，会标出“延时”。"),
     tokenStatus,
     h("div", { class: "btn-row" }, clearToken)
   );

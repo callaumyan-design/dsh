@@ -358,9 +358,9 @@ main {
   padding-top: clamp(68px, 15vh, 170px);
   text-align: center;
 }
-/* 首页显示行情时，上面少留点空，尽量让应用栏也在第一屏里 */
+/* 首页显示行情时，上面少留点空，让应用栏也在第一屏里 */
 .hero:has(> .market:not([hidden])) {
-  padding-top: clamp(48px, 6vh, 120px);
+  padding-top: clamp(56px, 11vh, 150px);
 }
 
 .clock {

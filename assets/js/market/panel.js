@@ -1,4 +1,5 @@
-// 行情：首页搜索框下面的一块毛玻璃。打开页面后马上加载（main.js 里），设置里关掉时不加载、不联网。
+// 行情：首页搜索框下面的一小块，透明底、白字直接压在壁纸上（和时钟一样）。打开页面后马上加载（main.js 里），设置里关掉时不加载、不联网。
+// 平时每行只有名称、现价、涨跌幅；最下面一行小字是更新时间，旁边是刷新和编辑按钮。代码、币种、涨跌额、市场状态在编辑时才显示。
 //
 // 数据：先显示上次存下的行情（连同它的更新时间），同时去后台 /api/quotes 拿新的（一分钟内刚拿过的不重复拿）。
 // 刷新：页面在前台时，按设置每 1 / 5 / 15 分钟刷新一次；关注的市场都不在交易时，最多 30 分钟一次。
@@ -27,7 +28,7 @@ function loadStyles() {
   });
 }
 
-let root, bodyEl, noticeEl, listEl, addEl, infoEl, editBtn, refreshBtn;
+let root, bodyEl, noticeEl, listEl, addEl, infoEl, footEl, editBtn, refreshBtn;
 let view = "list"; // list 看行情 | edit 编辑列表（排序、删除）| add 添加关注
 let loading = false;
 let phase = "idle"; // idle | ok | partial | error | offline | auth
@@ -73,14 +74,19 @@ function shortCode(id) {
   return `${{ SH: "沪", SZ: "深", BJ: "北", HK: "港", US: "美" }[market]} ${code}`;
 }
 
+/** "14:02 更新"；不是今天的写上日期 */
 function timeText(at) {
   if (!at) return "";
   const d = new Date(at);
   const hm = d.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false });
   const sameDay = d.toDateString() === new Date().toDateString();
-  const mins = Math.round((Date.now() - at) / 60000);
-  const ago = mins < 1 ? "刚刚" : mins < 60 ? `${mins} 分钟前` : "";
-  return `更新于 ${sameDay ? "" : `${d.getMonth() + 1}月${d.getDate()}日 `}${hm}${ago ? `（${ago}）` : ""}`;
+  return `${sameDay ? "" : `${d.getMonth() + 1}月${d.getDate()}日 `}${hm} 更新`;
+}
+
+/** 首页上显示的名字：汇率去掉"（在岸）"，离岸的写成"…… 离岸"，省地方 */
+function displayName(item, q) {
+  const name = item.name || q?.name || shortCode(item.id);
+  return item.id.startsWith("FX:") ? name.replace("（在岸）", "").replace("（离岸）", " 离岸") : name;
 }
 
 // ---------- 搭建 ----------
@@ -94,10 +100,9 @@ function build() {
   editBtn = iconButton("pencil", "编辑关注列表", { class: "mk-tool", onclick: () => setView(view === "list" ? "edit" : "list") });
   infoEl = h("div", { class: "mk-info" });
   bodyEl = h("div", { class: "mk-body" }, noticeEl, listEl, addEl);
-  root.replaceChildren(
-    h("div", { class: "mk-head" }, h("h2", { id: "mk-title" }, "行情"), infoEl, h("div", { class: "mk-tools" }, refreshBtn, editBtn)),
-    bodyEl
-  );
+  // 最下面一行：更新时间、标记 …… 刷新、编辑（标题"行情"只给读屏软件读，页面上不显示）
+  footEl = h("div", { class: "mk-foot" }, infoEl, h("div", { class: "mk-tools" }, refreshBtn, editBtn));
+  root.replaceChildren(h("h2", { id: "mk-title", class: "sr-only" }, "行情"), bodyEl, footEl);
   root.setAttribute("aria-labelledby", "mk-title");
 
   // Esc：添加页 → 编辑列表 → 看行情，一层一层退（焦点在这一块里时）
@@ -276,6 +281,7 @@ function render() {
   // 添加页单独占满这一块：不显示行情列表和提示
   noticeEl.hidden = listEl.hidden = view === "add";
   addEl.hidden = view !== "add";
+  footEl.hidden = view === "add";
   root.setAttribute("aria-busy", String(loading));
   refreshBtn.classList.toggle("is-spinning", loading);
   refreshBtn.disabled = loading || !list().length;
@@ -366,13 +372,18 @@ function renderGroups() {
 function row(item, group) {
   const q = cache.quotes[item.id];
   const stale = failed.has(item.id) || (!q && !loading && phase !== "idle");
-  const name = item.name || q?.name || shortCode(item.id);
+  const name = view === "list" ? displayName(item, q) : item.name || q?.name || shortCode(item.id);
   const d = q ? decimals(item.id, q.price) : 2;
   const currency = q ? q.currency || (isIndex(item.id) ? "点" : "") : "";
   const li = h(
     "li",
     { class: `mk-row${stale ? " is-stale" : ""}`, dataset: { id: item.id, dir: stale ? "flat" : dirOf(q?.change) } },
-    h("div", { class: "mk-name" }, h("span", { class: "mk-title" }, name), h("span", { class: "mk-code" }, shortCode(item.id))),
+    h(
+      "div",
+      { class: "mk-name" },
+      h("span", { class: "mk-title" }, name, q?.reference && !stale ? h("small", { class: "mk-ref" }, "参考价") : null),
+      h("span", { class: "mk-code" }, shortCode(item.id))
+    ),
     h("div", { class: "mk-price" }, h("span", { class: "mk-num" }, q ? fmt(q.price, d) : "—"), h("span", { class: "mk-cur" }, currency)),
     h("div", { class: "mk-chg" }, h("span", { class: "mk-num mk-amt" }, q ? signed(q.change, d) : ""), h("span", { class: "mk-num mk-pct" }, q ? signed(q.changePct, 2) + "%" : ""))
   );
@@ -383,13 +394,12 @@ function row(item, group) {
   }
   // 只有部分取不到时才在那一行写明；全部取不到时上面已经有提示，不每行重复
   if (stale && phase === "partial") notes.push(h("span", { class: "mk-fail", title: failed.get(item.id) || "" }, q ? "暂时取不到，显示的是上次的价格" : "暂时取不到"));
-  if (q?.reference && !stale) notes.push(h("span", { class: "mk-ref" }, "每日参考价"));
   if (notes.length) li.append(h("div", { class: "mk-notes" }, notes));
   if (view === "edit") li.append(editTools(item, group));
   return li;
 }
 
-/** 标题右边的小字：更新时间、演示 / 延时 / 几项取不到 */
+/** 最下面那行小字：更新时间、演示 / 延时 / 几项取不到 */
 function renderInfo() {
   const ids = list().map((x) => x.id);
   const shown = ids.map((id) => cache.quotes[id]).filter(Boolean);
