@@ -1,0 +1,25 @@
+# ---- 个人数据：只存在本机，绝不上传 ----
+# 配置（含 Bark 密钥）
+config.toml
+# 登录状态、会话备份、成绩记录、日志、探查录制、抓取目标……全部在 data/ 里
+data/
+# 以防万一，再单独列一遍
+*.sqlite3
+*.sqlite3-journal
+*.sqlite3-wal
+session-cookies.json
+session-meta.json
+targets.json
+browser-profile/
+
+# ---- Python / 工具生成的文件 ----
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+build/
+dist/
+.DS_Store
+Thumbs.db
+.ruff_cache/

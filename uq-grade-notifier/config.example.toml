@@ -1,0 +1,57 @@
+# UQ 新成绩推送 —— 配置文件
+#
+# 用法：运行 `uv run uqgrades init` 会根据这个示例自动生成 config.toml 并填好密钥。
+# 也可以手动把本文件复制一份，改名为 config.toml，再用记事本 / 文本编辑打开修改。
+#
+# 写法规则：
+#   - 以 # 开头的行是说明，程序不读。
+#   - 文字要用英文双引号括起来，例如 key = "abc123"
+#   - 开关只能写 true（开）或 false（关），不加引号。
+#
+# config.toml 只保存在你的电脑上，已写进 .gitignore，不会被上传。
+
+[bark]
+# 你的 Bark 密钥：打开 iPhone 上的 Bark App，首页会显示一条类似
+# https://api.day.app/AbCdEfGh123456/这里改成你自己的推送内容 的链接，
+# 中间那段（AbCdEfGh123456）就是密钥。直接粘贴整条链接也可以。
+key = ""
+
+# Bark 服务器地址。用官方服务器就不用改；自建服务器就填你自己的地址。
+server = "https://api.day.app"
+
+# 隐私开关：true = 锁屏通知只显示“某门课有新成绩”，不显示评估项名称和分数；
+#           false = 显示课程代码、评估项名称和成绩。
+privacy_mode = false
+
+# 推送在 Bark App 里归到哪个分组
+group = "UQ 成绩"
+
+# 通知级别："active"（普通）、"timeSensitive"（时效性，可在专注模式下提醒）、"passive"（静默）
+level = "active"
+
+# 提示音名称，留空用默认。可选值见 Bark App 里的“铃声”列表，例如 "minuet"
+sound = ""
+
+[schedule]
+# 每次查询之间的间隔（分钟），会在这两个数之间随机取一个值
+min_interval_minutes = 30
+max_interval_minutes = 60
+
+# 出错时间隔会逐步加倍，但最长不超过这么多分钟
+max_backoff_minutes = 360
+
+# 免打扰时段：这段时间里不查询、不推送；结束后的第一次查询会把期间的新成绩一起推过来。
+# 写法 "23:00-07:00"；多个时段用逗号隔开，例如 "23:00-07:00, 12:00-13:00"；留空 "" 表示不设置。
+quiet_hours = "23:00-07:00"
+
+# 定时任务每隔多少分钟“醒来”看一眼是否该查询了（一般不用改）
+wake_interval_minutes = 10
+
+# [advanced] 高级设置，一般不需要改动。需要时去掉行首的 # 再修改。
+[advanced]
+# learn_url = "https://learn.uq.edu.au/"
+# myuq_url = "https://my.uq.edu.au/"
+# 用系统里已安装的浏览器代替自带的 Chromium："msedge"（Windows 自带）或 "chrome"
+# browser_channel = ""
+# 额外的“登录页面”识别规则（主机名，或含 / 的路径片段）
+# extra_login_patterns = []
