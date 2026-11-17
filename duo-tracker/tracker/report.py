@@ -9,6 +9,7 @@ reports/index.html          指向最新日报
 from __future__ import annotations
 
 import csv
+import datetime as dt
 import json
 import sqlite3
 from collections import defaultdict
@@ -118,7 +119,11 @@ def build(root: Path, cfg: dict, date: str) -> dict:
     apps = _app_rows(conn, date)
     by_id = {a["id"]: a for a in apps}
     summary_p = out_dir / "run_summary.json"
-    summary = json.loads(summary_p.read_text(encoding="utf-8")) if summary_p.exists() else {}
+    if summary_p.exists():
+        summary = json.loads(summary_p.read_text(encoding="utf-8"))
+    else:  # 在别的机器上只重新生成网页时，原始的 run_summary.json 不在，从数据库读
+        row = conn.execute("SELECT body FROM run_summaries WHERE run_date=?", (date,)).fetchone()
+        summary = json.loads(row[0]) if row else {}
     prev_date = conn.execute("SELECT MAX(run_date) FROM verdicts WHERE run_date<?", (date,)).fetchone()[0]
 
     # ① 今日新版本（首次运行时为基线，不算新版本）
@@ -201,8 +206,18 @@ def build(root: Path, cfg: dict, date: str) -> dict:
                           FROM versions WHERE is_baseline=0 GROUP BY 1""").fetchall()
     ctx.update(events=dict(events), days=[dict(r) for r in days], vstats={r["d"]: dict(r) for r in vtl},
                categories=_categories(apps), dates=[r["run_date"] for r in days])
+    ctx["generated_at"] = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     tpl = env.get_template("site.html.j2")
-    (out_dir / "index.html").write_text(tpl.render(standalone=True, **ctx), encoding="utf-8")
+    page = tpl.render(standalone=True, **ctx)
+    (out_dir / "index.html").write_text(page, encoding="utf-8")
+    # 固定位置的“最新一份”：随数据一起提交到仓库，callaum.com/duo/ 的后台直接去 GitHub 读它。
+    # 只有在生成的是数据库里最新那一天时才覆盖，免得重新生成旧日期的报告时把它换成旧的。
+    site_path = None
+    latest_day = conn.execute("SELECT MAX(run_date) FROM verdicts").fetchone()[0]
+    if date == latest_day:
+        site_path = root / cfg["paths"].get("site", "site") / "index.html"
+        site_path.parent.mkdir(parents=True, exist_ok=True)
+        site_path.write_text(page, encoding="utf-8")
     # 发布为 Artifact 用：不带 doctype/html/head/body（发布时由平台套壳）
     (out_dir / "artifact.html").write_text(tpl.render(standalone=False, **ctx), encoding="utf-8")
     for alias, view in (("daily.html", "today"), ("all.html", "apps")):
@@ -211,7 +226,7 @@ def build(root: Path, cfg: dict, date: str) -> dict:
     latest = sorted(p.name for p in rep_root.iterdir() if p.is_dir() and (p / "index.html").exists())[-1]
     (rep_root / "index.html").write_text(_redirect(f"{latest}/index.html"), encoding="utf-8")
     (rep_root / "timeline.html").write_text(_redirect(f"{latest}/index.html#trend"), encoding="utf-8")
-    return {"daily": str(out_dir / "index.html"), "site": str(out_dir / "index.html")}
+    return {"daily": str(out_dir / "index.html"), "site": str(site_path) if site_path else None}
 
 
 def _redirect(url: str) -> str:

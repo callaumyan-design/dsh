@@ -41,7 +41,25 @@ def run_once(cfg, date, offline=False, only=None, report_only=False):
             json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
     out = report.build(ROOT, cfg, date)
     logging.info("日报：%s", out["daily"])
+    if out.get("site"):
+        stage_site(Path(out["site"]))
     return out
+
+
+def stage_site(path: Path):
+    """把最新一份网页 site/index.html 放进 git 暂存区。
+
+    每天的定时任务只执行 `git add data/tracker.db && git commit`；commit 会连同已暂存的文件一起提交，
+    所以这份网页会和数据一起推上 GitHub，callaum.com/duo/ 的后台再去 GitHub 读它（见 README）。
+    不在 git 仓库里、或者 git 不可用时什么也不做。
+    """
+    import subprocess
+    try:
+        subprocess.run(["git", "-C", str(path.parent), "add", "--", path.name], check=True,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30)
+        logging.info("已暂存 %s（会随下一次提交一起推送）", path)
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def schedule_loop(cfg):

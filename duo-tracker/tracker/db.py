@@ -141,6 +141,13 @@ CREATE TABLE IF NOT EXISTS source_events (
     PRIMARY KEY (run_date, source, source_key)
 );
 
+-- 每次运行的摘要（各来源成败、Lookup 成功率、榜单规模、备注），日报的“数据源运行情况”从这里读，
+-- 这样换一台机器只用 --report-only 重新生成网页时也是完整的
+CREATE TABLE IF NOT EXISTS run_summaries (
+    run_date TEXT PRIMARY KEY,
+    body     TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS runs (
     run_date    TEXT NOT NULL,
     source      TEXT NOT NULL,
@@ -185,6 +192,7 @@ def clear_run(conn: sqlite3.Connection, run_date: str):
     conn.execute("DELETE FROM versions WHERE first_seen=?", (run_date,))
     conn.execute("DELETE FROM source_events WHERE run_date=?", (run_date,))
     conn.execute("DELETE FROM source_seen WHERE first_seen=?", (run_date,))
+    conn.execute("DELETE FROM run_summaries WHERE run_date=?", (run_date,))
     conn.commit()
 
 

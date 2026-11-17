@@ -27,6 +27,7 @@ paths:
   unmatched: unmatched.csv
   watchlist: watchlist.yaml
   manual_matches: manual_matches.yaml
+  site: site                 # 最新一份网页 site/index.html（入库，callaum.com/duo/ 从 GitHub 读它）
 
 charts:
   # 主来源：App Store 网页榜单 apps.apple.com/<cc>/iphone/charts/{36,6014}，一页含免费/付费各 Top 200

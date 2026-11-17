@@ -203,9 +203,12 @@ class Run:
         # 有明确结论的排前面，方便人工优先确认
         self.unmatched.sort(key=lambda r: (r.get("status") in (None, "", UNKNOWN), r.get("source", ""), r.get("name", "")))
         write_unmatched(self.root / self.cfg["paths"]["unmatched"], self.unmatched)
-        return {"date": self.date, "sources": self.source_status, "lookup": self.lookup_stats,
-                "top_sizes": self.top_sizes,
-                "notes": self.notes, "unmatched": len(self.unmatched)}
+        summary = {"date": self.date, "sources": self.source_status, "lookup": self.lookup_stats,
+                   "top_sizes": self.top_sizes, "notes": self.notes, "unmatched": len(self.unmatched),
+                   "finished_at": now_iso()}
+        conn.execute("INSERT OR REPLACE INTO run_summaries VALUES (?,?)", (self.date, dbm.dumps(summary)))
+        conn.commit()
+        return summary
 
     # ------------------------------------------------------------------ steps
     @staticmethod

@@ -8,6 +8,16 @@
 
 另外还有：`reports/<date>/status.csv`（全量总表）；`data/tracker.db`（SQLite，核心四表 apps / versions / observations / verdicts，保留完整历史，**入库**，使每天的云端运行能接着前一天的数据）；`unmatched.csv`（名称匹配不上的条目，供人工确认，确认结果写进 `manual_matches.yaml`）。`artifact.html` 内容同 index.html，只是去掉了文档外壳，用于发布成网页。
 
+## 最新网页 `site/index.html` 与 callaum.com/duo/
+
+每次运行生成网页时，如果生成的是数据库里最新的那一天，会额外写一份到固定位置 `site/index.html`，并由 `run.py` 自动加入 git 暂存区，
+所以每天定时任务的 `git add data/tracker.db && git commit` 会把它和数据一起提交、推送。
+
+起始页 callaum.com 的 `/duo/` 由它的后台直接去 GitHub 读这个文件（公开仓库，不用令牌），缓存 10 分钟，读不到时用起始页仓库里打包的备用副本。
+所以每天推送后 10 分钟内 callaum.com/duo/ 就会更新，不用重新发布起始页。网页里的 `<meta name="duo-tracker:date">` 是数据日期，后台用它判断哪份更新。
+
+运行摘要（各来源成败、Lookup 成功率等）同时存进数据库的 `run_summaries` 表，换一台机器只用 `--report-only` 重新生成网页时，“数据源运行情况”也是完整的。
+
 ## 用法
 
 ```bash
