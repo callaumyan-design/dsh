@@ -5,7 +5,7 @@ import { QMAP, QUADRANTS, QUADRANT_IDS } from '../lib/quadrants';
 import { buildInsights, computeStats, type DayBucket, type Stats } from '../lib/stats';
 import { useStore } from '../store/useStore';
 import { useUI } from '../store/useUI';
-import { Segmented, VText } from './ui';
+import { CenterAxes, Segmented } from './ui';
 
 type Range = '7' | '14' | '30';
 
@@ -185,15 +185,8 @@ function SegBar({ counts }: { counts: number[] }) {
 function AllocationMap({ stats }: { stats: Stats }) {
   const total = stats.doneInRange;
   return (
-    <div className="alloc">
-      <span className="alloc-axis alloc-x1">紧急</span>
-      <span className="alloc-axis alloc-x2">不紧急</span>
-      <span className="alloc-axis alloc-y1">
-        <VText text="重要" />
-      </span>
-      <span className="alloc-axis alloc-y2">
-        <VText text="不重要" />
-      </span>
+    <div className="alloc axes-grid">
+      <CenterAxes />
       {QUADRANTS.map((q) => {
         const n = stats.doneByQuadrant[q.id];
         const pct = total ? Math.round((n / total) * 100) : 0;

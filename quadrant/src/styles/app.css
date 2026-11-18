@@ -896,85 +896,133 @@ textarea.input {
   cursor: pointer;
 }
 
-/* ---------- 矩阵 ---------- */
-.matrix {
-  flex: 1;
-  min-height: 0;
+/* ---------- 十字坐标轴：画在四个象限中间 ---------- */
+.axes-grid {
+  --ax: 32px;
+  --ax-font: 13px;
+  --ax-track: 0.3em;
   display: grid;
-  grid-template-columns: 24px minmax(0, 1fr) minmax(0, 1fr);
-  grid-template-rows: 26px minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) var(--ax) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) var(--ax) minmax(0, 1fr);
   grid-template-areas:
-    '. x1 x2'
-    'y1 q1 q2'
-    'y2 q3 q4';
-  gap: 6px 12px;
-  padding-block: 2px 16px;
+    'q1 y1 q2'
+    'x1 o x2'
+    'q3 y2 q4';
 }
 
-.axis {
+.axes-grid > .q-q1 { grid-area: q1; }
+.axes-grid > .q-q2 { grid-area: q2; }
+.axes-grid > .q-q3 { grid-area: q3; }
+.axes-grid > .q-q4 { grid-area: q4; }
+
+.cax {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 10px;
-  color: var(--ink-3);
-  font-size: 12.5px;
-  font-weight: 600;
-  letter-spacing: 0.3em;
+  min-width: 0;
+  min-height: 0;
+  color: var(--ink-2);
+  font-size: var(--ax-font);
+  font-weight: 700;
+  line-height: 1.15;
   user-select: none;
+  pointer-events: none;
 }
 
-.axis::before,
-.axis::after {
+.cax::before,
+.cax::after {
   content: '';
   flex: 1;
   background: var(--line-strong);
 }
 
-.axis-x::before,
-.axis-x::after {
+.cax-x {
+  flex-direction: row;
+  letter-spacing: var(--ax-track);
+}
+
+.cax-x::before,
+.cax-x::after {
   height: 1px;
 }
 
-.axis-y {
+.cax-y {
   flex-direction: column;
-  letter-spacing: 0;
 }
 
-.axis-y::before,
-.axis-y::after {
+.cax-y::before,
+.cax-y::after {
   width: 1px;
+}
+
+.cax-label {
+  flex: none;
+  display: grid;
+  place-items: center;
+  white-space: nowrap;
+}
+
+/* 字距会在末尾多出一截，左侧补上同样宽度让文字居中 */
+.cax-x .cax-label {
+  padding: 0 0.6em 0 calc(0.6em + var(--ax-track));
+}
+
+.cax-y .cax-label {
+  padding: 0.6em 0;
 }
 
 .vtext {
   display: inline-flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.15em;
   line-height: 1.15;
 }
 
-.axis-x1 { grid-area: x1; }
-.axis-x2 { grid-area: x2; }
-.axis-y1 { grid-area: y1; }
-.axis-y2 { grid-area: y2; }
-
-/* 箭头：紧急程度向左递增，重要程度向上递增 */
-.axis-x1::before {
-  background: linear-gradient(to right, var(--ink-4), var(--line-strong) 40px);
+.cax-y .vtext {
+  gap: 0.3em;
 }
 
-.axis-y1::before {
-  background: linear-gradient(to bottom, var(--ink-4), var(--line-strong) 40px);
+.cax-x1 { grid-area: x1; }
+.cax-x2 { grid-area: x2; }
+.cax-y1 { grid-area: y1; }
+.cax-y2 { grid-area: y2; }
+
+/* 原点：两条轴在中心交叉 */
+.cax-origin {
+  grid-area: o;
+  pointer-events: none;
+  background:
+    radial-gradient(circle, var(--ink-3) 0 3px, transparent 3.5px),
+    linear-gradient(var(--line-strong), var(--line-strong)) center / 1px 100% no-repeat,
+    linear-gradient(var(--line-strong), var(--line-strong)) center / 100% 1px no-repeat;
 }
 
-.axis-y .vtext {
-  gap: 0.35em;
+/* 箭头：越往上越重要，越往左越紧急 */
+.cax-arrow {
+  order: -1;
+  flex: none;
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-color: transparent;
 }
 
-.quad[data-quadrant='q1'] { grid-area: q1; }
-.quad[data-quadrant='q2'] { grid-area: q2; }
-.quad[data-quadrant='q3'] { grid-area: q3; }
-.quad[data-quadrant='q4'] { grid-area: q4; }
+.cax-y .cax-arrow {
+  border-width: 0 4px 7px;
+  border-bottom-color: var(--ink-3);
+}
+
+.cax-x .cax-arrow {
+  border-width: 4px 7px 4px 0;
+  border-right-color: var(--ink-3);
+}
+
+/* ---------- 矩阵 ---------- */
+.matrix {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  padding-block: 6px 16px;
+}
 
 .matrix.is-focused {
   grid-template-columns: minmax(0, 1fr) 210px;
@@ -1655,32 +1703,27 @@ body.is-dragging * {
 
 /* ---------- 象限选择器 ---------- */
 .qpicker {
-  display: grid;
-  grid-template-columns: 18px 1fr 1fr;
-  grid-template-rows: 18px auto auto;
-  grid-template-areas:
-    '. x x2'
-    'y a b'
-    'y2 c d';
-  gap: 5px;
+  --ax: 22px;
+  --ax-font: 11px;
+  --ax-track: 0.15em;
 }
 
-.qpicker-axis {
-  font-size: 11px;
+.qpicker .cax {
   color: var(--ink-3);
-  display: grid;
-  place-items: center;
+  font-weight: 600;
 }
 
-.qpicker-axis-x { grid-area: x; }
-.qpicker-axis-x2 { grid-area: x2; }
-.qpicker-axis-y { grid-area: y; }
-.qpicker-axis-y2 { grid-area: y2; }
+.qpicker .cax-y .cax-label {
+  padding: 2px 0;
+}
 
-.qpicker-cell:nth-of-type(1) { grid-area: a; }
-.qpicker-cell:nth-of-type(2) { grid-area: b; }
-.qpicker-cell:nth-of-type(3) { grid-area: c; }
-.qpicker-cell:nth-of-type(4) { grid-area: d; }
+.qpicker .cax-y .vtext {
+  gap: 0.05em;
+}
+
+.qpicker .cax-x .cax-label {
+  padding: 0 0.4em 0 calc(0.4em + var(--ax-track));
+}
 
 .qpicker-cell {
   position: relative;
@@ -2853,33 +2896,24 @@ body.is-dragging * {
 
 /* 精力分配：用矩阵本身做图 */
 .alloc {
-  display: grid;
-  grid-template-columns: 18px minmax(0, 1fr) minmax(0, 1fr);
-  grid-template-rows: 20px auto auto;
-  grid-template-areas:
-    '. x1 x2'
-    'y1 a b'
-    'y2 c d';
-  gap: 6px;
+  --ax: 24px;
+  --ax-font: 11.5px;
+  --ax-track: 0.2em;
   margin-top: 12px;
 }
 
-.alloc-axis {
-  display: grid;
-  place-items: center;
-  font-size: 11px;
+.alloc .cax {
   color: var(--ink-3);
+  font-weight: 600;
 }
 
-.alloc-x1 { grid-area: x1; }
-.alloc-x2 { grid-area: x2; }
-.alloc-y1 { grid-area: y1; }
-.alloc-y2 { grid-area: y2; }
+.alloc .cax-y .cax-label {
+  padding: 4px 0;
+}
 
-.alloc-cell:nth-of-type(1) { grid-area: a; }
-.alloc-cell:nth-of-type(2) { grid-area: b; }
-.alloc-cell:nth-of-type(3) { grid-area: c; }
-.alloc-cell:nth-of-type(4) { grid-area: d; }
+.alloc .cax-y .vtext {
+  gap: 0.1em;
+}
 
 .alloc-cell {
   display: flex;
@@ -3241,18 +3275,17 @@ body.is-dragging * {
   }
 
   .matrix {
-    grid-template-columns: 14px minmax(0, 1fr) minmax(0, 1fr);
-    grid-template-rows: 18px minmax(0, 1fr) minmax(0, 1fr);
-    gap: 4px 6px;
-    padding-block: 0 8px;
-    padding-left: max(8px, env(safe-area-inset-left, 0px));
-    padding-right: max(10px, env(safe-area-inset-right, 0px));
+    padding-block: 2px 8px;
   }
 
-  .axis {
-    font-size: 10.5px;
-    gap: 6px;
-    letter-spacing: 0.2em;
+  .matrix.axes-grid {
+    --ax: 22px;
+    --ax-font: 11px;
+    --ax-track: 0.15em;
+  }
+
+  .matrix .cax-y .cax-label {
+    padding: 0.4em 0;
   }
 
   .matrix.is-focused {

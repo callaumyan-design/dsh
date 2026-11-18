@@ -27,7 +27,7 @@ import { doneTasksOf, openTasksOf, useStore } from '../store/useStore';
 import { useUI } from '../store/useUI';
 import { QuickAdd } from './QuickAdd';
 import { DoneCard, OverlayCard, SortableTaskCard } from './TaskCard';
-import { Popover, VText } from './ui';
+import { CenterAxes, Popover } from './ui';
 
 type Items = Record<QuadrantId, string[]>;
 
@@ -182,23 +182,8 @@ export function Matrix({ today }: { today: string }) {
       onDragEnd={onDragEnd}
       onDragCancel={finish}
     >
-      <div className={`matrix${focused ? ' is-focused' : ''}`}>
-        {!focused && (
-          <>
-            <div className="axis axis-x axis-x1" aria-hidden>
-              <span>紧急</span>
-            </div>
-            <div className="axis axis-x axis-x2" aria-hidden>
-              <span>不紧急</span>
-            </div>
-            <div className="axis axis-y axis-y1" aria-hidden>
-              <VText text="重要" />
-            </div>
-            <div className="axis axis-y axis-y2" aria-hidden>
-              <VText text="不重要" />
-            </div>
-          </>
-        )}
+      <div className={`matrix${focused ? ' is-focused' : ' axes-grid'}`}>
+        {!focused && <CenterAxes />}
         {shown.map((q) => (
           <QuadrantPanel
             key={q}

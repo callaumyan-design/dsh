@@ -51,6 +51,38 @@ export function VText({ text }: { text: string }) {
   );
 }
 
+/**
+ * 十字坐标轴：画在四个象限中间。
+ * 纵轴（上=重要，下=不重要）位于左右两列之间，横轴（左=紧急，右=不紧急）位于上下两行之间，
+ * 每个标签正好落在它所描述的两个象限之间。容器需使用网格区域
+ * 'q1 y1 q2' / 'x1 o x2' / 'q3 y2 q4'。
+ */
+export function CenterAxes() {
+  return (
+    <>
+      <div className="cax cax-y cax-y1" aria-hidden>
+        <i className="cax-arrow" />
+        <span className="cax-label">
+          <VText text="重要" />
+        </span>
+      </div>
+      <div className="cax cax-y cax-y2" aria-hidden>
+        <span className="cax-label">
+          <VText text="不重要" />
+        </span>
+      </div>
+      <div className="cax cax-x cax-x1" aria-hidden>
+        <i className="cax-arrow" />
+        <span className="cax-label">紧急</span>
+      </div>
+      <div className="cax cax-x cax-x2" aria-hidden>
+        <span className="cax-label">不紧急</span>
+      </div>
+      <div className="cax-origin" aria-hidden />
+    </>
+  );
+}
+
 /** 2×2 的象限选择器：以矩阵本身作为控件 */
 export function QuadrantPicker({
   value,
@@ -63,15 +95,8 @@ export function QuadrantPicker({
 }) {
   const name = useId();
   return (
-    <div className={`qpicker${compact ? ' is-compact' : ''}`} role="radiogroup" aria-label="选择象限">
-      <span className="qpicker-axis qpicker-axis-x">紧急</span>
-      <span className="qpicker-axis qpicker-axis-x2">不紧急</span>
-      <span className="qpicker-axis qpicker-axis-y">
-        <VText text="重要" />
-      </span>
-      <span className="qpicker-axis qpicker-axis-y2">
-        <VText text="不重要" />
-      </span>
+    <div className={`qpicker axes-grid${compact ? ' is-compact' : ''}`} role="radiogroup" aria-label="选择象限">
+      <CenterAxes />
       {QUADRANTS.map((q) => (
         <label key={q.id} className={`qpicker-cell q-${q.id}${value === q.id ? ' is-on' : ''}`}>
           <input
