@@ -17,7 +17,7 @@ import {
   type UniqueIdentifier,
 } from '@dnd-kit/core';
 import { SortableContext, arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { ArrowDownWideNarrow, ChevronDown, Ellipsis, Eraser, Maximize2, Minimize2, Plus } from 'lucide-react';
+import { ArrowDownWideNarrow, ChevronDown, Ellipsis, Eraser, Maximize2, Minimize2, Palette, Plus } from 'lucide-react';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { clearCompleted, moveTask } from '../actions';
 import { useIsMobile } from '../hooks';
@@ -351,6 +351,23 @@ function QuadrantPanel({
               >
                 {focused ? <Minimize2 aria-hidden /> : <Maximize2 aria-hidden />}
                 {focused ? '返回四象限' : '专注此象限'}
+              </button>
+              <button
+                role="menuitem"
+                type="button"
+                className="menu-item"
+                onClick={() => {
+                  closeMenu();
+                  openDialog('settings');
+                  // 等设置面板渲染后滚动到颜色设置，并打开这个象限的取色器
+                  setTimeout(() => {
+                    document.getElementById('set-colors')?.scrollIntoView({ block: 'center' });
+                    document.getElementById(`set-color-${q}`)?.focus();
+                  }, 50);
+                }}
+              >
+                <Palette aria-hidden />
+                更改颜色
               </button>
               <button
                 role="menuitem"

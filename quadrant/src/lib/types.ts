@@ -43,6 +43,8 @@ export interface Prefs {
   escalateDays: number;
   /** 快速输入时自动识别日期、标签等 */
   smartParse: boolean;
+  /** 自定义象限颜色（#rrggbb），未设置的象限使用默认配色 */
+  colors: Partial<Record<QuadrantId, string>>;
 }
 
 export interface PersistedState {

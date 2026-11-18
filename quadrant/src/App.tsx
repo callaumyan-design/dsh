@@ -7,7 +7,7 @@ import { ConfirmDialog, SettingsDialog, ShortcutsDialog, Toasts } from './compon
 import { Matrix } from './components/Matrix';
 import { StatsView } from './components/StatsView';
 import { TaskDrawer } from './components/TaskDrawer';
-import { isTypingTarget, useApplyTheme, useIsMobile, useToday } from './hooks';
+import { isTypingTarget, useApplyTheme, useIsMobile, useQuadrantColors, useToday } from './hooks';
 import { QUADRANT_IDS } from './lib/quadrants';
 import { useStore } from './store/useStore';
 import { useUI, viewFromHash } from './store/useUI';
@@ -93,7 +93,9 @@ export default function App() {
   const view = useUI((s) => s.view);
   const today = useToday();
   const mobile = useIsMobile();
+  const colors = useStore((s) => s.prefs.colors);
   useApplyTheme(theme);
+  useQuadrantColors(colors);
   useGlobalHotkeys();
 
   useEffect(() => {

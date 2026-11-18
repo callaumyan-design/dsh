@@ -8,6 +8,7 @@ import { buildExport, buildMarkdown, parseImport } from '../lib/storage';
 import type { Task } from '../lib/types';
 import { useStore } from '../store/useStore';
 import { useUI } from '../store/useUI';
+import { ColorSettings } from './ColorSettings';
 import { Modal, QBadge, Segmented, Switch } from './ui';
 
 export function ConfirmDialog() {
@@ -249,6 +250,7 @@ export function SettingsDialog() {
           </label>
           <Switch id="set-done" label="显示已完成任务" checked={prefs.showCompleted} onChange={(v) => setPrefs({ showCompleted: v })} />
         </div>
+        <ColorSettings />
       </section>
 
       <section className="settings-group">

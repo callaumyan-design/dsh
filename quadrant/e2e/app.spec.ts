@@ -202,3 +202,25 @@ test('搜索与标签筛选', async ({ page }) => {
   await expect(page.locator('.card:not(.is-done)').first()).toBeVisible();
   expect(await page.locator('.card:not(.is-done)').count()).toBeGreaterThan(2);
 });
+
+test('自定义象限颜色并保存', async ({ page }) => {
+  await freshStart(page);
+  const codeBg = () => quad(page, 'q2').locator('.quad-code').evaluate((el) => getComputedStyle(el).backgroundColor);
+  const before = await codeBg();
+  await page.getByRole('button', { name: '设置' }).first().click();
+  await page.locator('#set-color-q2').fill('#1f9d63');
+  await expect.poll(codeBg).not.toBe(before);
+  // 选预设配色
+  await page.getByRole('radio', { name: '冷色' }).click();
+  await expect(page.getByRole('radio', { name: '冷色' })).toHaveAttribute('aria-checked', 'true');
+  await page.keyboard.press('Escape');
+  const custom = await codeBg();
+  await page.reload();
+  expect(await codeBg()).toBe(custom);
+  // 恢复默认
+  await page.getByRole('button', { name: '设置' }).first().click();
+  await page.getByRole('button', { name: '全部恢复默认配色' }).click();
+  await expect(page.getByRole('radio', { name: '默认' })).toHaveAttribute('aria-checked', 'true');
+  await page.keyboard.press('Escape');
+  expect(await codeBg()).toBe(before);
+});

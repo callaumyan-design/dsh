@@ -1,3 +1,4 @@
+import { sanitizeColors } from './color';
 import { isISODate } from './date';
 import { uid } from './id';
 import { isQuadrantId } from './quadrants';
@@ -12,6 +13,7 @@ export const DEFAULT_PREFS: Prefs = {
   introDismissed: false,
   escalateDays: 1,
   smartParse: true,
+  colors: {},
 };
 
 const REPEATS: Repeat[] = ['daily', 'weekdays', 'weekly', 'monthly'];
@@ -73,6 +75,7 @@ export function sanitizePrefs(v: unknown): Prefs {
         ? Math.round(o.escalateDays)
         : DEFAULT_PREFS.escalateDays,
     smartParse: typeof o.smartParse === 'boolean' ? o.smartParse : DEFAULT_PREFS.smartParse,
+    colors: sanitizeColors(o.colors),
   };
 }
 

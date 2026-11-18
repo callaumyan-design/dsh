@@ -1,6 +1,7 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
+import { buildColorCss } from '../lib/color';
 import { todayISO } from '../lib/date';
-import type { ThemePref } from '../lib/types';
+import type { Prefs, ThemePref } from '../lib/types';
 
 export function useMediaQuery(query: string): boolean {
   return useSyncExternalStore(
@@ -67,4 +68,23 @@ export function useInstallPrompt() {
         setEvt(null);
       }
     : null;
+}
+
+/** 把自定义象限颜色写进一段放在最后的样式表，覆盖默认配色 */
+export function useQuadrantColors(colors: Prefs['colors']) {
+  useEffect(() => {
+    const css = buildColorCss(colors);
+    let el = document.getElementById('quadrant-colors') as HTMLStyleElement | null;
+    if (!css) {
+      el?.remove();
+      return;
+    }
+    if (!el) {
+      el = document.createElement('style');
+      el.id = 'quadrant-colors';
+    }
+    // 始终放在 head 末尾，保证排在应用样式之后
+    document.head.appendChild(el);
+    el.textContent = css;
+  }, [colors]);
 }

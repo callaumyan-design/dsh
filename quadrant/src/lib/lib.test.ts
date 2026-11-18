@@ -126,3 +126,32 @@ describe('stats', () => {
     expect(s.daily.at(-1)?.counts.q2).toBe(1);
   });
 });
+
+import { buildColorCss, contrast, deriveTokens, sanitizeColors, similarPairs, DEFAULT_COLORS } from './color';
+
+describe('color', () => {
+  it('任何基础色派生出的文字和按钮都满足 4.5:1 对比度', () => {
+    for (const base of ['#ffe066', '#00ff00', '#111111', '#e0453d', '#ffffff', '#3355e0', '#8b93a5']) {
+      for (const mode of ['light', 'dark'] as const) {
+        const t = deriveTokens(base, mode);
+        expect(contrast(t.ink, t.soft)).toBeGreaterThanOrEqual(4.5);
+        expect(contrast(t.btn, '#ffffff')).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+  });
+  it('只为自定义过的象限生成样式，并覆盖浅色和深色', () => {
+    expect(buildColorCss({})).toBe('');
+    const css = buildColorCss({ q2: '#1f9d63' });
+    expect(css).toContain('--q2:');
+    expect(css).not.toContain('--q1:');
+    expect(css).toContain("prefers-color-scheme: dark");
+    expect(css).toContain("[data-theme='dark']");
+  });
+  it('清洗非法颜色值', () => {
+    expect(sanitizeColors({ q1: '#ABCDEF', q2: 'red', q5: '#000000' })).toEqual({ q1: '#abcdef' });
+  });
+  it('提示颜色过于接近的象限', () => {
+    expect(similarPairs(DEFAULT_COLORS)).toEqual([]);
+    expect(similarPairs({ ...DEFAULT_COLORS, q3: '#e2473f' })).toEqual([['q1', 'q3']]);
+  });
+});
