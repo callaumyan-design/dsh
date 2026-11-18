@@ -15,9 +15,10 @@
 | 样式 | `assets/css/main.css` |
 | 功能代码 | `assets/js/`（每个文件开头有一句话说明它管什么） |
 | /about 页面 | `about/index.html`（README 改了要手动同步这里） |
-| Duo 报告、UQ 校历的副本，四象限任务计划编译好的版本 | `duo/`、`uq/`、`planner/`（用 `tools/refresh-apps.sh` 更新，不要手改） |
+| UQ 校历的副本、Duo 报告的备用副本、四象限任务计划编译好的版本 | `uq/`、`duo/`、`planner/`（用 `tools/refresh-apps.sh` 更新，不要手改） |
 | 发布到 Cloudflare | `tools/deploy-cloudflare.mjs`、`tools/worker/handler.js` |
 | 不让搜索引擎和爬虫抓取 | `robots.txt`（整站都不让抓；这个文件谁都能看，不要在里面写私密地址） |
+| Duo 适配（/duo/） | `tools/worker/duo.js`；备用副本 `duo/index.html`（见下面“Duo 适配”） |
 | 飞汇地区比价（/flywire/） | `tools/worker/flywire.js`；备用副本 `flywire/index.html`（见下面“飞汇地区比价”） |
 | 首页的行情 | 页面：`assets/js/market/`、`assets/css/market.css`；后台：`tools/worker/quotes.js`、`quote-sources.js`（见下面“行情”） |
 
@@ -258,7 +259,7 @@
 
 | 应用 | 地址 | 说明 |
 | --- | --- | --- |
-| Duo 适配 | `./duo/`（本网站的子目录） | 仓库里的 `duo/index.html`，是用 Duo 追踪器分支里的数据生成的报告 |
+| Duo 适配 | `./duo/`（本网站的子页面） | Duo 追踪器每天自动更新的报告（Claude 云端定时任务），见下面“Duo 适配” |
 | CatGPT | `https://chat.callaum.com/` | 另外部署在微软（Azure）的服务器上 |
 | UQ 校历 | `./uq/`（本网站的子目录） | 仓库里的 `uq/index.html`，是 UQ 校历分支上那个网页文件的副本 |
 | my.UQ | `https://portal.my.uq.edu.au/#/dashboard` | UQ 学生门户，图标是一顶学士帽 |
@@ -272,7 +273,8 @@
 
 图标都在 `assets/icons/apps/`（白色图形、透明底，由页面垫一块毛玻璃）；Claude、ChatGPT 的图标是照着它们的标志简化画的。
 
-`duo/`、`uq/` 和 `planner/` 是副本，不会自动跟着原项目更新。原项目更新后，在仓库根目录运行：
+`uq/` 和 `planner/` 是副本，不会自动跟着原项目更新；`duo/index.html` 是 /duo/ 的备用副本（线上平时直接读 GitHub 上最新的，见下面“Duo 适配”）。
+需要更新这些文件时，在仓库根目录运行：
 
 ```bash
 bash tools/refresh-apps.sh
@@ -280,6 +282,30 @@ bash tools/refresh-apps.sh
 
 它会从那几个分支取最新内容，重新生成这些文件（四象限要先装依赖、跑它自己的测试再编译，需要 Node.js 和网络）。检查改动后提交，再重新发布。
 放在 `planner/` 而不是 `quadrant/`：main 分支的 `quadrant/` 是源码，名字一样的话两个分支合并时会打架。
+
+## Duo 适配（/duo/）
+
+网址 `https://callaum.com/duo/`，首页应用栏里“Duo 适配”点进去就是。内容是中美 App Store 免费榜、付费榜 Top 200 的 App 和游戏在 iPhone Duo 上的适配状况，
+由本仓库（dsh）的 Duo 追踪器分支 `claude/iphone-duo-adapter-tracker-no3gf5` 生成：
+**Claude 云端的定时任务「iPhone Duo 适配追踪 · 每日更新」**每天北京时间 09:13 左右，在会话「Duo 适配追踪 · 每日运行器」里运行追踪器，
+把数据库 `duo-tracker/data/tracker.db` 和最新网页 `duo-tracker/site/index.html` 一起提交推送。
+
+这边（`tools/worker/duo.js`）怎么拿到最新的网页：
+
+- 去 GitHub 读那个分支上的 `duo-tracker/site/index.html`（仓库是公开的，不用令牌），检查通过的存 10 分钟——每天推送后 **10 分钟内** 页面就跟上，不用重新发布。
+- GitHub 取不到、取到的不是报告时，用本仓库 `duo/index.html` 这份备用副本（发布时打包进去，用 `tools/refresh-apps.sh` 更新）。两份都有时用数据日期新的那份。
+- 响应头 `X-Duo-Source: github` / `bundled` 写明这次用的是哪一份，`X-Duo-Date` 是数据日期。
+- 追踪器分支改名了：在 Cloudflare 后台加一个变量 `DUO_REPORT_URL`，填新的 raw.githubusercontent.com 地址（或者改 `duo.js` 里的 `REPORT_URL`）。
+
+转交前加的东西（网页原来的样式、布局和脚本都不动）：顶栏最左边“← 起始页”；不再从 Google 下载字体；
+**数据日期比今天（北京时间）早 2 天及以上**时，顶部加一条红色提示“数据已经 N 天没有更新，可能已过期”——说明每天的定时任务没跑成，去那个会话里看看。
+
+隔离：和飞汇比价一样，响应头 `Content-Security-Policy: sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox`。
+这份网页每天自动更新、里面有从各个网站抓来的文字，没人逐行检查；隔离后它的脚本读不到起始页存在浏览器里的东西（设置、AI 接口 Key 等）。
+代价是网页记不住上次用的筛选条件。
+
+手动刷新：在 Claude App 或 claude.ai/code 里打开会话「Duo 适配追踪 · 每日运行器」，直接说“跑一次今天的”。
+不要用定时任务列表里的“立即运行”：手动触发时系统会新开一个没有仓库权限的会话，跑不起来。
 
 ## 飞汇地区比价（/flywire/）
 

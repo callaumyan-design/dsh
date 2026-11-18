@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 把另外几个项目的最新成果同步进本网站：
 #   uq/index.html       ← UQ 中文校历（它自己的分支上的 uq-chinese-calendar.html）
-#   duo/index.html      ← Duo 适配追踪的报告（用它分支里已有的数据重新生成，不联网抓取）
+#   duo/index.html      ← Duo 适配报告的备用副本（它分支上最新的 duo-tracker/site/index.html；线上平时直接读 GitHub，见 tools/worker/duo.js）
 #   planner/            ← 四象限任务计划（编译 main 分支 quadrant/ 里的源码；要 Node.js，会从 npm 装依赖）
 #   flywire/index.html  ← 飞汇地区比价的备用副本（给了 FLYWIRE_REPO 时才更新，见最后）
 #
@@ -16,8 +16,6 @@ DUO_BRANCH="${DUO_BRANCH:-claude/iphone-duo-adapter-tracker-no3gf5}"
 QUADRANT_BRANCH="${QUADRANT_BRANCH:-main}"
 
 cd "$(git rev-parse --show-toplevel)"
-work="$(mktemp -d)"
-trap 'rm -rf "$work"' EXIT
 
 echo "→ 取最新的分支内容"
 git fetch -q origin "$UQ_BRANCH:refs/remotes/origin/$UQ_BRANCH" "$DUO_BRANCH:refs/remotes/origin/$DUO_BRANCH" "$QUADRANT_BRANCH:refs/remotes/origin/$QUADRANT_BRANCH"
@@ -26,17 +24,14 @@ echo "→ UQ 校历"
 mkdir -p uq
 git show "origin/$UQ_BRANCH:uq-chinese-calendar.html" > uq/index.html
 
-echo "→ Duo 适配报告（只用仓库里已有的数据，不发任何网络请求）"
-git archive "origin/$DUO_BRANCH" duo-tracker | tar -x -C "$work"
-python3 -m venv "$work/venv"
-"$work/venv/bin/pip" install -q -r "$work/duo-tracker/requirements.txt"
-# 数据最后更新到哪一天，就生成哪一天的报告
-day="$(git log -1 --format=%cs "origin/$DUO_BRANCH")"
-( cd "$work/duo-tracker" && "$work/venv/bin/python" run.py --date "$day" --report-only >/dev/null )
+echo "→ Duo 适配报告（备用副本：追踪器每天推送的最新网页，不用重新生成）"
 mkdir -p duo
-cp "$work/duo-tracker/reports/$day/index.html" duo/index.html
+git show "origin/$DUO_BRANCH:duo-tracker/site/index.html" > duo/index.html
+day="$(grep -o 'name="duo-tracker:date" content="[0-9-]*"' duo/index.html | grep -o '[0-9][0-9-]*' || echo '?')"
 
 echo "→ 四象限任务计划（先跑它自己的测试，通过了才编译）"
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
 git archive "origin/$QUADRANT_BRANCH" quadrant | tar -x -C "$work"
 ( cd "$work/quadrant" && npm ci --no-audit --no-fund >/dev/null && npm test >/dev/null && npm run build >/dev/null )
 rm -rf planner

@@ -23,7 +23,7 @@
 
 export default [
   // 页面最下面的应用。图标是专门画的（assets/icons/apps/ 里的 svg：白色图形、透明底），垫在毛玻璃底上。
-  // ./duo/ 和 ./uq/ 是本网站自己的子目录（文件就在仓库的 duo/ 和 uq/ 文件夹里）；
+  // ./duo/ 和 ./uq/ 是本网站自己的子页面（./uq/ 的文件在仓库的 uq/ 文件夹里；./duo/ 由后台去 GitHub 取每天最新的，见 tools/worker/duo.js）；
   // CatGPT、砚录、WiFi Drop 是另外部署的，写的是它们现在的真实地址。
   // （CatGPT 和 WiFi Drop 原来在 callaum.com，起始页接管这个域名后搬到了 chat.callaum.com。）
   {
