@@ -15,7 +15,7 @@
 | 样式 | `assets/css/main.css` |
 | 功能代码 | `assets/js/`（每个文件开头有一句话说明它管什么） |
 | /about 页面 | `about/index.html`（README 改了要手动同步这里） |
-| Duo 报告、UQ 校历的副本 | `duo/`、`uq/`（用 `tools/refresh-apps.sh` 更新，不要手改） |
+| Duo 报告、UQ 校历的副本，四象限任务计划编译好的版本 | `duo/`、`uq/`、`planner/`（用 `tools/refresh-apps.sh` 更新，不要手改） |
 | 发布到 Cloudflare | `tools/deploy-cloudflare.mjs`、`tools/worker/handler.js` |
 | 不让搜索引擎和爬虫抓取 | `robots.txt`（整站都不让抓；这个文件谁都能看，不要在里面写私密地址） |
 | 飞汇地区比价（/flywire/） | `tools/worker/flywire.js`；备用副本 `flywire/index.html`（见下面“飞汇地区比价”） |
@@ -254,7 +254,7 @@
 
 ## 应用栏里的应用
 
-一行放得下就排成一行；放不下就平均分成几行（手机上 10 个排成 5 + 5），由 `nav.js` 的 `fitRows()` 按宽度算。
+一行放得下就排成一行；放不下就平均分成几行（手机上 11 个排成 4 + 4 + 3），由 `nav.js` 的 `fitRows()` 按宽度算。
 
 | 应用 | 地址 | 说明 |
 | --- | --- | --- |
@@ -263,6 +263,7 @@
 | UQ 校历 | `./uq/`（本网站的子目录） | 仓库里的 `uq/index.html`，是 UQ 校历分支上那个网页文件的副本 |
 | my.UQ | `https://portal.my.uq.edu.au/#/dashboard` | UQ 学生门户，图标是一顶学士帽 |
 | 飞汇地区比价 | `./flywire/`（本网站的子页面） | 另一个仓库每周自动更新的报告（Claude 云端定时任务），见下面“飞汇地区比价” |
+| 四象限 | `./planner/`（本网站的子目录） | 四象限任务计划。源码在本仓库 main 分支的 `quadrant/`，`planner/` 里是编译好的版本；它是独立的 PWA，可以单独“添加到主屏幕”，离线也能用，任务只存在自己的浏览器里（`quadrant-planner:v1`） |
 | 砚录 | `https://ocr.callaum.com/` | 另外部署在 Cloudflare 上 |
 | WiFi Drop | `https://chat.callaum.com/drop/` | 和 CatGPT 在同一台服务器上 |
 | Claude | `https://claude.ai/` | Anthropic 的 AI 助手（网页版） |
@@ -271,13 +272,14 @@
 
 图标都在 `assets/icons/apps/`（白色图形、透明底，由页面垫一块毛玻璃）；Claude、ChatGPT 的图标是照着它们的标志简化画的。
 
-`duo/` 和 `uq/` 是副本，不会自动跟着原项目更新。原项目更新后，在仓库根目录运行：
+`duo/`、`uq/` 和 `planner/` 是副本，不会自动跟着原项目更新。原项目更新后，在仓库根目录运行：
 
 ```bash
 bash tools/refresh-apps.sh
 ```
 
-它会从那两个分支取最新内容，重新生成这两个文件。检查改动后提交，再重新发布。
+它会从那几个分支取最新内容，重新生成这些文件（四象限要先装依赖、跑它自己的测试再编译，需要 Node.js 和网络）。检查改动后提交，再重新发布。
+放在 `planner/` 而不是 `quadrant/`：main 分支的 `quadrant/` 是源码，名字一样的话两个分支合并时会打架。
 
 ## 飞汇地区比价（/flywire/）
 

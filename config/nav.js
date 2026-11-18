@@ -67,6 +67,15 @@ export default [
     group: "应用",
     newTab: false,
   },
+  // 本网站的子页面 /planner/：四象限任务计划（源码在本仓库 main 分支的 quadrant/，编译好的放在 planner/，见 tools/refresh-apps.sh）
+  {
+    name: "四象限",
+    icon: "./assets/icons/apps/quadrant.svg",
+    url: "./planner/",
+    desc: "按重要和紧急程度把事情分进四个象限，拖动整理优先级",
+    group: "应用",
+    newTab: false,
+  },
   {
     name: "砚录",
     icon: "./assets/icons/apps/yanlu.svg",
