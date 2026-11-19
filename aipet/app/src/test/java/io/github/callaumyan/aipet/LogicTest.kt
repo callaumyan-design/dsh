@@ -73,6 +73,15 @@ class LogicTest {
     }
 
     @Test
+    fun speech_text_drops_kaomoji() {
+        assertEquals(
+            "辛苦啦～我陪你一起歇五分钟嘛",
+            io.github.callaumyan.aipet.pet.PetService.cleanForSpeech("辛苦啦～我陪你一起歇五分钟嘛 (｡･ω･｡)"),
+        )
+        assertEquals("好的！OK 123", io.github.callaumyan.aipet.pet.PetService.cleanForSpeech("好的！✨OK 123 💖"))
+    }
+
+    @Test
     fun effort_only_for_new_claude_models() {
         assertTrue(ClaudeClient.supportsEffort("claude-opus-5-5"))
         assertTrue(ClaudeClient.supportsEffort("claude-sonnet-5-5"))

@@ -68,6 +68,7 @@
                     android:id="@+id/row_overlay"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:minHeight="52dp"
                     android:gravity="center_vertical"
                     android:orientation="horizontal">
 
@@ -92,6 +93,7 @@
                     android:id="@+id/row_notif"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:minHeight="52dp"
                     android:gravity="center_vertical"
                     android:orientation="horizontal">
 
@@ -116,6 +118,7 @@
                     android:id="@+id/row_battery"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:minHeight="52dp"
                     android:gravity="center_vertical"
                     android:orientation="horizontal">
 
@@ -158,7 +161,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="10dp"
-                    android:text="玩法：点它 → 聊天 ｜ 长按 → 摸摸头 ｜ 按住拖动 → 换位置。\n想暂时收起或退出，下拉通知栏就能看到它的按钮。"
+                    android:text="怎么玩：\n· 点它 → 打开聊天\n· 长按 → 摸摸头\n· 按住拖动 → 换个位置\n· 想暂时收起或退出：下拉通知栏，有它的按钮"
                     android:textAppearance="@style/Hint" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
@@ -416,6 +419,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:stepSize="10"
+                    app:tickVisible="false"
                     android:valueFrom="60"
                     android:valueTo="160" />
 

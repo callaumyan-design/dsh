@@ -66,9 +66,20 @@ class ChatEngine(context: Context, private val prefs: Prefs) {
 
     private fun newId() = ids.incrementAndGet()
 
+    private var cachedClient: AiClient? = null
+    private var cachedConfig: List<String>? = null
+
+    /** 设置没变就复用同一个客户端（复用网络连接，更快也更省电）。 */
+    @Synchronized
     private fun client(): AiClient {
         val p = prefs.provider
-        return Providers.create(p, prefs.apiKey(p.id), prefs.baseUrl(p.id), prefs.model(p.id))
+        val config = listOf(p.id, prefs.apiKey(p.id), prefs.baseUrl(p.id), prefs.model(p.id))
+        cachedClient?.let { if (config == cachedConfig) return it }
+        val fresh = Providers.create(p, config[1], config[2], config[3])
+        cachedClient?.close()
+        cachedClient = fresh
+        cachedConfig = config
+        return fresh
     }
 
     private fun systemPrompt() = Persona.systemPrompt(prefs.petName, prefs.personaText, prefs.aboutMe)

@@ -98,6 +98,8 @@ class PetService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // 每次被 startForegroundService 叫起都要确认一次前台状态，否则部分系统会报错
+        startAsForeground()
         when (intent?.action) {
             ACTION_STOP -> {
                 prefs.petEnabled = false
@@ -186,9 +188,7 @@ class PetService : Service() {
             initTts()
             return
         }
-        // 颜文字读出来很奇怪，去掉
-        val clean = text.replace(Regex("""[（(][^（()）]{0,12}[)）]"""), " ")
-            .replace(Regex("""[^\p{IsHan}\p{L}\p{N}，。！？、,.!?…～~\s]"""), "")
+        val clean = cleanForSpeech(text)
         if (clean.isNotBlank()) tts?.speak(clean, TextToSpeech.QUEUE_FLUSH, null, "pet")
     }
 
@@ -278,6 +278,12 @@ class PetService : Service() {
 
         /** 桌宠现在是不是在屏幕上（设置页的“让它出来/收起它”按钮用） */
         val visible = MutableStateFlow(false)
+
+        /** 颜文字、表情符号读出来很奇怪，朗读前去掉（汉字属于 \p{L}）。 */
+        fun cleanForSpeech(text: String): String = text
+            .replace(Regex("""[（(][^（()）]{0,12}[)）]"""), " ")
+            .replace(Regex("""[^\p{L}\p{N}，。！？、,.!?…～~\s]"""), "")
+            .trim()
 
         fun start(context: Context, action: String = ACTION_SHOW) {
             ContextCompat.startForegroundService(context, Intent(context, PetService::class.java).setAction(action))

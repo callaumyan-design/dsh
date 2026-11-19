@@ -88,6 +88,13 @@ class ClaudeClient(
             sb.toString()
         }
 
+    override fun close() {
+        try {
+            client.close()
+        } catch (_: Exception) {
+        }
+    }
+
     override suspend fun listModels(): List<String> = withContext(Dispatchers.IO) {
         try {
             val out = ArrayList<String>()

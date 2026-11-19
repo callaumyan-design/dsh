@@ -181,7 +181,10 @@ class RenderTest {
         )
         bubble.layout(0, 0, bubble.measuredWidth, bubble.measuredHeight)
         val bx = (px + pet.measuredWidth / 2f - bubble.measuredWidth / 2f).coerceAtMost(sw - bubble.measuredWidth - 8 * dm.density)
-        val by = py + pet.measuredHeight * 0.18f - bubble.measuredHeight
+        val by = py + pet.measuredHeight * 0.2f - bubble.measuredHeight
+        val maxShift = bubble.measuredWidth / 2f - 20 * dm.density
+        bubble.findViewById<View>(R.id.bubble_tail).translationX =
+            (px + pet.measuredWidth / 2f - (bx + bubble.measuredWidth / 2f)).coerceIn(-maxShift, maxShift)
         c2.save()
         c2.translate(bx, by)
         bubble.draw(c2)

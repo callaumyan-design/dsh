@@ -6,12 +6,14 @@ data class ChatTurn(val fromUser: Boolean, val text: String)
 /** 给用户看的错误：message 已经是能直接显示的中文。 */
 class AiException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
-interface AiClient {
+interface AiClient : AutoCloseable {
     /** 流式聊天：每收到一小段文字就回调 [onDelta]，结束后返回完整回复。 */
     suspend fun chat(system: String, turns: List<ChatTurn>, onDelta: (String) -> Unit): String
 
     /** 拉取该服务可用的模型列表（用于“选模型”）。 */
     suspend fun listModels(): List<String>
+
+    override fun close() = Unit
 }
 
 enum class ApiKind { CLAUDE, OPENAI_COMPATIBLE }

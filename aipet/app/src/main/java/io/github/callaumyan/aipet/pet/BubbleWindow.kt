@@ -77,7 +77,7 @@ class BubbleWindow(private val ctx: Context, private val wm: WindowManager, onCl
         var h = root.measuredHeight
         val petH = anchor.height()
         // 桌宠窗口上面留了一些空白（给跳跃用），气泡贴近头顶
-        var y = anchor.top + (petH * 0.18f).toInt() - h
+        var y = anchor.top + (petH * 0.2f).toInt() - h
         if (y < Overlay.statusBarHeight(ctx)) {
             // 上面放不下，就放到桌宠下面
             tailDown.visibility = View.GONE
@@ -90,6 +90,9 @@ class BubbleWindow(private val ctx: Context, private val wm: WindowManager, onCl
             y = anchor.bottom - (petH * 0.04f).toInt()
         }
         val x = (anchor.centerX() - w / 2).coerceIn(margin, (screen.x - w - margin).coerceAtLeast(margin))
+        // 气泡被屏幕边缘挡住往旁边挪时，小尾巴仍然指向桌宠
+        val maxShift = (w / 2 - 20 * density).coerceAtLeast(0f)
+        tailDown.translationX = (anchor.centerX() - (x + w / 2f)).coerceIn(-maxShift, maxShift)
         params.x = x
         params.y = y.coerceIn(0, (screen.y - h).coerceAtLeast(0))
         try {
