@@ -1,0 +1,57 @@
+name: 构建 AI 小桌宠安卓安装包
+
+on:
+  push:
+    paths:
+      - 'aipet/**'
+      - '.github/workflows/aipet-android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: aipet-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: aipet
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: 单元测试 + 打包
+        run: ./gradlew --no-daemon testDebugUnitTest assembleRelease
+
+      - name: 整理安装包
+        run: |
+          VERSION=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          cp app/build/outputs/apk/release/app-release.apk "AiPet-v$VERSION.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AiPet-v${{ env.VERSION }}
+          path: aipet/AiPet-v*.apk
+
+      # 只有合并到 main 才发布到 Releases 页面（手机上可以直接点链接下载）。
+      # make_latest: false —— 不抢占本仓库其他软件的“最新版本”位置。
+      - name: 发布到 Releases
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: aipet-v${{ env.VERSION }}
+          name: AI小桌宠 v${{ env.VERSION }}
+          make_latest: false
+          files: aipet/AiPet-v*.apk
+          body: |
+            安卓手机直接下载下面的 `AiPet-v${{ env.VERSION }}.apk` 安装即可。
+            使用说明见 [aipet/README.md](https://github.com/${{ github.repository }}/blob/main/aipet/README.md)。

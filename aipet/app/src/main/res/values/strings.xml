@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">AI小桌宠</string>
+    <string name="channel_pet">桌宠常驻</string>
+    <string name="channel_pet_desc">让桌宠一直待在屏幕上（安卓要求常驻时显示这条通知）</string>
+</resources>

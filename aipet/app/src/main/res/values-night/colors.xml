@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="brand">#FFB1C8</color>
+    <color name="brand_on">#5E1133</color>
+    <color name="brand_container">#7B2948</color>
+    <color name="brand_on_container">#FFD9E3</color>
+    <color name="leaf">#9FD58A</color>
+    <color name="leaf_container">#2C4A22</color>
+    <color name="leaf_on_container">#D8F2CC</color>
+    <color name="page_bg">#191113</color>
+    <color name="card_bg">#241A1D</color>
+    <color name="text_main">#F2E6EA</color>
+    <color name="text_sub">#BCA9B0</color>
+
+    <color name="panel_bg">#221A1D</color>
+    <color name="scrim">#80000000</color>
+    <color name="bubble_pet_bg">#3A2F33</color>
+    <color name="bubble_pet_text">#F2E6EA</color>
+    <color name="bubble_me_bg">#A9476B</color>
+    <color name="bubble_me_text">#FFFFFF</color>
+    <color name="bubble_error_bg">#5A2828</color>
+    <color name="float_bubble_bg">#2B2326</color>
+    <color name="float_bubble_stroke">#6B4A56</color>
+    <color name="float_bubble_text">#F2E6EA</color>
+    <color name="ok">#81C784</color>
+    <color name="warn">#EF9A9A</color>
+</resources>
