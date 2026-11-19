@@ -34,10 +34,12 @@ import io.github.callaumyan.aipet.ai.ApiKind
 import io.github.callaumyan.aipet.ai.Providers
 import io.github.callaumyan.aipet.chat.Persona
 import io.github.callaumyan.aipet.databinding.ActivityMainBinding
+import io.github.callaumyan.aipet.pet.Effect
+import io.github.callaumyan.aipet.pet.Face
 import io.github.callaumyan.aipet.pet.Overlay
 import io.github.callaumyan.aipet.pet.PetPalette
 import io.github.callaumyan.aipet.pet.PetService
-import io.github.callaumyan.aipet.pet.PetView
+import io.github.callaumyan.aipet.pet.PetStatus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -68,12 +70,14 @@ class MainActivity : AppCompatActivity() {
         setupAppearance()
         b.version.text = "版本 ${BuildConfig.VERSION_NAME} · 所有设置和聊天记录都只存在这台手机上"
         scope.launch { PetService.visible.collect { refreshToggle() } }
+        scope.launch { PetService.status.collect { refreshPetStatus(it) } }
     }
 
     override fun onResume() {
         super.onResume()
         b.preview.running = true
         refreshStatus()
+        refreshPetStatus(PetService.status.value)
     }
 
     override fun onPause() {
@@ -109,14 +113,13 @@ class MainActivity : AppCompatActivity() {
         b.preview.bodySize = dp(96).toFloat()
         b.preview.palette = PetPalette.get(prefs.colorIndex)
         b.heroName.text = prefs.petName
-        b.preview.setOnClickListener {
-            b.preview.flash(PetView.Mode.HAPPY, 1500)
-            b.preview.hearts(3)
-        }
-        b.preview.setOnLongClickListener {
-            b.preview.flash(PetView.Mode.HAPPY, 2500)
-            b.preview.hearts(5)
-            Toast.makeText(this, Persona.petting.random(), Toast.LENGTH_SHORT).show()
+        b.preview.setOnTouchListener { v, e ->
+            if (e.actionMasked == android.view.MotionEvent.ACTION_DOWN) {
+                b.preview.pokeAt(e.x, e.y)
+                b.preview.flash(Face.HAPPY, 1200)
+                b.preview.effect(Effect.HEARTS)
+                v.performClick()
+            }
             true
         }
     }
@@ -183,6 +186,46 @@ class MainActivity : AppCompatActivity() {
         mark(b.txtNotif, b.btnNotif, notifOk, "② 允许通知（让它能在后台常驻）")
         mark(b.txtBattery, b.btnBattery, batteryOk, "③ 不让系统省电时把它清理掉（推荐）")
         refreshToggle()
+    }
+
+    private fun refreshPetStatus(st: PetStatus?) {
+        val mood = st?.mood ?: prefs.savedMood
+        val energy = st?.energy ?: prefs.savedEnergy
+        val aff = st?.affection ?: prefs.memory.affection
+        val moodWord = when {
+            st?.annoyance ?: 0f > 55 -> "有点生气"
+            mood > 80 -> "超开心"
+            mood > 60 -> "开心"
+            mood > 40 -> "还行"
+            mood > 20 -> "有点低落"
+            else -> "很难过"
+        }
+        val energyWord = when {
+            st?.asleep == true -> "正在睡觉"
+            energy > 70 -> "精神满满"
+            energy > 40 -> "还有精神"
+            energy > 20 -> "有点困"
+            else -> "困得不行"
+        }
+        val affWord = when {
+            aff > 85 -> "形影不离"
+            aff > 65 -> "最喜欢你"
+            aff > 45 -> "很亲近"
+            aff > 25 -> "慢慢熟悉"
+            else -> "刚认识"
+        }
+        b.lblMood.text = "心情：$moodWord"
+        b.barMood.setProgressCompat(mood.toInt(), true)
+        b.lblEnergy.text = "精力：$energyWord"
+        b.barEnergy.setProgressCompat(energy.toInt(), true)
+        b.lblAffection.text = "亲密度：$affWord"
+        b.barAffection.setProgressCompat(aff.toInt(), true)
+        val pets = prefs.todayCount("pet")
+        val feeds = prefs.todayCount("feed")
+        val pokes = prefs.todayCount("poke")
+        val throws = prefs.todayCount("throw")
+        b.todayStats.text = "今天：摸摸 $pets 次 · 喂食 $feeds 次 · 戳了 $pokes 下 · 扔了 $throws 次"
+        b.heroSub.text = "我们认识的第 ${prefs.daysTogether} 天"
     }
 
     private fun mark(text: android.widget.TextView, button: View, ok: Boolean, label: String) {
@@ -290,18 +333,18 @@ class MainActivity : AppCompatActivity() {
         b.testResult.visibility = View.VISIBLE
         b.testResult.setTextColor(getColor(R.color.text_sub))
         b.testResult.text = "正在连接……"
-        b.preview.baseMode = PetView.Mode.THINKING
+        b.preview.face = Face.THINK
         scope.launch {
             try {
                 val reply = app.chat.testConnection()
                 b.testResult.setTextColor(getColor(R.color.ok))
                 b.testResult.text = "✓ 连接成功！${prefs.petName}说：$reply"
-                b.preview.baseMode = PetView.Mode.IDLE
-                b.preview.flash(PetView.Mode.HAPPY, 2000)
+                b.preview.face = Face.NORMAL
+                b.preview.flash(Face.HAPPY, 2000)
             } catch (e: Exception) {
                 b.testResult.setTextColor(getColor(R.color.warn))
                 b.testResult.text = "✗ ${e.message ?: e.toString()}"
-                b.preview.baseMode = PetView.Mode.IDLE
+                b.preview.face = Face.SAD
             } finally {
                 b.btnTest.isEnabled = true
             }
@@ -313,6 +356,7 @@ class MainActivity : AppCompatActivity() {
     private fun setupPersona() {
         loading = true
         b.petName.setText(prefs.petName)
+        b.userCall.setText(prefs.userCall)
         b.personaText.setText(prefs.personaText)
         b.aboutMe.setText(prefs.aboutMe)
         loading = false
@@ -323,6 +367,7 @@ class MainActivity : AppCompatActivity() {
                 b.heroName.text = prefs.petName
             }
         }
+        b.userCall.onChange { if (!loading) prefs.userCall = it }
         b.personaText.onChange { if (!loading) prefs.personaText = it }
         b.aboutMe.onChange { if (!loading) prefs.aboutMe = it }
 
@@ -363,7 +408,7 @@ class MainActivity : AppCompatActivity() {
                 setOnClickListener {
                     prefs.colorIndex = index
                     b.preview.palette = pal
-                    b.preview.flash(PetView.Mode.HAPPY, 1200)
+                    b.preview.flash(Face.HAPPY, 1200)
                 }
             }
             chip.chipBackgroundColor = ColorStateList(
@@ -381,17 +426,19 @@ class MainActivity : AppCompatActivity() {
             if (fromUser) prefs.scalePercent = value.toInt()
         }
 
+        b.swGravity.isChecked = prefs.gravity
+        b.swMotion.isChecked = prefs.senseMotion
+        b.swMusic.isChecked = prefs.senseMusic
+        b.swGravity.setOnCheckedChangeListener { _, v -> prefs.gravity = v }
+        b.swMotion.setOnCheckedChangeListener { _, v -> prefs.senseMotion = v }
+        b.swMusic.setOnCheckedChangeListener { _, v -> prefs.senseMusic = v }
         b.swWander.isChecked = prefs.wander
         b.swProactive.isChecked = prefs.proactive
         b.swProactiveAi.isChecked = prefs.proactiveAi
-        b.swProactiveAi.isEnabled = prefs.proactive
         b.swTts.isChecked = prefs.tts
         b.swAutostart.isChecked = prefs.autoStart
         b.swWander.setOnCheckedChangeListener { _, v -> prefs.wander = v }
-        b.swProactive.setOnCheckedChangeListener { _, v ->
-            prefs.proactive = v
-            b.swProactiveAi.isEnabled = v
-        }
+        b.swProactive.setOnCheckedChangeListener { _, v -> prefs.proactive = v }
         b.swProactiveAi.setOnCheckedChangeListener { _, v -> prefs.proactiveAi = v }
         b.swTts.setOnCheckedChangeListener { _, v -> prefs.tts = v }
         b.swAutostart.setOnCheckedChangeListener { _, v -> prefs.autoStart = v }

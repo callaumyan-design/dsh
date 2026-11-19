@@ -166,19 +166,20 @@ class ChatPanel(
                 send.setImageResource(if (busy) R.drawable.ic_stop else R.drawable.ic_send)
                 send.contentDescription = if (busy) "停止" else "发送"
                 status.text = if (busy) "正在想……" else "在线 · 陪着你"
-                if (!busy && pet.baseMode == PetView.Mode.THINKING) pet.baseMode = PetView.Mode.IDLE
+                if (!busy && pet.face == Face.THINK) pet.face = Face.NORMAL
             }
         }
         s.launch {
             chat.events.collect { ev ->
                 when (ev) {
-                    PetEvent.Thinking -> pet.baseMode = PetView.Mode.THINKING
-                    is PetEvent.Streaming -> pet.baseMode = PetView.Mode.TALKING
+                    PetEvent.Thinking -> { pet.face = Face.THINK; pet.talking = false }
+                    is PetEvent.Streaming -> { pet.face = Face.NORMAL; pet.talking = true }
                     is PetEvent.Said -> {
-                        pet.baseMode = PetView.Mode.IDLE
-                        pet.flash(PetView.Mode.HAPPY, 1200)
+                        pet.talking = false
+                        pet.face = Face.NORMAL
+                        pet.flash(Face.HAPPY, 1200)
                     }
-                    is PetEvent.Failed -> pet.baseMode = PetView.Mode.IDLE
+                    is PetEvent.Failed -> { pet.talking = false; pet.face = Face.SAD }
                 }
             }
         }

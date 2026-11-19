@@ -51,13 +51,12 @@ class PetService : Service() {
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             screenOn = intent.action != Intent.ACTION_SCREEN_OFF
-            controller?.setScreenOn(screenOn)
         }
     }
 
     private val prefListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
         when (key) {
-            "color", "scale", "pet_name" -> {
+            "color", "scale", "pet_name", "gravity", "sense_motion" -> {
                 controller?.applyAppearance()
                 updateNotification()
             }
@@ -65,12 +64,14 @@ class PetService : Service() {
         }
     }
 
+    /** 本地的主动搭话由桌宠的“大脑”负责；这里只处理“让 AI 想台词”的那种 */
     private val proactiveTick = object : Runnable {
         override fun run() {
             scheduleProactive()
             val c = controller ?: return
-            if (!prefs.proactive || !c.attached || !screenOn || c.isChatOpen || c.isSleeping) return
-            app.chat.proactive(prefs.proactiveAi)
+            if (!prefs.proactive || !prefs.proactiveAi || !c.attached || !screenOn || c.isChatOpen || c.isSleeping) return
+            if (prefs.apiKey(prefs.providerId).isBlank()) return
+            app.chat.proactive(true)
         }
     }
 
@@ -81,7 +82,7 @@ class PetService : Service() {
         startAsForeground()
         isRunning = true
         val themed = ContextThemeWrapper(this, R.style.Theme_AiPet)
-        controller = PetController(themed, prefs) { openSettings() }
+        controller = PetController(themed, prefs, openSettings = { openSettings() }, requestHide = { hidePet() })
         screenOn = getSystemService(PowerManager::class.java)?.isInteractive ?: true
         ContextCompat.registerReceiver(
             this, screenReceiver,
@@ -144,28 +145,29 @@ class PetService : Service() {
     private fun onChatEvent(ev: PetEvent) {
         val c = controller ?: return
         when (ev) {
-            PetEvent.Thinking -> c.setMode(PetView.Mode.THINKING)
+            PetEvent.Thinking -> c.brain.onChatThinking()
             is PetEvent.Streaming -> {
-                c.setMode(PetView.Mode.TALKING)
+                c.view.talking = true
                 if (!c.isChatOpen) c.sayStreaming(ev.textSoFar)
             }
             is PetEvent.Said -> {
-                c.touchInteraction()
-                if (c.isSleeping) c.setMode(PetView.Mode.IDLE)
-                c.setMode(PetView.Mode.TALKING)
+                c.brain.onChatDone(true)
+                c.view.talking = true
                 val dur = PetController.autoDuration(ev.text)
-                if (!c.isChatOpen) c.say(ev.text, dur)
-                handler.postDelayed({
-                    if (c.view.baseMode == PetView.Mode.TALKING) c.setMode(PetView.Mode.IDLE)
-                }, dur.coerceAtMost(5000))
+                if (!c.isChatOpen) c.sayLong(ev.text)
+                handler.removeCallbacks(stopTalking)
+                handler.postDelayed(stopTalking, dur.coerceAtMost(4000))
                 if (ev.speak && prefs.tts) speak(ev.text)
             }
             is PetEvent.Failed -> {
-                c.setMode(PetView.Mode.IDLE)
-                if (!c.isChatOpen) c.say("呜……出错了，点我看看怎么回事", 5000)
+                c.view.talking = false
+                c.brain.onChatDone(false)
+                if (!c.isChatOpen) c.sayLong("呜……出错了，点我看看怎么回事")
             }
         }
     }
+
+    private val stopTalking = Runnable { controller?.view?.talking = false }
 
     private fun scheduleProactive() {
         handler.removeCallbacks(proactiveTick)
@@ -256,7 +258,7 @@ class PetService : Service() {
             unregisterReceiver(screenReceiver)
         } catch (_: Exception) {
         }
-        controller?.hide()
+        controller?.destroy()
         controller = null
         tts?.shutdown()
         tts = null
@@ -278,6 +280,9 @@ class PetService : Service() {
 
         /** 桌宠现在是不是在屏幕上（设置页的“让它出来/收起它”按钮用） */
         val visible = MutableStateFlow(false)
+
+        /** 桌宠的心情/精力等（设置页显示用） */
+        val status = MutableStateFlow<PetStatus?>(null)
 
         /** 颜文字、表情符号读出来很奇怪，朗读前去掉（汉字属于 \p{L}）。 */
         fun cleanForSpeech(text: String): String = text

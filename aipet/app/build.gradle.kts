@@ -11,8 +11,8 @@ android {
         applicationId = "io.github.callaumyan.aipet"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
     }
 
     // 固定的签名钥匙：保证以后每个新版本都能直接覆盖安装（不用先卸载、不丢设置）。
