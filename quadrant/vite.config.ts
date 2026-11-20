@@ -42,6 +42,8 @@ export default defineConfig(({ mode }) => {
             workbox: {
               globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
               navigateFallback: 'index.html',
+              // 同一站点下的 /weekly/ 是热榜周刊，不要被四象限的离线回退页接管
+              navigateFallbackDenylist: [/\/weekly(\/|$)/],
               runtimeCaching: [
                 {
                   urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/i,
