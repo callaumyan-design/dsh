@@ -1,6 +1,6 @@
 name: 热榜周刊出刊
 
-# 每周一 09:17（北京时间）抓取 GitHub Trending 周榜，生成一期并提交到 main，然后重新部署网站。
+# 每周一 09:17（北京时间）抓取 GitHub Trending 周榜，生成一期并提交到 main，然后发布到网站。
 # 也可以在 Actions 页面手动运行。
 on:
   schedule:
@@ -63,4 +63,4 @@ jobs:
         if: steps.commit.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh workflow run pages.yml --ref main
+        run: gh workflow run weekly.yml --ref main

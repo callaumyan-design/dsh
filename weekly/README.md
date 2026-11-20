@@ -2,7 +2,7 @@
 
 每周一整理 [GitHub Trending 周榜](https://github.com/trending?since=weekly)前十名，由 Claude 写中文标题、导语和每个项目的点评，发布成一份静态网页周刊（含往期目录和 RSS）。
 
-网址：`https://<用户名>.github.io/<仓库名>/weekly/`，和四象限任务计划共用本仓库的 GitHub Pages。
+网址：`https://<用户名>.github.io/<仓库名>/weekly/`。和本仓库其他项目一样，独立构建、独立发布，互不影响（见 [pages/README.md](../pages/README.md)）。
 
 ## 每期包含什么
 
@@ -25,10 +25,10 @@ Trending 周榜统计的是**过去 7 天**。每期覆盖出刊前 7 天，期�
 ## 启用步骤
 
 1. **添加 API key**：仓库 Settings → Secrets and variables → Actions → New repository secret，名称 `ANTHROPIC_API_KEY`。不配置也能出刊，只是没有中文点评（页面会显示项目原始简介）。
-2. **开启 Pages**：Settings → Pages → Source 选 **GitHub Actions**（四象限已经在用的话无需改动）。
+2. **开启 Pages**：Settings → Pages → Source 选 **GitHub Actions**（四象限已经在用，无需改动）。
 3. **出第一期**：Actions → “热榜周刊出刊” → Run workflow。之后每周一 09:17（北京时间）自动运行。
 
-工作流会把新一期的数据提交到 `weekly/data/issues/`，再触发“部署网站”工作流重新发布。
+工作流会把新一期的数据提交到 `weekly/data/issues/`，再触发 “GitHub 热榜周刊” 工作流，只重新发布 `/weekly/`。
 
 > 平时手动运行会提前出“本周”这一期，到周一定时任务时这个期号已存在，会自动跳过。想重做某一期，手动运行时勾选“重新生成”。
 

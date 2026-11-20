@@ -1,0 +1,44 @@
+name: 四象限任务计划
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'quadrant/**'
+      - '.github/workflows/quadrant.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: quadrant
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: quadrant/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: quadrant-site
+          path: quadrant/dist
+
+  publish:
+    needs: build
+    uses: ./.github/workflows/publish-pages.yml
+    with:
+      project: quadrant
+      artifact: quadrant-site

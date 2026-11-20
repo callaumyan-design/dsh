@@ -1,0 +1,12 @@
+[
+  {
+    "path": "quadrant",
+    "title": "四象限任务计划",
+    "description": "按重要程度和紧急程度管理任务，可安装、可离线使用"
+  },
+  {
+    "path": "weekly",
+    "title": "GitHub 热榜周刊",
+    "description": "每周 GitHub Trending 周榜前十名，附中文点评"
+  }
+]

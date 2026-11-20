@@ -1,0 +1,20 @@
+name: 网站首页
+
+# 只改了项目目录（pages/）时，单独更新首页。
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'pages/**'
+      - '.github/workflows/publish-pages.yml'
+      - '.github/workflows/site-index.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  publish:
+    uses: ./.github/workflows/publish-pages.yml
