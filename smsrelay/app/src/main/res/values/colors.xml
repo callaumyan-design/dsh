@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="bg">#F3F5F9</color>
+    <color name="card">#FFFFFF</color>
+    <color name="field">#F8F9FC</color>
+    <color name="nav">#FFFFFF</color>
+    <color name="text">#1A1F29</color>
+    <color name="sub">#5D6878</color>
+    <color name="hint">#9AA3B1</color>
+    <color name="divider">#E3E7EE</color>
+    <color name="accent">#2563EB</color>
+    <color name="accent_soft">#E4ECFD</color>
+    <color name="on_accent">#FFFFFF</color>
+    <color name="ripple">#332563EB</color>
+    <color name="ok">#15803D</color>
+    <color name="warn">#B45309</color>
+    <color name="err">#C62828</color>
+    <color name="err_soft">#FDECEC</color>
+    <color name="icon_bg">#2563EB</color>
+    <color name="navbar_fallback">#1A1F29</color>
+</resources>

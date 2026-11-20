@@ -24,6 +24,11 @@ Some artwork was created with AI assistance and includes the DeepSeek name or lo
 
 This repository may initially contain only distribution documentation and Release downloads; a binary ZIP by itself does not provide the source code for every included component.
 
+## Other projects in this repository
+
+- [`smsrelay/`](smsrelay/) — **短信安全转发**: an Android app that securely forwards incoming SMS to your other phones (end-to-end encrypted push, Bark for iPhone, email, SMS, Telegram, WeCom/DingTalk/Feishu bots). Zero third-party dependencies. Download: [`smsrelay/release/SmsRelay-1.0.0.apk`](smsrelay/release/SmsRelay-1.0.0.apk).
+- [`quadrant/`](quadrant/) — Eisenhower-matrix task planner (PWA).
+
 ## Upstream
 
 - [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)

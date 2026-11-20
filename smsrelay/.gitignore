@@ -1,0 +1,10 @@
+.gradle/
+build/
+app/build/
+local.properties
+.idea/
+*.iml
+# Signing material must never be committed (this repository is public).
+signing.properties
+*.jks
+*.keystore

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Speech bubble with a forward arrow cut out of it -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M32,34 h44 a6,6 0 0 1 6,6 v24 a6,6 0 0 1 -6,6 h-22 l-10,9 v-9 h-12 a6,6 0 0 1 -6,-6 v-24 a6,6 0 0 1 6,-6 z M40,50 L57.5,50 L51.8,44.3 L55.1,41 L66.1,52 L55.1,63 L51.8,59.7 L57.5,54 L40,54 Z" />
+</vector>
