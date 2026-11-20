@@ -1084,11 +1084,56 @@ button.row.is-active:hover {
   display: flex;
   align-items: flex-end;
   justify-content: center;
+}
+
+/* 遮罩单独一层：下拉面板时跟着变淡 */
+.sheet-layer::before {
+  content: '';
+  position: absolute;
+  inset: 0;
   background: var(--scrim);
+  opacity: var(--scrim-k, 1);
   animation: fade 0.18s ease-out;
 }
 
+.sheet-layer.is-leaving {
+  pointer-events: none;
+}
+
+.sheet-layer.is-leaving::before {
+  animation: scrim-out 0.22s ease-in forwards;
+}
+
+.sheet-layer.is-leaving .sheet {
+  animation: sheet-sink 0.22s cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+@keyframes scrim-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes sheet-sink {
+  to {
+    transform: translateY(100%);
+  }
+}
+
+/* 顶部的拖动把手（只在手机的底部面板上显示） */
+.sheet-grip {
+  flex: none;
+  align-self: center;
+  width: 38px;
+  height: 5px;
+  margin-top: 8px;
+  border-radius: 3px;
+  background: var(--line);
+}
+
 .sheet {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -1112,6 +1157,22 @@ button.row.is-active:hover {
     border-radius: 22px;
     padding-bottom: 0;
   }
+  .sheet-grip {
+    display: none;
+  }
+  .sheet-grip + .sheet-head {
+    padding-top: 14px;
+  }
+  .sheet-layer.is-leaving .sheet {
+    animation: sheet-out 0.18s ease-in forwards;
+  }
+}
+
+@keyframes sheet-out {
+  to {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
 }
 
 @keyframes fade {
@@ -1133,6 +1194,10 @@ button.row.is-active:hover {
   align-items: center;
   justify-content: space-between;
   padding: 14px 8px 6px 20px;
+}
+
+.sheet-grip + .sheet-head {
+  padding-top: 4px;
 }
 
 .sheet-head h2 {

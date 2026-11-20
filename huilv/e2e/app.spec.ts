@@ -445,3 +445,70 @@ test('手动行数不超过屏幕能放下的上限', async ({ page }) => {
   expect(h).toBeGreaterThanOrEqual(48);
   await expect(page.locator('.row-wrap')).toHaveCount(Math.min(n, 7));
 });
+
+/** 在某个元素上用触摸往下拖 dy 像素；fast 为快速一甩 */
+async function touchDrag(page: Page, selector: string, dy: number, fast = false, at = 0.5) {
+  const b = (await page.locator(selector).first().boundingBox())!;
+  const x = b.x + b.width / 2;
+  const y = b.y + b.height * at;
+  const cdp = await page.context().newCDPSession(page);
+  const touch = (type: 'touchStart' | 'touchMove' | 'touchEnd', ty: number) =>
+    cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y: ty }] });
+  await touch('touchStart', y);
+  const steps = fast ? 3 : 14;
+  for (let i = 1; i <= steps; i++) {
+    await touch('touchMove', y + (dy * i) / steps);
+    if (!fast) await page.waitForTimeout(16);
+  }
+  await touch('touchEnd', y + dy);
+}
+
+test('走势面板往下拖动关闭；拖得不够会弹回', async ({ page, isMobile }) => {
+  test.skip(!isMobile, '触摸手势在手机上测试');
+  await open(page);
+  await swipe(page, 'USD', -120, true);
+  const sheet = page.getByRole('dialog', { name: 'USD/CNY 走势' });
+  await expect(sheet.locator('.chart svg')).toBeVisible();
+
+  // 拖一点点：弹回，面板还在
+  await touchDrag(page, '.sheet-head', 40);
+  await page.waitForTimeout(400);
+  await expect(sheet).toBeVisible();
+  expect(await sheet.evaluate((e) => (e as HTMLElement).style.transform)).toBe('');
+
+  // 在图表上往下拖：是查看价格，不关闭
+  await touchDrag(page, '.chart svg', 200);
+  await page.waitForTimeout(400);
+  await expect(sheet).toBeVisible();
+
+  // 从标题往下拖足够远：关闭
+  await touchDrag(page, '.sheet-head', 260);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+});
+
+test('往下快速一甩也能关闭，从内容区往下拖也可以', async ({ page, isMobile }) => {
+  test.skip(!isMobile, '触摸手势在手机上测试');
+  await open(page);
+  await page.getByRole('button', { name: '设置' }).click();
+  await expect(page.getByRole('dialog', { name: '设置' })).toBeVisible();
+  await touchDrag(page, '.sheet-grip', 70, true);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+
+  await page.getByRole('button', { name: '设置' }).click();
+  await expect(page.getByRole('dialog', { name: '设置' })).toBeVisible();
+  await touchDrag(page, '.sheet-body', 260, false, 0.3);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+});
+
+test('列表没滚到顶时，往下拖是滚动列表而不是关闭', async ({ page, isMobile }) => {
+  test.skip(!isMobile, '触摸手势在手机上测试');
+  await open(page);
+  await page.getByRole('button', { name: '添加货币' }).click();
+  const sheet = page.getByRole('dialog', { name: '添加货币' });
+  await expect(sheet.locator('.pick').first()).toBeVisible();
+  await sheet.locator('.sheet-body').evaluate((e) => (e.scrollTop = 600));
+  await touchDrag(page, '.sheet-body', 200, false, 0.5);
+  await page.waitForTimeout(400);
+  await expect(sheet).toBeVisible();
+  expect(await sheet.locator('.sheet-body').evaluate((e) => e.scrollTop)).toBeLessThan(600);
+});
