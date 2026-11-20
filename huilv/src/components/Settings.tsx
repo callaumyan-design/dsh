@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { RefreshCw } from 'lucide-react';
+import { Minus, Plus, RefreshCw } from 'lucide-react';
 import { useStore, type Theme } from '../store';
 import type { Decimals } from '../lib/format';
 import { formatAgo } from '../lib/format';
@@ -43,6 +43,10 @@ export function Settings({ open, onClose }: { open: boolean; onClose: () => void
   const refresh = useStore((s) => s.refresh);
   const reset = useStore((s) => s.reset);
   const slots = useStore((s) => s.slots);
+  const maxRows = useStore((s) => s.maxRows);
+  const rowsPref = useStore((s) => s.rowsPref);
+  const setRowsPref = useStore((s) => s.setRowsPref);
+  const manual = rowsPref !== 'auto';
   const [confirmReset, setConfirmReset] = useState(false);
   const [canInstall, setCanInstall] = useState(false);
 
@@ -71,6 +75,35 @@ export function Settings({ open, onClose }: { open: boolean; onClose: () => void
           ]}
         />
         <p className="hint">自动：一般保留两位小数，小于 1 的金额保留四位有效数字。</p>
+      </div>
+
+      <div className="set-group">
+        <h3 id="set-rows">每屏行数</h3>
+        <Segmented<'auto' | 'manual'>
+          id="set-rows"
+          value={manual ? 'manual' : 'auto'}
+          onChange={(v) => setRowsPref(v === 'auto' ? 'auto' : slots)}
+          options={[
+            { v: 'auto', label: '自动' },
+            { v: 'manual', label: '手动' },
+          ]}
+        />
+        {manual ? (
+          <div className="stepper" role="group" aria-label="行数">
+            <button type="button" onClick={() => setRowsPref(Math.max(3, slots - 1))} disabled={slots <= 3} aria-label="减少一行">
+              <Minus size={18} />
+            </button>
+            <output aria-live="polite">{slots} 行</output>
+            <button type="button" onClick={() => setRowsPref(Math.min(maxRows, slots + 1))} disabled={slots >= maxRows} aria-label="增加一行">
+              <Plus size={18} />
+            </button>
+          </div>
+        ) : null}
+        <p className="hint">
+          {manual
+            ? `这块屏幕最多 ${maxRows} 行。行数越多，每行越矮、字越小。设置只对这台设备有效。`
+            : `按屏幕高度自动决定，这块屏幕现在是 ${slots} 行，不用上下滚动。`}
+        </p>
       </div>
 
       <div className="set-group">
@@ -116,7 +149,6 @@ export function Settings({ open, onClose }: { open: boolean; onClose: () => void
           <li>点任意一行，把它设为要输入的货币</li>
           <li>向左滑一行，查看它的走势 K 线</li>
           <li>向右滑一行，换成别的货币</li>
-          <li>行数按屏幕大小自动确定（这块屏幕 {slots} 行），不用上下滚动</li>
           <li>长按一行再上下拖动，调整顺序</li>
           <li>长按后直接松手（电脑上右键）复制金额</li>
           <li>可以直接算：100 × 3 + 25</li>

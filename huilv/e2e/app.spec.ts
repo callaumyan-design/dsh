@@ -9,6 +9,11 @@ const prev: Record<string, number> = { ...usd, CNY: 7.07 };
 const API = { date: '2026-11-20', prevDate: '2026-11-19', source: 'fawazahmed0/exchange-api', rates: usd, prev, fetchedAt: 1 };
 
 const row = (page: Page, code: string) => page.locator(`.row[data-code="${code}"]`);
+const rowsGroup = (page: Page) => page.getByRole('radiogroup', { name: '每屏行数' });
+/** 宽屏（电脑）上走势在右侧栏，窄屏上是弹出面板 */
+const isWide = (page: Page) => (page.viewportSize()?.width ?? 0) >= 960;
+const trendBox = (page: Page, pair: string) =>
+  isWide(page) ? page.getByRole('region', { name: `${pair} 走势` }) : page.getByRole('dialog', { name: `${pair} 走势` });
 const amount = (page: Page, code: string) => row(page, code).locator('.amount');
 
 async function open(page: Page, opts: { offline?: boolean; hint?: boolean } = {}) {
@@ -237,25 +242,25 @@ test('短距离滑动不触发，也不会切换货币', async ({ page, isMobile
 
 test('左滑一行查看走势 K 线', async ({ page, isMobile }) => {
   await open(page);
-  await swipe(page, 'USD', -120, isMobile);
-  const sheet = page.getByRole('dialog', { name: 'USD/CNY 走势' });
-  await expect(sheet).toBeVisible();
-  await expect(sheet.locator('.pair-code')).toHaveText('USD / CNY');
-  await expect(sheet.locator('.chart svg g.k-up, .chart svg g.k-down')).toHaveCount(HISTORY.candles.length);
-  await expect(sheet.locator('.trend-last')).toHaveText('6.6683');
-  await expect(sheet.locator('.ohlc')).toContainText('收 6.6683');
+  await swipe(page, 'EUR', -120, isMobile);
+  const box = trendBox(page, 'EUR/CNY');
+  await expect(box).toBeVisible();
+  await expect(box.locator('.pair-code')).toHaveText('EUR / CNY');
+  await expect(box.locator('.chart svg g.k-up, .chart svg g.k-down')).toHaveCount(HISTORY.candles.length);
+  await expect(box.locator('.trend-last')).toHaveText('6.6683');
+  await expect(box.locator('.ohlc')).toContainText('收 6.6683');
 
   // 切换时间范围
   const req = page.waitForRequest((r) => r.url().includes('range=1y'));
-  await sheet.getByRole('radio', { name: '1年' }).click();
+  await box.getByRole('radio', { name: '1年' }).click();
   await req;
-  await expect(sheet.locator('.trend-span')).toHaveText('近1年');
+  await expect(box.locator('.trend-span')).toHaveText('近1年');
 
   // 反转货币对
-  const inv = page.waitForRequest((r) => r.url().includes('from=CNY&to=USD'));
-  await sheet.getByRole('button', { name: '反转为 CNY/USD' }).click();
+  const inv = page.waitForRequest((r) => r.url().includes('from=CNY&to=EUR'));
+  await box.getByRole('button', { name: '反转为 CNY/EUR' }).click();
   await inv;
-  await expect(page.getByRole('dialog', { name: 'CNY/USD 走势' })).toBeVisible();
+  await expect(trendBox(page, 'CNY/EUR')).toBeVisible();
 });
 
 test('走势图上移动查看某一天', async ({ page, isMobile }) => {
@@ -263,12 +268,12 @@ test('走势图上移动查看某一天', async ({ page, isMobile }) => {
   await open(page);
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('ArrowLeft');
-  const sheet = page.getByRole('dialog', { name: 'USD/CNY 走势' });
-  await expect(sheet).toBeVisible();
-  const box = (await sheet.locator('.k-hit').boundingBox())!;
-  await page.mouse.move(box.x + 3, box.y + box.height / 2);
-  await expect(sheet.locator('.ohlc-date')).toHaveText('2026年8月20日');
-  await expect(sheet.locator('.k-cross')).toBeVisible();
+  const box = trendBox(page, 'USD/CNY');
+  await expect(box).toBeVisible();
+  const hit = (await box.locator('.k-hit').boundingBox())!;
+  await page.mouse.move(hit.x + 3, hit.y + hit.height / 2);
+  await expect(box.locator('.ohlc-date')).toHaveText(/8月20日$/);
+  await expect(box.locator('.k-cross')).toBeVisible();
 });
 
 test('走势加载失败时可以重试', async ({ page }) => {
@@ -288,8 +293,8 @@ test('第一次打开时提示可以左右滑动', async ({ page }) => {
 test('快速一甩也能触发', async ({ page }) => {
   await open(page);
   // 只滑 45 像素，但速度很快
-  await swipe(page, 'USD', -45, false, 4);
-  await expect(page.getByRole('dialog', { name: 'USD/CNY 走势' })).toBeVisible();
+  await swipe(page, 'HKD', -45, false, 4);
+  await expect(trendBox(page, 'HKD/CNY')).toBeVisible();
 });
 
 test('长按后上下拖动调整顺序', async ({ page, isMobile }) => {
@@ -367,4 +372,76 @@ test('货币比行数少时显示“添加货币”空位', async ({ page }) => 
   await expect(page.locator('.add-slot')).toBeVisible();
   await page.locator('.add-slot').click();
   await expect(page.getByRole('dialog', { name: '添加货币' })).toBeVisible();
+});
+
+test('电脑宽屏：两栏布局，悬停按钮可以看走势、更换、复制', async ({ page, context, isMobile }) => {
+  test.skip(isMobile, '电脑布局');
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await open(page);
+  await expect(page.locator('.app')).toHaveClass(/is-wide/);
+  // 键盘和走势都在右栏，默认显示第一个非输入货币的走势
+  await expect(page.locator('.side .keypad')).toBeVisible();
+  await expect(trendBox(page, 'USD/CNY')).toBeVisible();
+  const listBox = (await page.locator('.list').boundingBox())!;
+  const sideBox = (await page.locator('.side').boundingBox())!;
+  expect(sideBox.x).toBeGreaterThan(listBox.x + listBox.width - 1);
+
+  await row(page, 'JPY').hover();
+  await page.getByRole('button', { name: '查看 JPY 走势' }).click();
+  await expect(trendBox(page, 'JPY/CNY')).toBeVisible();
+  await expect(row(page, 'JPY').locator('.focus-mark')).toBeVisible();
+  // 看走势不会切换输入货币
+  await expect(row(page, 'CNY')).toHaveClass(/is-active/);
+
+  await row(page, 'GBP').hover();
+  await page.getByRole('button', { name: '复制 GBP 金额' }).click();
+  await expect(page.locator('.toast')).toHaveText('已复制 10.71 GBP');
+
+  await row(page, 'HKD').hover();
+  await page.getByRole('button', { name: '更换 HKD' }).click();
+  await expect(page.getByRole('dialog', { name: /把 HKD 港币换成/ })).toBeVisible();
+});
+
+test('设置里手动指定每屏行数，刷新后保留', async ({ page }) => {
+  await open(page);
+  const auto = Number(await page.locator('.list').getAttribute('data-slots'));
+  await page.getByRole('button', { name: '设置' }).click();
+  await rowsGroup(page).getByRole('radio', { name: '手动' }).click();
+  await expect(page.locator('.stepper output')).toHaveText(`${auto} 行`);
+  await page.getByRole('button', { name: '减少一行' }).click();
+  await page.getByRole('button', { name: '减少一行' }).click();
+  await expect(page.locator('.stepper output')).toHaveText(`${auto - 2} 行`);
+  await page.getByRole('button', { name: '关闭' }).click();
+  await expect(page.locator('.list')).toHaveAttribute('data-slots', String(auto - 2));
+  await expect(page.locator('.row-wrap')).toHaveCount(Math.min(7, auto - 2));
+  // 行更少，每行更高，仍然正好放满
+  const scrollable = await page.evaluate(() => {
+    const l = document.querySelector('.list')!;
+    return l.scrollHeight > l.clientHeight + 1;
+  });
+  expect(scrollable).toBe(false);
+
+  await page.reload();
+  await expect(page.locator('.list')).toHaveAttribute('data-slots', String(auto - 2));
+
+  // 改回自动
+  await page.getByRole('button', { name: '设置' }).click();
+  await rowsGroup(page).getByRole('radio', { name: '自动' }).click();
+  await page.getByRole('button', { name: '关闭' }).click();
+  await expect(page.locator('.list')).toHaveAttribute('data-slots', String(auto));
+});
+
+test('手动行数不超过屏幕能放下的上限', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 600 });
+  await open(page);
+  await page.getByRole('button', { name: '设置' }).click();
+  await rowsGroup(page).getByRole('radio', { name: '手动' }).click();
+  const plus = page.getByRole('button', { name: '增加一行' });
+  for (let i = 0; i < 12 && (await plus.isEnabled()); i++) await plus.click();
+  await expect(plus).toBeDisabled();
+  const n = parseInt((await page.locator('.stepper output').textContent())!, 10);
+  await page.getByRole('button', { name: '关闭' }).click();
+  const h = await page.locator('.row-wrap').first().evaluate((e) => e.getBoundingClientRect().height);
+  expect(h).toBeGreaterThanOrEqual(48);
+  await expect(page.locator('.row-wrap')).toHaveCount(Math.min(n, 7));
 });

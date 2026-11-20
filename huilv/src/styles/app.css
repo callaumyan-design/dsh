@@ -182,7 +182,8 @@ button:disabled {
   -webkit-touch-callout: none;
 }
 
-@media (min-width: 720px) and (min-height: 560px) {
+/* 平板竖屏等中等宽度：居中的单栏面板。更宽的屏幕见下面的两栏布局 */
+@media (min-width: 720px) and (max-width: 959px) and (min-height: 560px) {
   body {
     background: var(--bg-outer);
   }
@@ -199,6 +200,206 @@ button:disabled {
     box-shadow: var(--shadow);
     padding-top: 0;
   }
+}
+
+/* 电脑等宽屏（至少 960×560）：左边货币列表，右边走势栏 + 键盘，占满整个窗口 */
+.app.is-wide {
+  width: 100%;
+  max-width: 1280px;
+  padding-left: max(24px, env(safe-area-inset-left, 0px));
+  padding-right: max(24px, env(safe-area-inset-right, 0px));
+  padding-bottom: 24px;
+}
+
+.is-wide .top {
+  height: 68px;
+  padding-left: 4px;
+  padding-right: 0;
+}
+
+.is-wide .logo {
+  font-size: 20px;
+}
+
+.wide-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(360px, 32vw, 420px);
+  gap: 24px;
+}
+
+.is-wide .list {
+  padding: 0 0 4px;
+  container-type: inline-size;
+}
+
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+}
+
+.side-trend {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 18px 14px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--surface);
+  overflow-y: auto;
+  font-family: var(--font-cjk);
+}
+
+.side-trend-head {
+  flex: none;
+}
+
+.trend.is-fill {
+  flex: 1;
+  min-height: 0;
+}
+
+.trend.is-fill .chart-area {
+  flex: 1;
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+}
+
+.chart.is-fill {
+  flex: 1;
+  min-height: 200px;
+}
+
+.side-trend .trend-note {
+  display: none;
+}
+
+.is-wide .keypad {
+  border-radius: 20px;
+  padding: 12px;
+}
+
+.is-wide .key {
+  height: clamp(40px, 5.6vh, 54px);
+}
+
+.is-wide .key-eq {
+  height: auto;
+}
+
+/* 走势栏：日期和开高低收放在一行 */
+.side-trend .ohlc {
+  gap: 2px 9px;
+  font-size: 11.5px;
+}
+
+/* 窗口比较矮时，走势栏省掉次要信息，把高度留给图表 */
+@media (max-height: 820px) {
+  .side-trend .trend-desc {
+    display: none;
+  }
+  .side-trend .trend {
+    gap: 8px;
+  }
+  .side-trend .trend-last {
+    font-size: 26px;
+  }
+  .trend.is-fill .chart-area,
+  .chart.is-fill {
+    min-height: 150px;
+  }
+}
+
+/* 宽屏行：右端留出一列，鼠标悬停时出现“走势 / 更换 / 复制”图标按钮；行中间照常用来点选 */
+.is-wide .row-wrap > .row {
+  padding-right: 128px;
+}
+
+.row-tools {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  right: 10px;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-50%);
+  transition: opacity 0.12s ease;
+}
+
+@media (hover: hover) {
+  .row-wrap:hover .row-tools {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+.row-tools:focus-within {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.row-wrap.is-lifted .row-tools,
+.list.is-sorting .row-tools,
+.row-wrap[data-dir='left'] .row-tools,
+.row-wrap[data-dir='right'] .row-tools {
+  display: none;
+}
+
+.row-tools button {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 32px;
+  border-radius: 9px;
+  color: var(--muted);
+}
+
+.row-tools button:hover {
+  background: var(--pad);
+  color: var(--accent);
+}
+
+.name-en {
+  color: var(--muted);
+}
+
+.is-wide .row::after {
+  right: 12px;
+}
+
+.focus-mark {
+  margin-left: 6px;
+  vertical-align: -1px;
+  color: var(--accent);
+}
+
+/* 列表比较窄时不显示英文名 */
+@container (max-width: 640px) {
+  .name-en {
+    display: none;
+  }
+}
+
+/* 手动设了很多行、每行很矮时 */
+.row-wrap.is-compact .name {
+  display: none;
+}
+
+.row-wrap.is-compact .sub {
+  min-height: 0;
+  font-size: 10.5px;
 }
 
 /* ---------- 顶栏 ---------- */
@@ -307,7 +508,7 @@ button:disabled {
   padding-left: max(8px, env(safe-area-inset-left, 0px));
   padding-right: max(8px, env(safe-area-inset-right, 0px));
   /* 金额字号随行高变化：行越高字越大 */
-  --amt: clamp(21px, calc(var(--row-h, 72px) * 0.36), 32px);
+  --amt: clamp(18px, calc(var(--row-h, 72px) * 0.36), 32px);
 }
 
 /* 编辑模式下键盘收起，列表可以滚动 */
@@ -1525,6 +1726,39 @@ button.row.is-active:hover {
 
 .confirm span {
   flex: 1 1 100%;
+}
+
+.stepper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--pad);
+}
+
+.stepper button {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 34px;
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 1px 3px rgb(16 19 24 / 0.12);
+}
+
+.stepper button:disabled {
+  opacity: 0.4;
+  box-shadow: none;
+}
+
+.stepper output {
+  font-family: var(--font);
+  font-weight: 700;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
 }
 
 .tips {

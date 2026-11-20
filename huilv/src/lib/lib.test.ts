@@ -192,3 +192,18 @@ describe('数据完整性', () => {
     expect(searchCurrencies('zzzz')).toHaveLength(0);
   });
 });
+
+describe('每屏行数', async () => {
+  const { computeSlots } = await import('../store');
+  it('自动：按高度和最小行高计算，限制在 3 到 12 行', () => {
+    expect(computeSlots(460, 64, 'auto').slots).toBe(7);
+    expect(computeSlots(300, 64, 'auto').slots).toBe(4);
+    expect(computeSlots(100, 64, 'auto').slots).toBe(3);
+    expect(computeSlots(2000, 64, 'auto').slots).toBe(12);
+  });
+  it('手动：按设置的行数，但不超过每行 48 像素能放下的上限', () => {
+    expect(computeSlots(460, 64, 5).slots).toBe(5);
+    expect(computeSlots(460, 64, 12)).toEqual({ slots: 9, maxRows: 9 });
+    expect(computeSlots(460, 64, 2).slots).toBe(3);
+  });
+});

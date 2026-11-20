@@ -1,7 +1,7 @@
 import { useEffect, useRef, type CSSProperties, type PointerEvent as RPointerEvent } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { ChartCandlestick, GripVertical, Minus, Replace } from 'lucide-react';
+import { ChartCandlestick, Copy, GripVertical, Minus, Replace } from 'lucide-react';
 import { CURRENCY_MAP } from '../lib/currencies';
 import { gesture } from '../lib/gesture';
 import { Flag } from './Flag';
@@ -28,6 +28,12 @@ export interface RowProps {
   noSep?: boolean;
   /** 第一次使用时轻轻滑动一下，提示可以左右滑 */
   peek?: boolean;
+  /** 电脑宽屏：鼠标悬停时显示“走势 / 更换 / 复制”按钮，并显示英文名 */
+  wide?: boolean;
+  /** 电脑宽屏：右侧走势栏正在显示这一行 */
+  focus?: boolean;
+  /** 行很矮（手动设了很多行）：缩小国旗、隐藏中文名 */
+  compact?: boolean;
   onSelect: () => void;
   /** 右键复制（长按由排序逻辑处理：长按后不移动直接松手 = 复制） */
   onCopy: () => void;
@@ -62,7 +68,7 @@ type Track = {
 };
 
 /** 普通模式下的一行：点按切换输入货币；左滑看走势，右滑更换货币；长按后上下拖动排序 */
-export function Row({ code, active, value, sub, change, missing, noSep, peek, onSelect, onCopy, onSwap, onTrend }: RowProps) {
+export function Row({ code, active, value, sub, change, missing, noSep, peek, wide, focus, compact, onSelect, onCopy, onSwap, onTrend }: RowProps) {
   const c = CURRENCY_MAP[code];
   const { listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: code });
   const track = useRef<Track | null>(null);
@@ -205,7 +211,7 @@ export function Row({ code, active, value, sub, change, missing, noSep, peek, on
     <div
       ref={setRefs}
       style={style}
-      className={`row-wrap${peek ? ' is-peek' : ''}${isDragging ? ' is-lifted' : ''}${noSep ? ' no-sep' : ''}`}
+      className={`row-wrap${peek ? ' is-peek' : ''}${isDragging ? ' is-lifted' : ''}${noSep ? ' no-sep' : ''}${focus ? ' is-focus' : ''}${compact ? ' is-compact' : ''}`}
       data-wrap={code}
     >
       <div className="row-actions" aria-hidden="true">
@@ -249,10 +255,16 @@ export function Row({ code, active, value, sub, change, missing, noSep, peek, on
           onSelect();
         }}
       >
-        <Flag code={code} />
+        <Flag code={code} size={compact ? 28 : 36} />
         <span className="meta">
-          <span className="code">{code}</span>
-          <span className="name">{c?.name}</span>
+          <span className="code">
+            {code}
+            {focus && <ChartCandlestick className="focus-mark" size={14} aria-label="走势栏正在显示" />}
+          </span>
+          <span className="name">
+            {c?.name}
+            {wide && <span className="name-en"> · {c?.en}</span>}
+          </span>
         </span>
         <span className="value">
           <span className={`amount ${sizeClass(value)}`}>
@@ -265,6 +277,19 @@ export function Row({ code, active, value, sub, change, missing, noSep, peek, on
           </span>
         </span>
       </button>
+      {wide && (
+        <div className="row-tools">
+          <button type="button" onClick={onTrend} title="查看走势（左滑）" aria-label={`查看 ${code} 走势`}>
+            <ChartCandlestick size={17} />
+          </button>
+          <button type="button" onClick={onSwap} title="更换货币（右滑）" aria-label={`更换 ${code}`}>
+            <Replace size={17} />
+          </button>
+          <button type="button" onClick={onCopy} title="复制金额（右键）" aria-label={`复制 ${code} 金额`}>
+            <Copy size={16} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

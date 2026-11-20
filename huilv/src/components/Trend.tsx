@@ -80,7 +80,7 @@ export function Trend({ pair, onClose, onInvert }: { pair: { from: string; to: s
   );
 }
 
-function TrendHead({ from, to, onInvert }: { from: string; to: string; onInvert: () => void }) {
+export function TrendHead({ from, to, onInvert }: { from: string; to: string; onInvert: () => void }) {
   const a = CURRENCY_MAP[from];
   const b = CURRENCY_MAP[to];
   return (
@@ -104,7 +104,7 @@ function TrendHead({ from, to, onInvert }: { from: string; to: string; onInvert:
   );
 }
 
-function TrendBody({ from, to }: { from: string; to: string }) {
+export function TrendBody({ from, to, fill }: { from: string; to: string; fill?: boolean }) {
   const [range, setRange] = useState<Range>('3m');
   const [hover, setHover] = useState<number | null>(null);
   const { load, retry } = useHistory(from, to, range);
@@ -127,7 +127,7 @@ function TrendBody({ from, to }: { from: string; to: string }) {
   const dir = (p: number | null) => (p === null || formatPct(p) === '0.00%' ? 'flat' : p > 0 ? 'up' : 'down');
 
   return (
-    <div className="trend">
+    <div className={`trend${fill ? ' is-fill' : ''}`}>
       <div className="trend-price">
         <span className="trend-last">{last ? formatRate(last.c) : '—'}</span>
         {rangeChg !== null && <span className={`chg chg-${dir(rangeChg)}`}>{formatPct(rangeChg)}</span>}
@@ -176,7 +176,7 @@ function TrendBody({ from, to }: { from: string; to: string }) {
 
       <div className={`chart-area${load.state === 'loading' && !data ? ' is-loading' : ''}`}>
         {data && n >= 2 ? (
-          <Chart candles={candles} interval={data.interval} hover={hover} onHover={setHover} />
+          <Chart candles={candles} interval={data.interval} hover={hover} onHover={setHover} fill={fill} />
         ) : load.state === 'error' ? (
           <div className="chart-msg">
             <p>暂时无法获取走势数据</p>
@@ -217,5 +217,17 @@ function TrendBody({ from, to }: { from: string; to: string }) {
         红涨绿跌。{data && !data.ohlc ? '这个货币对只有每日收盘价，每根K线的开盘价取前一根的收盘价。' : ''}在图表上左右拖动（电脑上移动鼠标）查看每个时间点的价格。行情仅供参考。
       </p>
     </div>
+  );
+}
+
+/** 电脑上常驻在右侧的走势栏 */
+export function TrendPanel({ from, to, onInvert }: { from: string; to: string; onInvert: () => void }) {
+  return (
+    <section className="side-trend" aria-label={`${from}/${to} 走势`}>
+      <div className="side-trend-head">
+        <TrendHead from={from} to={to} onInvert={onInvert} />
+      </div>
+      <TrendBody from={from} to={to} fill />
+    </section>
   );
 }

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent as RPointerEven
 import { movingAverage, type Candle, type Interval } from '../lib/history';
 import { formatRate } from '../lib/format';
 
-const H = 236;
+const DEFAULT_H = 236;
 const PAD_T = 18;
 const PAD_B = 24;
 const PAD_R = 58;
@@ -21,7 +21,9 @@ export function dateLabel(t: number, interval: Interval, long = false): string {
   const m = d.getUTCMonth() + 1;
   const day = d.getUTCDate();
   if (interval === '1mo') return long ? `${y}年${m}月` : `${y}/${m}`;
-  return long ? `${y}年${m}月${day}日` : `${m}/${day}`;
+  if (!long) return `${m}/${day}`;
+  // 今年的日期省略年份
+  return y === new Date().getUTCFullYear() ? `${m}月${day}日` : `${y}年${m}月${day}日`;
 }
 
 export interface ChartProps {
@@ -30,17 +32,25 @@ export interface ChartProps {
   /** 当前指着的那一根（null 表示没有指着，显示最后一根） */
   onHover: (i: number | null) => void;
   hover: number | null;
+  /** 高度跟随容器（电脑上的走势栏）；否则固定 236 像素 */
+  fill?: boolean;
 }
 
 /** K 线图，带 MA5 / MA20 和最高最低价标注。指针在图上移动时显示十字线。 */
-export function Chart({ candles, interval, onHover, hover }: ChartProps) {
+export function Chart({ candles, interval, onHover, hover, fill }: ChartProps) {
   const box = useRef<HTMLDivElement>(null);
   const [w, setW] = useState(360);
+  const [boxH, setBoxH] = useState(DEFAULT_H);
+  const H = fill ? Math.max(150, boxH) : DEFAULT_H;
 
   useEffect(() => {
     const el = box.current;
     if (!el) return;
-    const update = () => setW(Math.max(200, Math.round(el.getBoundingClientRect().width)));
+    const update = () => {
+      const r = el.getBoundingClientRect();
+      setW(Math.max(200, Math.round(r.width)));
+      setBoxH(Math.round(r.height));
+    };
     update();
     const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(update) : null;
     ro?.observe(el);
@@ -74,7 +84,7 @@ export function Chart({ candles, interval, onHover, hover }: ChartProps) {
     const ticks = [0, 1, 2, 3].map((i) => bottom + ((top - bottom) * (i + 0.5)) / 4);
     const dec = axisDecimals(top - bottom);
     return { hi, lo, hiI, loI, y, ticks, fmt: nf(dec) };
-  }, [candles, plotH]);
+  }, [candles, plotH, H]);
 
   const x = (i: number) => band * (i + 0.5);
   const ma5 = useMemo(() => (n >= 8 ? movingAverage(candles, 5) : []), [candles, n]);
@@ -116,7 +126,7 @@ export function Chart({ candles, interval, onHover, hover }: ChartProps) {
   };
 
   return (
-    <div className="chart" ref={box}>
+    <div className={`chart${fill ? ' is-fill' : ''}`} ref={box}>
       <svg width={w} height={H} viewBox={`0 0 ${w} ${H}`} role="img" aria-label={`走势图，共 ${n} 个数据点，最高 ${formatRate(geo.hi)}，最低 ${formatRate(geo.lo)}`}>
         {geo.ticks.map((v) => (
           <g key={v}>

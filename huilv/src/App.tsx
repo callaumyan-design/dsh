@@ -24,19 +24,31 @@ import { Row, EditRow } from './components/Row';
 import { Keypad } from './components/Keypad';
 import { Picker } from './components/Picker';
 import { Settings } from './components/Settings';
-import { Trend } from './components/Trend';
+import { Trend, TrendPanel } from './components/Trend';
 
 const HINT_KEY = 'huilv:hint-swipe';
-/** 每行至少这么高（像素），据此算出一屏放几行 */
+/** 自动模式下每行至少这么高（像素），据此算出一屏放几行；电脑宽屏的行稍高一些 */
 const MIN_ROW = 64;
-const MIN_SLOTS = 3;
-const MAX_SLOTS = 12;
+const MIN_ROW_WIDE = 72;
+const WIDE_QUERY = '(min-width: 960px) and (min-height: 560px)';
 
-/** 按列表区域的高度算出能放几行、每行多高；编辑模式下键盘收起，不重新计算 */
-function useSlots(editing: boolean) {
+/** 电脑等宽屏：两栏布局 */
+function useWide() {
+  const [wide, setWide] = useState(() => typeof matchMedia !== 'undefined' && matchMedia(WIDE_QUERY).matches);
+  useEffect(() => {
+    const mq = matchMedia(WIDE_QUERY);
+    const on = () => setWide(mq.matches);
+    on();
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
+  return wide;
+}
+
+/** 测量列表区域的高度交给 store 算行数；手机上编辑模式会收起键盘，这时不重新计算 */
+function useListHeight(editing: boolean, wide: boolean) {
   const ref = useRef<HTMLElement>(null);
-  const [rowH, setRowH] = useState(MIN_ROW);
-  const setSlots = useStore((s) => s.setSlots);
+  const setLayout = useStore((s) => s.setLayout);
   const editingRef = useRef(editing);
   editingRef.current = editing;
 
@@ -44,21 +56,18 @@ function useSlots(editing: boolean) {
     const el = ref.current;
     if (!el) return;
     const measure = () => {
-      if (editingRef.current) return;
+      if (editingRef.current && !wide) return;
       const cs = getComputedStyle(el);
       const h = el.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
-      if (!(h > 0)) return;
-      const n = Math.max(MIN_SLOTS, Math.min(MAX_SLOTS, Math.floor(h / MIN_ROW)));
-      setSlots(n);
-      setRowH(Math.floor((h / n) * 10) / 10);
+      if (h > 0) setLayout(h, wide ? MIN_ROW_WIDE : MIN_ROW);
     };
     measure();
     const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
     ro?.observe(el);
     return () => ro?.disconnect();
-  }, [setSlots]);
+  }, [setLayout, wide]);
 
-  return { ref, rowH };
+  return ref;
 }
 
 const KEYMAP: Record<string, Key> = {
@@ -114,9 +123,15 @@ function useNow(ms: number) {
 
 export default function App() {
   const s = useStore();
-  const { list, active, expr, rates, decimals, status, editing, toast, slots } = s;
+  const { list, active, expr, rates, decimals, status, editing, toast, slots, listH } = s;
   const visible = useMemo(() => list.slice(0, slots), [list, slots]);
-  const { ref: listRef, rowH } = useSlots(editing);
+  const wide = useWide();
+  const listRef = useListHeight(editing, wide);
+  const rowH = listH > 0 ? Math.floor((listH / slots) * 10) / 10 : 72;
+  const compact = rowH < 58;
+  /** 电脑宽屏：右侧走势栏显示哪一行（null 表示第一个非输入货币） */
+  const [focusCode, setFocusCode] = useState<string | null>(null);
+  const [invertPair, setInvertPair] = useState(false);
   const [picker, setPicker] = useState(false);
   /** 正在更换的那一行（左滑） */
   const [swapFor, setSwapFor] = useState<string | null>(null);
@@ -158,11 +173,26 @@ export default function App() {
 
   const amount = s.amount();
 
-  const openTrend = useCallback((code: string) => {
-    const base = useStore.getState().active;
-    const to = code !== base ? base : code === 'USD' ? 'CNY' : 'USD';
-    setTrend({ from: code, to });
-  }, []);
+  const openTrend = useCallback(
+    (code: string) => {
+      // 电脑宽屏：在右侧走势栏显示；手机：弹出走势面板
+      if (wide) {
+        setFocusCode(code);
+        setInvertPair(false);
+        return;
+      }
+      const base = useStore.getState().active;
+      const to = code !== base ? base : code === 'USD' ? 'CNY' : 'USD';
+      setTrend({ from: code, to });
+    },
+    [wide],
+  );
+
+  const panelPair = useMemo(() => {
+    const from = focusCode && visible.includes(focusCode) ? focusCode : (visible.find((c) => c !== active) ?? 'USD');
+    const to = from !== active ? active : from === 'USD' ? 'CNY' : 'USD';
+    return invertPair ? { from: to, to: from } : { from, to };
+  }, [focusCode, visible, active, invertPair]);
 
   const copy = useCallback(async (code: string, text: string) => {
     const plain = text.replace(/,/g, '');
@@ -292,8 +322,74 @@ export default function App() {
   else if (status === 'error') statusText += ' · 离线';
   else statusText += ` · ${formatAgo(rates.fetchedAt, now)}更新`;
 
+  const listView = (
+    <main
+      ref={listRef}
+      className={`list${sortingId ? ' is-sorting' : ''}${editing ? ' is-editing' : ''}`}
+      style={{ '--row-h': `${rowH}px` } as CSSProperties}
+      aria-label="货币列表"
+      data-slots={slots}
+    >
+      {editing ? (
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd} modifiers={[restrictToVerticalAxis, restrictToParentElement]}>
+          {list.length > slots && <p className="edit-note">这块屏幕显示前 {slots} 种，排在后面的暂时不显示。</p>}
+          <SortableContext items={list} strategy={verticalListSortingStrategy}>
+            <div className="edit-list">
+              {list.map((code, i) => (
+                <EditRow key={code} code={code} hidden={i >= slots} canRemove={list.length > 1} onRemove={() => s.remove(code)} />
+              ))}
+            </div>
+          </SortableContext>
+          <button type="button" className="add-row" onClick={() => setPicker(true)}>
+            <Plus size={18} /> 添加货币
+          </button>
+        </DndContext>
+      ) : (
+        <DndContext
+          sensors={rowSensors}
+          collisionDetection={closestCenter}
+          onDragStart={onRowDragStart}
+          onDragEnd={onRowDragEnd}
+          onDragCancel={endRowDrag}
+          modifiers={[restrictToVerticalAxis, restrictToParentElement]}
+        >
+          <SortableContext items={visible} strategy={verticalListSortingStrategy}>
+            {rows.map((r, i) => (
+              <Row
+                key={r.code}
+                code={r.code}
+                active={r.code === active}
+                value={r.value}
+                sub={r.sub}
+                change={r.change}
+                missing={r.missing}
+                noSep={i === rows.length - 1 || rows[i + 1]?.code === active}
+                peek={peek && i === 1}
+                wide={wide}
+                focus={wide && r.code === (invertPair ? panelPair.to : panelPair.from)}
+                compact={compact}
+                onSelect={() => s.setActive(r.code)}
+                onSwap={() => setSwapFor(r.code)}
+                onTrend={() => openTrend(r.code)}
+                onCopy={() => {
+                  const v = r.code === active ? formatAmount(amount, decimals) : r.value;
+                  if (v !== '—') copy(r.code, v);
+                }}
+              />
+            ))}
+          </SortableContext>
+          {visible.length < slots && (
+            <button type="button" className="add-slot" onClick={() => setPicker(true)}>
+              <Plus size={18} /> 添加货币
+            </button>
+          )}
+        </DndContext>
+      )}
+    </main>
+  );
+
   return (
-    <div className={`app${editing ? ' is-editing' : ''}`}>
+    <div className={`app${editing ? ' is-editing' : ''}${wide ? ' is-wide' : ''}`}>
       <header className="top">
         <div className="brand">
           <span className="logo" aria-label="简汇">
@@ -332,68 +428,20 @@ export default function App() {
         </div>
       </header>
 
-      <main
-        ref={listRef}
-        className={`list${sortingId ? ' is-sorting' : ''}${editing ? ' is-editing' : ''}`}
-        style={{ '--row-h': `${rowH}px` } as CSSProperties}
-        aria-label="货币列表"
-        data-slots={slots}
-      >
-        {editing ? (
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd} modifiers={[restrictToVerticalAxis, restrictToParentElement]}>
-            {list.length > slots && <p className="edit-note">这块屏幕显示前 {slots} 种，排在后面的暂时不显示。</p>}
-            <SortableContext items={list} strategy={verticalListSortingStrategy}>
-              <div className="edit-list">
-                {list.map((code, i) => (
-                  <EditRow key={code} code={code} hidden={i >= slots} canRemove={list.length > 1} onRemove={() => s.remove(code)} />
-                ))}
-              </div>
-            </SortableContext>
-            <button type="button" className="add-row" onClick={() => setPicker(true)}>
-              <Plus size={18} /> 添加货币
-            </button>
-          </DndContext>
-        ) : (
-          <DndContext
-            sensors={rowSensors}
-            collisionDetection={closestCenter}
-            onDragStart={onRowDragStart}
-            onDragEnd={onRowDragEnd}
-            onDragCancel={endRowDrag}
-            modifiers={[restrictToVerticalAxis, restrictToParentElement]}
-          >
-            <SortableContext items={visible} strategy={verticalListSortingStrategy}>
-              {rows.map((r, i) => (
-                <Row
-                  key={r.code}
-                  code={r.code}
-                  active={r.code === active}
-                  value={r.value}
-                  sub={r.sub}
-                  change={r.change}
-                  missing={r.missing}
-                  noSep={i === rows.length - 1 || rows[i + 1]?.code === active}
-                  peek={peek && i === 1}
-                  onSelect={() => s.setActive(r.code)}
-                  onSwap={() => setSwapFor(r.code)}
-                  onTrend={() => openTrend(r.code)}
-                  onCopy={() => {
-                    const v = r.code === active ? formatAmount(amount, decimals) : r.value;
-                    if (v !== '—') copy(r.code, v);
-                  }}
-                />
-              ))}
-            </SortableContext>
-            {visible.length < slots && (
-              <button type="button" className="add-slot" onClick={() => setPicker(true)}>
-                <Plus size={18} /> 添加货币
-              </button>
-            )}
-          </DndContext>
-        )}
-      </main>
-
-      {!editing && <Keypad onKey={s.key} />}
+      {wide ? (
+        <div className="wide-body">
+          {listView}
+          <aside className="side">
+            <TrendPanel from={panelPair.from} to={panelPair.to} onInvert={() => setInvertPair((v) => !v)} />
+            <Keypad onKey={s.key} />
+          </aside>
+        </div>
+      ) : (
+        <>
+          {listView}
+          {!editing && <Keypad onKey={s.key} />}
+        </>
+      )}
 
       <div className="toast-area" aria-live="polite">
         {toast && (

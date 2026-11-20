@@ -15,15 +15,32 @@ export const REFRESH_AFTER = 60 * 60 * 1000;
 
 export const BUNDLED: RateData = { ...(snapshot as Omit<RateData, 'fetchedAt'>), fetchedAt: 0 };
 
+/** 每屏行数：自动（按屏幕高度）或手动指定 */
+export type RowsPref = 'auto' | number;
+
 interface Prefs {
   list: string[];
   active: string;
   expr: string;
   decimals: Decimals;
   theme: Theme;
+  rowsPref: RowsPref;
 }
 
-const DEFAULT_PREFS: Prefs = { list: DEFAULT_LIST, active: 'CNY', expr: '100', decimals: 'auto', theme: 'system' };
+const DEFAULT_PREFS: Prefs = { list: DEFAULT_LIST, active: 'CNY', expr: '100', decimals: 'auto', theme: 'system', rowsPref: 'auto' };
+
+export const MIN_SLOTS = 3;
+export const MAX_SLOTS = 12;
+/** 手动指定行数时，每行至少这么高（像素） */
+export const MANUAL_MIN_ROW = 48;
+
+/** 按列表区域高度算出行数，以及手动模式下这块屏幕最多能放几行 */
+export function computeSlots(h: number, minRow: number, pref: RowsPref): { slots: number; maxRows: number } {
+  const clamp = (n: number, hi = MAX_SLOTS) => Math.max(MIN_SLOTS, Math.min(hi, n));
+  const maxRows = clamp(Math.floor(h / MANUAL_MIN_ROW));
+  const slots = pref === 'auto' ? clamp(Math.floor(h / minRow)) : clamp(pref, maxRows);
+  return { slots, maxRows };
+}
 
 function read<T>(key: string): T | null {
   try {
@@ -51,7 +68,8 @@ function loadPrefs(): Prefs {
   const decimals: Decimals = p.decimals === 0 || p.decimals === 2 || p.decimals === 4 || p.decimals === 'auto' ? p.decimals : 'auto';
   const theme: Theme = p.theme === 'light' || p.theme === 'dark' || p.theme === 'system' ? p.theme : 'system';
   const expr = typeof p.expr === 'string' && /^-?[0-9.+\-*/]{0,40}$/.test(p.expr) ? p.expr : DEFAULT_PREFS.expr;
-  return { list: finalList, active, expr, decimals, theme };
+  const rowsPref: RowsPref = typeof p.rowsPref === 'number' && p.rowsPref >= MIN_SLOTS && p.rowsPref <= MAX_SLOTS ? Math.round(p.rowsPref) : 'auto';
+  return { list: finalList, active, expr, decimals, theme, rowsPref };
 }
 
 function loadRates(): RateData {
@@ -74,7 +92,13 @@ export interface State extends Prefs {
   moveActive: (delta: number) => void;
   /** 当前屏幕能放下的行数（按列表区域高度计算，不保存） */
   slots: number;
-  setSlots: (n: number) => void;
+  /** 手动模式下这块屏幕最多能放几行 */
+  maxRows: number;
+  /** 列表区域高度、自动模式的最小行高（由界面测量后告诉这里） */
+  listH: number;
+  minRow: number;
+  setLayout: (h: number, minRow: number) => void;
+  setRowsPref: (p: RowsPref) => void;
   /** 屏幕上显示的货币：列表的前 slots 个 */
   visible: () => string[];
   add: (code: string) => void;
@@ -97,6 +121,9 @@ export const useStore = create<State>((set, get) => ({
   ...prefs,
   fresh: true,
   slots: 7,
+  maxRows: MAX_SLOTS,
+  listH: 0,
+  minRow: 64,
   rates: loadRates(),
   status: 'idle',
   editing: false,
@@ -135,8 +162,14 @@ export const useStore = create<State>((set, get) => ({
     if (next) get().setActive(next);
   },
 
-  setSlots: (n) => {
-    if (n !== get().slots) set({ slots: n });
+  setLayout: (h, minRow) => {
+    const { slots, maxRows } = computeSlots(h, minRow, get().rowsPref);
+    set({ listH: h, minRow, slots, maxRows });
+  },
+
+  setRowsPref: (rowsPref) => {
+    const { listH, minRow } = get();
+    set({ rowsPref, ...(listH > 0 ? computeSlots(listH, minRow, rowsPref) : {}) });
   },
 
   visible: () => get().list.slice(0, get().slots),
@@ -206,6 +239,7 @@ export const useStore = create<State>((set, get) => ({
 
   reset: () => {
     set({ ...DEFAULT_PREFS, fresh: true, editing: false });
+    get().setRowsPref('auto');
     get().showToast('已恢复默认设置');
   },
 }));
@@ -219,8 +253,15 @@ useStore.subscribe((s, prev) => {
 
 // 偏好设置变化时保存
 useStore.subscribe((s, prev) => {
-  if (s.list !== prev.list || s.active !== prev.active || s.expr !== prev.expr || s.decimals !== prev.decimals || s.theme !== prev.theme) {
-    const { list, active, expr, decimals, theme } = s;
-    write(KEY, { list, active, expr, decimals, theme });
+  if (
+    s.list !== prev.list ||
+    s.active !== prev.active ||
+    s.expr !== prev.expr ||
+    s.decimals !== prev.decimals ||
+    s.theme !== prev.theme ||
+    s.rowsPref !== prev.rowsPref
+  ) {
+    const { list, active, expr, decimals, theme, rowsPref } = s;
+    write(KEY, { list, active, expr, decimals, theme, rowsPref });
   }
 });
