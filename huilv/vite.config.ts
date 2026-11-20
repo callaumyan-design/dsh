@@ -5,7 +5,7 @@ import { VitePWA } from 'vite-plugin-pwa';
 import { viteSingleFile } from 'vite-plugin-singlefile';
 
 // 在线版地址：单文件版本（双击打开 / Claude Artifact）的设置页里会给出这个链接
-const LIVE_URL = 'https://huilv.botian-yan.workers.dev/';
+const LIVE_URL = 'https://huilv.callaum.com/';
 
 // 两种构建：
 // - 默认：PWA（可安装、离线可用），由 Cloudflare Worker 或任意静态托管提供

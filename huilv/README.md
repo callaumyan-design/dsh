@@ -2,7 +2,7 @@
 
 输入一种货币的金额，列表里的其他货币同时换算出来。每一行还会给出单位汇率和当天涨跌，可以直接在键盘上算 `100 × 3 + 25`。向左滑一行看它的走势 K 线，向右滑换成别的货币，长按后上下拖动调整顺序。手机和电脑都能用，可以装到主屏幕，断网也能打开。
 
-**在线使用：<https://huilv.botian-yan.workers.dev>**
+**在线使用：<https://huilv.callaum.com>**（也在起始页 [callaum.com](https://callaum.com) 的应用栏里；备用地址 <https://huilv.botian-yan.workers.dev>）
 
 | 浅色 | 深色（连续计算） | 左滑看走势 K 线 |
 | --- | --- | --- |
@@ -71,7 +71,7 @@ Yahoo 的不少外汇日线只有一个价格（开高低收相同），后两�
 
 ### 1. 在线版
 
-打开 <https://huilv.botian-yan.workers.dev>。手机浏览器里选“添加到主屏幕”，电脑上的 Chrome / Edge 点地址栏右侧的安装图标，或在 设置 → 安装 里操作。
+打开 <https://huilv.callaum.com>（或者在起始页 callaum.com 的应用栏点“简汇”）。手机浏览器里选“添加到主屏幕”，电脑上的 Chrome / Edge 点地址栏右侧的安装图标，或在 设置 → 安装 里操作。
 
 ### 2. 单文件版
 

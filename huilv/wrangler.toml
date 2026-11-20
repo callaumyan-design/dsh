@@ -6,6 +6,9 @@ compatibility_date = "2025-10-01"
 workers_dev = true
 preview_urls = false
 
+# 自己的域名（和砚录 ocr.callaum.com 一样，由 Cloudflare 自动建 DNS 记录和证书）
+routes = [{ pattern = "huilv.callaum.com", custom_domain = true }]
+
 [[rules]]
 type = "Data"
 globs = ["**/*.bin"]
