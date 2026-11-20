@@ -56,7 +56,28 @@ AI_PROVIDER=openai  AI_BASE_URL=http://localhost:11434/v1  AI_MODEL=qwen2.5:14b
 
 新增一种接口：在 `server/src/lib/ai/` 写一个返回 `{ name, model, generateJson() }` 的函数，并在 `index.js` 里登记。
 
+## 部署到 Azure
+
+服务器用 Azure Functions 的 Flex Consumption 计划（按用量计费；每天跑一次加上平时的接口请求，一般在每月免费额度内），另有一个存储账户，费用很低。AI 接口的费用另算。
+
+1. 先把代码合并到 `main`。
+2. 打开 [Azure Cloud Shell](https://shell.azure.com)（选 Bash），运行：
+
+   ```bash
+   bash <(curl -fsSL https://raw.githubusercontent.com/callaumyan-design/dsh/main/news/server/deploy/azure-setup.sh)
+   ```
+
+   脚本会建好全部资源、问你用哪家 AI 并让你输入密钥（只存在你的函数应用配置里）、自动生成推送密钥和管理密钥、部署代码、触发第一期。可以重复运行：已有的资源和密钥会保留，AI 可以选择更换。
+   默认地区是新加坡（`southeastasia`），想换就在命令前加 `LOCATION=australiaeast` 之类。
+3. 脚本最后列出 5 个仓库变量（`AZURE_CLIENT_ID`、`AZURE_TENANT_ID`、`AZURE_SUBSCRIPTION_ID`、`AZURE_FUNCTIONAPP_NAME`、`NEWS_API_BASE`），加到仓库 Settings → Secrets and variables → Actions → Variables（Cloud Shell 里登录过 `gh` 的话，脚本可以代劳）。然后在 Actions 页面运行一次「科技晨读（App）」。
+
+之后：
+- 改了 `news/server/` 的代码合并到 `main`，测试通过后自动部署（GitHub Actions 用一个托管身份登录 Azure，它只信任本仓库的 `main` 分支，只能部署这一个函数应用，仓库里不存任何 Azure 密钥）。
+- App 发布到网站的 `/news/`，后端地址取自 `news/app/.env.production`，没有这个文件就用仓库变量 `NEWS_API_BASE`。
+
 ## 服务器配置
+
+部署脚本会自动填好下面这些；手动改在 Azure 门户 → 函数应用 → 设置 → 环境变量。
 
 | 变量 | 说明 |
 | --- | --- |
@@ -68,13 +89,13 @@ AI_PROVIDER=openai  AI_BASE_URL=http://localhost:11434/v1  AI_MODEL=qwen2.5:14b
 
 > 通行密钥绑定在网页所在的域名上。以后把网页换到别的域名，已有的通行密钥会失效，需要重新注册。
 
-App 的后端地址写在 `app/.env.production`：
+App 的后端地址写在 `app/.env.production`（或仓库变量 `NEWS_API_BASE`），以部署脚本打印的为准：
 
 ```
-VITE_API_BASE=https://<应用名>.azurewebsites.net/api
+VITE_API_BASE=https://<应用名>-<随机串>.<地区>-01.azurewebsites.net/api
 ```
 
-没有这个文件时，GitHub Actions 只测试构建，不发布。
+两者都没有时，GitHub Actions 只测试构建，不发布。
 
 ## 接口一览
 

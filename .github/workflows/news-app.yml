@@ -1,7 +1,8 @@
 name: 科技晨读（App）
 
 # 构建新闻 App 并发布到 /news/。
-# 后端地址写在 news/app/.env.production 的 VITE_API_BASE 里；还没配置时只测试构建，不发布。
+# 后端地址写在 news/app/.env.production 的 VITE_API_BASE 里，或设成仓库变量 NEWS_API_BASE（文件优先）；
+# 都没有时只测试构建，不发布。
 on:
   push:
     branches: [main]
@@ -33,13 +34,20 @@ jobs:
           cache: npm
           cache-dependency-path: news/app/package-lock.json
       - run: npm ci
+      - name: 后端地址
+        env:
+          NEWS_API_BASE: ${{ vars.NEWS_API_BASE }}
+        run: |
+          if [ ! -f .env.production ] && [ -n "$NEWS_API_BASE" ]; then
+            echo "VITE_API_BASE=$NEWS_API_BASE" > .env.production
+          fi
       - run: npm run build
       - id: check
         run: |
           if grep -qE '^VITE_API_BASE=https://' .env.production 2>/dev/null; then
             echo "configured=true" >> "$GITHUB_OUTPUT"
           else
-            echo "::notice::还没有配置后端地址（news/app/.env.production），这次不发布"
+            echo "::notice::还没有配置后端地址（news/app/.env.production 或仓库变量 NEWS_API_BASE），这次不发布"
             echo "configured=false" >> "$GITHUB_OUTPUT"
           fi
       - uses: actions/upload-artifact@v4

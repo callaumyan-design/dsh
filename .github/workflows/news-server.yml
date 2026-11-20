@@ -1,6 +1,8 @@
 name: 科技晨读（服务器）
 
-# 服务器代码改动时运行测试（含针对 Azurite 存储模拟器的测试）。
+# 服务器代码改动时运行测试（含针对 Azurite 存储模拟器的测试），main 上测试通过后部署到 Azure。
+# 部署需要仓库变量 AZURE_CLIENT_ID / AZURE_TENANT_ID / AZURE_SUBSCRIPTION_ID / AZURE_FUNCTIONAPP_NAME，
+# 由 news/server/deploy/azure-setup.sh 生成；没配置时只测试不部署。
 on:
   push:
     branches: [main]
@@ -36,3 +38,36 @@ jobs:
       - run: npm test
         env:
           AZURITE: '1'
+
+  deploy:
+    needs: test
+    if: github.ref == 'refs/heads/main' && vars.AZURE_FUNCTIONAPP_NAME != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    concurrency:
+      group: news-server-deploy
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: news/server/package-lock.json
+      - name: 打包
+        working-directory: news/server
+        run: |
+          npm ci --omit=dev
+          rm -rf test scripts deploy
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - uses: Azure/functions-action@v1
+        with:
+          app-name: ${{ vars.AZURE_FUNCTIONAPP_NAME }}
+          package: news/server
+          sku: flex
