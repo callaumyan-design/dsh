@@ -1,13 +1,25 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
+import {
+  DndContext,
+  KeyboardSensor,
+  MouseSensor,
+  PointerSensor,
+  TouchSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from '@dnd-kit/core';
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { restrictToParentElement, restrictToVerticalAxis } from '@dnd-kit/modifiers';
+import { restrictToFirstScrollableAncestor, restrictToParentElement, restrictToVerticalAxis } from '@dnd-kit/modifiers';
 import { ArrowDownUp, Plus, RefreshCw, Settings2 } from 'lucide-react';
 import { useStore } from './store';
 import { hasOperator, type Key } from './lib/calc';
 import { convert, perBase } from './lib/rates';
 import { changePct, formatAgo, formatAmount, formatDateCN, formatExpr, formatPct, formatRate, unitFor } from './lib/format';
 import { copyText } from './lib/clipboard';
+import { gesture } from './lib/gesture';
 import { Row, EditRow } from './components/Row';
 import { Keypad } from './components/Keypad';
 import { Picker } from './components/Picker';
@@ -17,9 +29,33 @@ import { Trend } from './components/Trend';
 const HINT_KEY = 'huilv:hint-swipe';
 
 const KEYMAP: Record<string, Key> = {
-  '0': '0', '1': '1', '2': '2', '3': '3', '4': '4', '5': '5', '6': '6', '7': '7', '8': '8', '9': '9',
-  '.': '.', ',': '.', '+': '+', '-': '-', '*': '*', x: '*', X: '*', '/': '/', '÷': '/', '×': '*',
-  Enter: '=', '=': '=', Backspace: 'back', Escape: 'clear', Delete: 'clear', c: 'clear', C: 'clear',
+  '0': '0',
+  '1': '1',
+  '2': '2',
+  '3': '3',
+  '4': '4',
+  '5': '5',
+  '6': '6',
+  '7': '7',
+  '8': '8',
+  '9': '9',
+  '.': '.',
+  ',': '.',
+  '+': '+',
+  '-': '-',
+  '*': '*',
+  x: '*',
+  X: '*',
+  '/': '/',
+  '÷': '/',
+  '×': '*',
+  Enter: '=',
+  '=': '=',
+  Backspace: 'back',
+  Escape: 'clear',
+  Delete: 'clear',
+  c: 'clear',
+  C: 'clear',
 };
 
 function useTheme() {
@@ -93,14 +129,11 @@ export default function App() {
     setTrend({ from: code, to });
   }, []);
 
-  const copy = useCallback(
-    async (code: string, text: string) => {
-      const plain = text.replace(/,/g, '');
-      const ok = await copyText(plain);
-      useStore.getState().showToast(ok ? `已复制 ${plain} ${code}` : '无法访问剪贴板');
-    },
-    [],
-  );
+  const copy = useCallback(async (code: string, text: string) => {
+    const plain = text.replace(/,/g, '');
+    const ok = await copyText(plain);
+    useStore.getState().showToast(ok ? `已复制 ${plain} ${code}` : '无法访问剪贴板');
+  }, []);
 
   // 电脑键盘输入
   useEffect(() => {
@@ -124,12 +157,12 @@ export default function App() {
         useStore.getState().moveActive(e.key === 'ArrowDown' ? 1 : -1);
         return;
       }
-      // 和手势对应：← 更换当前货币，→ 查看走势
+      // 和手势对应：← 查看走势（左滑），→ 更换当前货币（右滑）
       if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
         e.preventDefault();
         const code = useStore.getState().active;
-        if (e.key === 'ArrowLeft') setSwapFor(code);
-        else openTrend(code);
+        if (e.key === 'ArrowLeft') openTrend(code);
+        else setSwapFor(code);
         return;
       }
       const k = KEYMAP[e.key];
@@ -152,6 +185,37 @@ export default function App() {
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
+  // 普通模式：长按约 0.3 秒后上下拖动排序（横滑、竖向滚动在这之前移动了就不会触发）
+  const rowSensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { delay: 300, tolerance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 300, tolerance: 8 } }),
+  );
+  const [sortingId, setSortingId] = useState<string | null>(null);
+  const onRowDragStart = (e: DragStartEvent) => {
+    gesture.sorting = true;
+    setSortingId(String(e.active.id));
+    navigator.vibrate?.(12);
+  };
+  const endRowDrag = () => {
+    gesture.sorting = false;
+    gesture.sortEndedAt = Date.now();
+    setSortingId(null);
+  };
+  const onRowDragEnd = (e: DragEndEvent) => {
+    endRowDrag();
+    const id = String(e.active.id);
+    const { over } = e;
+    // 长按后没有移动就松手：复制这一行的金额
+    if (Math.abs(e.delta.y) < 6 && (!over || over.id === id)) {
+      const r = rows.find((x) => x.code === id);
+      const v = id === active ? formatAmount(amount, decimals) : r?.value;
+      if (v && v !== '—') copy(id, v);
+      return;
+    }
+    if (!over || over.id === id) return;
+    s.reorder(arrayMove(list, list.indexOf(id), list.indexOf(String(over.id))));
+  };
+
   const onDragEnd = (e: DragEndEvent) => {
     const { active: a, over } = e;
     if (!over || a.id === over.id) return;
@@ -184,10 +248,7 @@ export default function App() {
         missing,
         value: missing ? '—' : formatAmount(v, decimals),
         sub: missing || !r[active] ? '暂无汇率' : `${unit.toLocaleString('en-US')} ${code} = ${formatRate(per * unit)} ${active}`,
-        change:
-          pct === null
-            ? null
-            : { text: formatPct(pct), dir: (formatPct(pct) === '0.00%' ? 'flat' : pct > 0 ? 'up' : 'down') as 'up' | 'down' | 'flat' },
+        change: pct === null ? null : { text: formatPct(pct), dir: (formatPct(pct) === '0.00%' ? 'flat' : pct > 0 ? 'up' : 'down') as 'up' | 'down' | 'flat' },
       };
     });
   }, [list, active, expr, amount, rates, decimals]);
@@ -240,7 +301,7 @@ export default function App() {
         </div>
       </header>
 
-      <main className="list" aria-label="货币列表">
+      <main className={`list${sortingId ? ' is-sorting' : ''}`} aria-label="货币列表">
         {editing ? (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd} modifiers={[restrictToVerticalAxis, restrictToParentElement]}>
             <SortableContext items={list} strategy={verticalListSortingStrategy}>
@@ -255,25 +316,37 @@ export default function App() {
             </button>
           </DndContext>
         ) : (
-          rows.map((r, i) => (
-            <Row
-              key={r.code}
-              code={r.code}
-              active={r.code === active}
-              value={r.value}
-              sub={r.sub}
-              change={r.change}
-              missing={r.missing}
-              peek={peek && i === 1}
-              onSelect={() => s.setActive(r.code)}
-              onSwap={() => setSwapFor(r.code)}
-              onTrend={() => openTrend(r.code)}
-              onCopy={() => {
-                const v = r.code === active ? formatAmount(amount, decimals) : r.value;
-                if (v !== '—') copy(r.code, v);
-              }}
-            />
-          ))
+          <DndContext
+            sensors={rowSensors}
+            collisionDetection={closestCenter}
+            onDragStart={onRowDragStart}
+            onDragEnd={onRowDragEnd}
+            onDragCancel={endRowDrag}
+            modifiers={[restrictToVerticalAxis, restrictToFirstScrollableAncestor]}
+          >
+            <SortableContext items={list} strategy={verticalListSortingStrategy}>
+              {rows.map((r, i) => (
+                <Row
+                  key={r.code}
+                  code={r.code}
+                  active={r.code === active}
+                  value={r.value}
+                  sub={r.sub}
+                  change={r.change}
+                  missing={r.missing}
+                  noSep={i === rows.length - 1 || rows[i + 1]?.code === active}
+                  peek={peek && i === 1}
+                  onSelect={() => s.setActive(r.code)}
+                  onSwap={() => setSwapFor(r.code)}
+                  onTrend={() => openTrend(r.code)}
+                  onCopy={() => {
+                    const v = r.code === active ? formatAmount(amount, decimals) : r.value;
+                    if (v !== '—') copy(r.code, v);
+                  }}
+                />
+              ))}
+            </SortableContext>
+          </DndContext>
         )}
       </main>
 

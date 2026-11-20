@@ -301,6 +301,7 @@ button:disabled {
 .list {
   flex: 1;
   min-height: 0;
+  overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 2px 8px 12px;
@@ -334,9 +335,8 @@ button:disabled {
 }
 
 .edit-list > .row:last-child::after,
-.row-wrap:last-child > .row::after,
-.row.is-active::after,
-.row-wrap:has(+ .row-wrap > .row.is-active) > .row::after {
+.row-wrap.no-sep > .row::after,
+.row.is-active::after {
   display: none;
 }
 
@@ -344,6 +344,9 @@ button:disabled {
 
 .row-wrap {
   position: relative;
+  border-radius: 16px;
+  /* 滑出去的部分裁掉，不会把列表撑出横向滚动 */
+  overflow: hidden;
   touch-action: pan-y;
 }
 
@@ -351,6 +354,11 @@ button:disabled {
   position: relative;
   z-index: 1;
   touch-action: pan-y;
+}
+
+/* 外层裁切了溢出，键盘焦点框画在里面 */
+.row-wrap > .row:focus-visible {
+  outline-offset: -2px;
 }
 
 .row-actions {
@@ -383,19 +391,46 @@ button:disabled {
   transition: transform 0.15s ease;
 }
 
-.act-trend {
-  background: var(--accent);
-  color: var(--accent-ink);
-}
-
 .act-swap {
-  justify-content: flex-end;
   background: var(--swap);
   color: var(--swap-ink);
 }
 
-.row-wrap[data-dir='right'] .act-swap,
-.row-wrap[data-dir='left'] .act-trend {
+.act-trend {
+  justify-content: flex-end;
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+/* 右滑露出左边的“更换”，左滑露出右边的“走势” */
+.row-wrap[data-dir='right'] .act-trend,
+.row-wrap[data-dir='left'] .act-swap {
+  display: none;
+}
+
+/* 长按拖动排序 */
+.list.is-sorting {
+  cursor: grabbing;
+}
+
+.row-wrap.is-lifted {
+  z-index: 5;
+  overflow: visible;
+  box-shadow: var(--shadow);
+}
+
+.row-wrap.is-lifted > .row {
+  background: var(--surface);
+  transform: scale(1.02);
+  transition: transform 0.18s ease, background-color 0.15s ease;
+}
+
+.row-wrap.is-lifted > .row.is-active {
+  background: var(--accent-soft);
+}
+
+.row-wrap.is-lifted > .row::after,
+.row-wrap.is-lifted .row-actions {
   display: none;
 }
 
@@ -436,11 +471,6 @@ button:disabled {
 .row.is-active,
 button.row.is-active:hover {
   background: var(--accent-soft);
-}
-
-.row.is-pressing {
-  background: var(--key-press);
-  transform: scale(0.99);
 }
 
 .flag {
@@ -934,6 +964,16 @@ button.row.is-active:hover {
   list-style: none;
   margin: 0;
   padding: 0;
+}
+
+/* 屏幕外的行跳过布局和绘制，打开面板更快 */
+.pick-group li {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 57px;
+}
+
+.pick-placeholder {
+  height: 60vh;
 }
 
 .pick {

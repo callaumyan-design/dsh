@@ -156,7 +156,7 @@ test('页面不横向滚动', async ({ page }) => {
 });
 
 /** 在一行上横向滑动：电脑用鼠标，手机用触摸 */
-async function swipe(page: Page, code: string, dx: number, isMobile: boolean) {
+async function swipe(page: Page, code: string, dx: number, isMobile: boolean, steps = 10) {
   const b = (await row(page, code).boundingBox())!;
   const x = b.x + b.width / 2;
   const y = b.y + b.height / 2;
@@ -164,19 +164,43 @@ async function swipe(page: Page, code: string, dx: number, isMobile: boolean) {
     const cdp = await page.context().newCDPSession(page);
     const touch = (type: 'touchStart' | 'touchMove' | 'touchEnd', tx: number) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x: tx, y }] });
     await touch('touchStart', x);
-    for (let i = 1; i <= 10; i++) await touch('touchMove', x + (dx * i) / 10);
+    for (let i = 1; i <= steps; i++) await touch('touchMove', x + (dx * i) / steps);
     await touch('touchEnd', x + dx);
   } else {
     await page.mouse.move(x, y);
     await page.mouse.down();
-    await page.mouse.move(x + dx, y, { steps: 10 });
+    await page.mouse.move(x + dx, y, { steps });
     await page.mouse.up();
   }
 }
 
-test('左滑一行更换货币', async ({ page, isMobile }) => {
+/** 长按一行，然后竖向移动 dy（0 表示不移动直接松手） */
+async function longPress(page: Page, code: string, dy: number, isMobile: boolean) {
+  const b = (await row(page, code).boundingBox())!;
+  const x = b.x + b.width / 2;
+  const y = b.y + b.height / 2;
+  if (isMobile) {
+    const cdp = await page.context().newCDPSession(page);
+    const touch = (type: 'touchStart' | 'touchMove' | 'touchEnd', ty: number) =>
+      cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y: ty }] });
+    await touch('touchStart', y);
+    await page.waitForTimeout(450);
+    for (let i = 1; i <= 12; i++) await touch('touchMove', y + (dy * i) / 12);
+    await page.waitForTimeout(100);
+    await touch('touchEnd', y + dy);
+  } else {
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.waitForTimeout(450);
+    if (dy) await page.mouse.move(x, y + dy, { steps: 12 });
+    await page.waitForTimeout(100);
+    await page.mouse.up();
+  }
+}
+
+test('右滑一行更换货币', async ({ page, isMobile }) => {
   await open(page);
-  await swipe(page, 'HKD', -120, isMobile);
+  await swipe(page, 'HKD', 120, isMobile);
   await expect(page.getByRole('dialog', { name: /把 HKD 港币换成/ })).toBeVisible();
   // 没有切换输入货币
   await expect(row(page, 'CNY')).toHaveClass(/is-active/);
@@ -192,7 +216,7 @@ test('更换成已在列表里的货币时交换位置；更换当前输入货�
   await open(page);
   await row(page, 'USD').click();
   await keys(page, ['1', '0']);
-  await swipe(page, 'USD', -120, false);
+  await swipe(page, 'USD', 120, false);
   await page.locator('#currency-search').fill('EUR');
   await page.getByRole('button', { name: /EUR 欧元/ }).click();
   await expect(page.locator('.row').nth(1)).toHaveAttribute('data-code', 'EUR');
@@ -203,15 +227,16 @@ test('更换成已在列表里的货币时交换位置；更换当前输入货�
 
 test('短距离滑动不触发，也不会切换货币', async ({ page, isMobile }) => {
   await open(page);
-  await swipe(page, 'USD', -40, isMobile);
+  await swipe(page, 'USD', -20, isMobile);
+  await swipe(page, 'USD', 20, isMobile);
   await page.waitForTimeout(300);
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(row(page, 'CNY')).toHaveClass(/is-active/);
 });
 
-test('右滑一行查看走势 K 线', async ({ page, isMobile }) => {
+test('左滑一行查看走势 K 线', async ({ page, isMobile }) => {
   await open(page);
-  await swipe(page, 'USD', 120, isMobile);
+  await swipe(page, 'USD', -120, isMobile);
   const sheet = page.getByRole('dialog', { name: 'USD/CNY 走势' });
   await expect(sheet).toBeVisible();
   await expect(sheet.locator('.pair-code')).toHaveText('USD / CNY');
@@ -236,7 +261,7 @@ test('走势图上移动查看某一天', async ({ page, isMobile }) => {
   test.skip(isMobile, '鼠标悬停在电脑上测试');
   await open(page);
   await page.keyboard.press('ArrowDown');
-  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('ArrowLeft');
   const sheet = page.getByRole('dialog', { name: 'USD/CNY 走势' });
   await expect(sheet).toBeVisible();
   const box = (await sheet.locator('.k-hit').boundingBox())!;
@@ -247,7 +272,7 @@ test('走势图上移动查看某一天', async ({ page, isMobile }) => {
 
 test('走势加载失败时可以重试', async ({ page }) => {
   await open(page, { offline: true });
-  await swipe(page, 'USD', 120, false);
+  await swipe(page, 'USD', -120, false);
   await expect(page.getByText('暂时无法获取走势数据')).toBeVisible();
   await expect(page.getByRole('button', { name: '重试' })).toBeVisible();
 });
@@ -257,4 +282,34 @@ test('第一次打开时提示可以左右滑动', async ({ page }) => {
   await expect(page.locator('.row-wrap.is-peek')).toHaveAttribute('data-wrap', 'USD');
   await page.reload();
   await expect(page.locator('.row-wrap.is-peek')).toHaveCount(0);
+});
+
+test('快速一甩也能触发', async ({ page }) => {
+  await open(page);
+  // 只滑 45 像素，但速度很快
+  await swipe(page, 'USD', -45, false, 4);
+  await expect(page.getByRole('dialog', { name: 'USD/CNY 走势' })).toBeVisible();
+});
+
+test('长按后上下拖动调整顺序', async ({ page, isMobile }) => {
+  await open(page);
+  const h = (await row(page, 'USD').boundingBox())!.height;
+  // 把 EUR（第 4 行）拖到第 2 行的位置
+  await longPress(page, 'EUR', -2 * h, isMobile);
+  await expect(page.locator('.row').nth(1)).toHaveAttribute('data-code', 'EUR');
+  await expect(page.locator('.row').nth(2)).toHaveAttribute('data-code', 'USD');
+  // 拖动不会切换输入货币，也不会复制
+  await expect(row(page, 'CNY')).toHaveClass(/is-active/);
+  await expect(page.locator('.toast')).toHaveCount(0);
+  await page.reload();
+  await expect(page.locator('.row').nth(1)).toHaveAttribute('data-code', 'EUR');
+});
+
+test('长按后直接松手复制金额', async ({ page, context, isMobile }) => {
+  test.skip(isMobile, '剪贴板权限在电脑上测试');
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await open(page);
+  await longPress(page, 'USD', 0, false);
+  await expect(page.locator('.toast')).toHaveText('已复制 14.29 USD');
+  await expect(row(page, 'CNY')).toHaveClass(/is-active/);
 });

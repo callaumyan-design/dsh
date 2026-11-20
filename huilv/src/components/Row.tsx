@@ -1,11 +1,10 @@
-import { useRef, type CSSProperties, type PointerEvent as RPointerEvent } from 'react';
+import { useEffect, useRef, type CSSProperties, type PointerEvent as RPointerEvent } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { ChartCandlestick, GripVertical, Minus, Replace } from 'lucide-react';
 import { CURRENCY_MAP } from '../lib/currencies';
+import { gesture } from '../lib/gesture';
 import { Flag } from './Flag';
-
-const LONG_PRESS_MS = 450;
 
 function sizeClass(text: string): string {
   const n = text.length;
@@ -25,135 +24,198 @@ export interface RowProps {
   /** 涨跌幅文本与方向 */
   change?: { text: string; dir: 'up' | 'down' | 'flat' } | null;
   missing?: boolean;
+  /** 不画底部分隔线（最后一行、当前输入行的上一行） */
+  noSep?: boolean;
   /** 第一次使用时轻轻滑动一下，提示可以左右滑 */
   peek?: boolean;
   onSelect: () => void;
+  /** 右键复制（长按由排序逻辑处理：长按后不移动直接松手 = 复制） */
   onCopy: () => void;
-  /** 向左滑：更换这一行的货币 */
+  /** 向右滑：更换这一行的货币 */
   onSwap: () => void;
-  /** 向右滑：查看走势 */
+  /** 向左滑：查看走势 */
   onTrend: () => void;
 }
 
+/** 方向判定前允许的移动距离 */
+const LOCK = 6;
 /** 滑过这个距离松手就触发 */
-const SWIPE_TRIGGER = 76;
+const TRIGGER = 72;
+/** 快速甩动：速度超过这个值（像素/毫秒）且滑过 FLICK_MIN 也触发 */
+const FLICK_V = 0.45;
+const FLICK_MIN = 28;
 /** 超过这个距离后阻力变大 */
-const SWIPE_MAX = 120;
+const MAX = 132;
+const SNAP = 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1)';
 
-type Gesture = {
+type Track = {
   id: number;
-  t: number;
-  x: number;
-  y: number;
-  timer: number;
-  long: boolean;
-  /** undefined：还没判断方向 */
+  x0: number;
+  y0: number;
+  /** 方向锁定时手指的位置，之后从这里开始 1:1 跟手，不会突然跳一下 */
+  lockX: number;
   axis?: 'x' | 'y';
   dx: number;
+  lastX: number;
+  lastT: number;
+  v: number;
 };
 
-/** 普通模式下的一行：点按切换为输入货币，长按（或右键）复制，左滑更换货币，右滑看走势 */
-export function Row({ code, active, value, sub, change, missing, peek, onSelect, onCopy, onSwap, onTrend }: RowProps) {
+/** 普通模式下的一行：点按切换输入货币；左滑看走势，右滑更换货币；长按后上下拖动排序 */
+export function Row({ code, active, value, sub, change, missing, noSep, peek, onSelect, onCopy, onSwap, onTrend }: RowProps) {
   const c = CURRENCY_MAP[code];
-  const g = useRef<Gesture | null>(null);
+  const { listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: code });
+  const track = useRef<Track | null>(null);
   const suppressClick = useRef(false);
-  const wrap = useRef<HTMLDivElement>(null);
+  const lastPointer = useRef('mouse');
+  const wrap = useRef<HTMLDivElement | null>(null);
   const btn = useRef<HTMLButtonElement>(null);
-  const clearDir = useRef(0);
+  const actSwap = useRef<HTMLSpanElement>(null);
+  const actTrend = useRef<HTMLSpanElement>(null);
+  const raf = useRef(0);
+  const settle = useRef(0);
+  const state = useRef<{ dir: '' | 'left' | 'right'; armed: boolean }>({ dir: '', armed: false });
 
-  const setOffset = (dx: number, animate: boolean) => {
+  useEffect(
+    () => () => {
+      cancelAnimationFrame(raf.current);
+      window.clearTimeout(settle.current);
+    },
+    [],
+  );
+
+  /** 只在方向、是否到达触发点变化时才改 DOM 属性，其余每帧只改 transform 和 opacity */
+  const paint = (dx: number) => {
     const el = btn.current;
     const w = wrap.current;
     if (!el || !w) return;
-    el.style.transition = animate ? 'transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), background-color 0.15s ease' : 'none';
-    el.style.transform = dx ? `translate3d(${dx}px, 0, 0)` : '';
-    window.clearTimeout(clearDir.current);
-    if (dx) w.dataset.dir = dx > 0 ? 'right' : 'left';
-    // 回弹动画结束后再藏起下面的操作
-    else if (animate) clearDir.current = window.setTimeout(() => (w.dataset.dir = ''), 240);
-    else w.dataset.dir = '';
-    const armed = Math.abs(dx) >= SWIPE_TRIGGER;
-    if (armed && w.dataset.armed !== '1') navigator.vibrate?.(6);
-    w.dataset.armed = armed ? '1' : '';
+    el.style.transform = dx ? `translate3d(${dx.toFixed(1)}px,0,0)` : '';
+    const dir = dx > 0 ? 'right' : dx < 0 ? 'left' : '';
+    if (dir && dir !== state.current.dir) {
+      state.current.dir = dir;
+      w.dataset.dir = dir;
+    }
+    const armed = Math.abs(dx) >= TRIGGER;
+    if (armed !== state.current.armed) {
+      state.current.armed = armed;
+      w.dataset.armed = armed ? '1' : '';
+      if (armed) navigator.vibrate?.(6);
+    }
+    const act = dx > 0 ? actSwap.current : actTrend.current;
+    if (act) {
+      const p = Math.min(1, Math.abs(dx) / TRIGGER);
+      act.style.opacity = String(0.35 + 0.65 * p);
+      act.style.transform = `scale(${armed ? 1 : 0.86 + 0.1 * p})`;
+    }
   };
 
-  const endPress = () => {
-    if (g.current) window.clearTimeout(g.current.timer);
-    btn.current?.classList.remove('is-pressing');
-  };
-
-  const copyNow = () => {
-    endPress();
-    g.current = null;
-    suppressClick.current = true;
-    onCopy();
+  const snapBack = () => {
+    const el = btn.current;
+    const w = wrap.current;
+    if (!el || !w) return;
+    cancelAnimationFrame(raf.current);
+    raf.current = 0;
+    el.style.transition = SNAP;
+    paint(0);
+    window.clearTimeout(settle.current);
+    settle.current = window.setTimeout(() => {
+      // 回弹结束后再藏起下面的操作，并撤销图层提升
+      el.style.transition = '';
+      el.style.willChange = '';
+      state.current = { dir: '', armed: false };
+      w.dataset.dir = '';
+      w.dataset.armed = '';
+    }, 340);
   };
 
   const onPointerDown = (e: RPointerEvent<HTMLButtonElement>) => {
+    lastPointer.current = e.pointerType;
     suppressClick.current = false;
-    if (e.button !== 0) return;
-    // 另一根手指正在滑动时忽略（超过 3 秒的视为残留状态）
-    if (g.current && Date.now() - g.current.t < 3000) return;
-    const timer = window.setTimeout(() => {
-      const cur = g.current;
-      if (cur && !cur.axis) {
-        cur.long = true;
-        btn.current?.classList.add('is-pressing');
-        navigator.vibrate?.(8);
-      }
-    }, LONG_PRESS_MS);
-    g.current = { id: e.pointerId, t: Date.now(), x: e.clientX, y: e.clientY, timer, long: false, dx: 0 };
+    if (e.button !== 0 || gesture.sorting) return;
+    if (track.current && track.current.id !== e.pointerId) return;
+    track.current = { id: e.pointerId, x0: e.clientX, y0: e.clientY, lockX: e.clientX, dx: 0, lastX: e.clientX, lastT: e.timeStamp, v: 0 };
   };
 
   const onPointerMove = (e: RPointerEvent<HTMLButtonElement>) => {
-    const cur = g.current;
-    if (!cur || cur.id !== e.pointerId) return;
-    const dx = e.clientX - cur.x;
-    const dy = e.clientY - cur.y;
-    if (!cur.axis) {
-      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
-      endPress();
-      cur.long = false;
-      cur.axis = Math.abs(dx) > Math.abs(dy) * 1.2 ? 'x' : 'y';
-      if (cur.axis === 'x') e.currentTarget.setPointerCapture?.(e.pointerId);
+    const t = track.current;
+    if (!t || t.id !== e.pointerId) return;
+    if (gesture.sorting) {
+      // 长按后进入了排序，不再当作横滑
+      if (t.axis === 'x') snapBack();
+      track.current = null;
+      return;
     }
-    if (cur.axis !== 'x') return;
-    // 超过最大距离后阻力变大
-    const abs = Math.abs(dx);
-    const eased = abs <= SWIPE_MAX ? abs : SWIPE_MAX + (abs - SWIPE_MAX) * 0.25;
-    cur.dx = Math.sign(dx) * eased;
-    setOffset(cur.dx, false);
+    if (!t.axis) {
+      const ax = Math.abs(e.clientX - t.x0);
+      const ay = Math.abs(e.clientY - t.y0);
+      if (ax < LOCK && ay < LOCK) return;
+      t.axis = ax > ay ? 'x' : 'y';
+      if (t.axis === 'y') return;
+      t.lockX = e.clientX;
+      e.currentTarget.setPointerCapture?.(e.pointerId);
+      window.clearTimeout(settle.current);
+      const el = btn.current!;
+      el.style.transition = 'none';
+      el.style.willChange = 'transform';
+      gesture.swiping = true;
+    }
+    if (t.axis !== 'x') return;
+
+    // 速度（指数平滑），用于判断快速甩动
+    const dt = Math.max(1, e.timeStamp - t.lastT);
+    t.v = 0.7 * ((e.clientX - t.lastX) / dt) + 0.3 * t.v;
+    t.lastX = e.clientX;
+    t.lastT = e.timeStamp;
+
+    const raw = e.clientX - t.lockX;
+    const abs = Math.abs(raw);
+    t.dx = Math.sign(raw) * (abs <= MAX ? abs : MAX + (abs - MAX) * 0.3);
+    if (!raf.current) {
+      raf.current = requestAnimationFrame(() => {
+        raf.current = 0;
+        if (track.current?.axis === 'x') paint(track.current.dx);
+      });
+    }
   };
 
   const finish = (e: RPointerEvent<HTMLButtonElement>, cancelled: boolean) => {
-    const cur = g.current;
-    if (!cur || cur.id !== e.pointerId) return;
-    endPress();
-    g.current = null;
-    if (cur.axis === 'x') {
-      suppressClick.current = true;
-      setOffset(0, true);
-      if (!cancelled && cur.dx <= -SWIPE_TRIGGER) onSwap();
-      else if (!cancelled && cur.dx >= SWIPE_TRIGGER) onTrend();
-      return;
-    }
-    // 在抬起手指时复制：Safari 只在这一刻允许写剪贴板
-    if (!cancelled && !cur.axis && (cur.long || Date.now() - cur.t >= LONG_PRESS_MS)) {
-      suppressClick.current = true;
-      onCopy();
-    }
+    const t = track.current;
+    if (!t || t.id !== e.pointerId) return;
+    track.current = null;
+    if (t.axis !== 'x') return;
+    gesture.swiping = false;
+    suppressClick.current = true;
+    const flick = Math.abs(t.v) > FLICK_V && Math.abs(t.dx) > FLICK_MIN && Math.sign(t.v) === Math.sign(t.dx);
+    const fire = !cancelled && (Math.abs(t.dx) >= TRIGGER || flick);
+    snapBack();
+    if (!fire) return;
+    // 等回弹动画在合成层上开始后再打开面板，避免两者抢同一帧
+    const action = t.dx > 0 ? onSwap : onTrend;
+    requestAnimationFrame(() => window.setTimeout(action, 16));
   };
 
+  const setRefs = (el: HTMLDivElement | null) => {
+    wrap.current = el;
+    setNodeRef(el);
+  };
+
+  const style: CSSProperties = { transform: CSS.Translate.toString(transform), transition };
+
   return (
-    <div ref={wrap} className={`row-wrap${peek ? ' is-peek' : ''}`} data-wrap={code}>
+    <div
+      ref={setRefs}
+      style={style}
+      className={`row-wrap${peek ? ' is-peek' : ''}${isDragging ? ' is-lifted' : ''}${noSep ? ' no-sep' : ''}`}
+      data-wrap={code}
+    >
       <div className="row-actions" aria-hidden="true">
-        <span className="act act-trend">
-          <ChartCandlestick size={22} />
-          走势
-        </span>
-        <span className="act act-swap">
+        <span className="act act-swap" ref={actSwap}>
           <Replace size={21} />
           更换
+        </span>
+        <span className="act act-trend" ref={actTrend}>
+          走势
+          <ChartCandlestick size={22} />
         </span>
       </div>
       <button
@@ -163,24 +225,22 @@ export function Row({ code, active, value, sub, change, missing, peek, onSelect,
         data-code={code}
         aria-pressed={active}
         aria-label={`${c?.name ?? code} ${code}，${missing ? '暂无汇率' : value}`}
-        aria-description="左滑更换货币，右滑查看走势，长按复制"
+        aria-description="左滑查看走势，右滑更换货币，长按拖动排序"
+        {...listeners}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={(e) => finish(e, false)}
-        onPointerCancel={(e) => {
-          // 浏览器接管了竖向滚动
-          const cur = g.current;
-          finish(e, true);
-          if (cur?.axis === 'x') setOffset(0, true);
-        }}
+        onPointerCancel={(e) => finish(e, true)}
         onContextMenu={(e) => {
-          // 鼠标右键、安卓长按都会触发；阻止系统菜单，直接复制
+          // 阻止系统菜单。鼠标右键直接复制；触摸长按由排序逻辑处理（不移动直接松手 = 复制）
           e.preventDefault();
-          if (g.current?.axis === 'x') return;
-          if (!suppressClick.current) copyNow();
+          if (lastPointer.current === 'mouse' && !gesture.sorting) {
+            suppressClick.current = true;
+            onCopy();
+          }
         }}
         onClick={(e) => {
-          if (suppressClick.current) {
+          if (suppressClick.current || Date.now() - gesture.sortEndedAt < 400) {
             suppressClick.current = false;
             return;
           }
@@ -209,7 +269,7 @@ export function Row({ code, active, value, sub, change, missing, peek, onSelect,
   );
 }
 
-/** 编辑模式下的一行：拖动排序、删除 */
+/** 编辑模式下的一行：拖动把手排序、删除 */
 export function EditRow({ code, canRemove, onRemove }: { code: string; canRemove: boolean; onRemove: () => void }) {
   const c = CURRENCY_MAP[code];
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: code });

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeftRight, Check, Search } from 'lucide-react';
 import { CURRENCIES, CURRENCY_MAP, searchCurrencies, type Currency } from '../lib/currencies';
 import { useStore } from '../store';
@@ -16,6 +16,23 @@ export function Picker({ open, onClose, replace }: { open: boolean; onClose: () 
   const rates = useStore((s) => s.rates.rates);
   const toggle = useStore((s) => s.toggle);
   const replaceCode = useStore((s) => s.replace);
+
+  // 面板先出现并开始动画，列表下一帧再渲染，避免打开时卡一下
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    if (!open) {
+      setReady(false);
+      return;
+    }
+    let t = 0;
+    const r = requestAnimationFrame(() => {
+      t = window.setTimeout(() => setReady(true), 0);
+    });
+    return () => {
+      cancelAnimationFrame(r);
+      window.clearTimeout(t);
+    };
+  }, [open]);
 
   const close = () => {
     setQ('');
@@ -112,15 +129,17 @@ export function Picker({ open, onClose, replace }: { open: boolean; onClose: () 
           enterKeyHint="search"
         />
       </label>
-      {empty && <p className="empty">没有找到“{q}”，试试货币代码或中文名。</p>}
-      {groups.map((g) =>
-        g.items.length ? (
-          <section key={g.title || 'results'} className="pick-group">
-            {g.title && <h3>{g.title}</h3>}
-            <ul>{g.items.map(item)}</ul>
-          </section>
-        ) : null,
-      )}
+      {ready && empty && <p className="empty">没有找到“{q}”，试试货币代码或中文名。</p>}
+      {!ready && <div className="pick-placeholder" />}
+      {ready &&
+        groups.map((g) =>
+          g.items.length ? (
+            <section key={g.title || 'results'} className="pick-group">
+              {g.title && <h3>{g.title}</h3>}
+              <ul>{g.items.map(item)}</ul>
+            </section>
+          ) : null,
+        )}
     </Sheet>
   );
 }

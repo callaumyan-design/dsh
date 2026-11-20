@@ -3,7 +3,7 @@ import { evaluate, hasOperator, press, toPlain, type InputState, type Key } from
 import { changePct, formatAmount, formatExpr, formatPct, formatRate, unitFor } from './format';
 import { convert, fetchRates, parseErApi, parseFawaz, perBase, previousDay } from './rates';
 import { CURRENCIES, searchCurrencies } from './currencies';
-import { FLAGS } from '../data/flags';
+import { FLAG_INDEX } from '../data/flags';
 import snapshot from '../data/snapshot.json';
 
 function type(keys: Key[], start: InputState = { expr: '', fresh: false }): InputState {
@@ -175,7 +175,7 @@ describe('汇率', () => {
 describe('数据完整性', () => {
   it('每个币种都有国旗或徽章，内置快照包含每个币种', () => {
     for (const c of CURRENCIES) {
-      if (c.flag) expect(FLAGS[c.flag], c.code).toBeTruthy();
+      if (c.flag) expect(FLAG_INDEX[c.flag], c.code).toBeGreaterThanOrEqual(0);
       expect(snapshot.rates[c.code as keyof typeof snapshot.rates], c.code).toBeGreaterThan(0);
     }
     expect(new Set(CURRENCIES.map((c) => c.code)).size).toBe(CURRENCIES.length);
