@@ -1,0 +1,25 @@
+{
+  "name": "news-server",
+  "private": true,
+  "version": "1.0.0",
+  "description": "科技新闻：每日抓取、AI 摘要、通行密钥登录、同步与推送（Azure Functions）",
+  "type": "module",
+  "main": "src/functions/*.js",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "run-once": "node scripts/run-once.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.11.0",
+    "@azure/data-tables": "^13.3.2",
+    "@azure/functions": "^4.17.1",
+    "@azure/storage-blob": "^12.34.0",
+    "@simplewebauthn/server": "^14.1.0",
+    "fast-xml-parser": "^5.12.1",
+    "node-html-parser": "^9.0.7",
+    "web-push": "^4.0.0"
+  }
+}
