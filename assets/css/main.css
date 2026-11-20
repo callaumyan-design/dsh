@@ -131,6 +131,9 @@
 html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+  /* 网页底色 = 壁纸最下面一条的颜色（background.js 算好写进 --bg-edge）。
+     iPhone 上的新版 Safari 用它填底部地址栏、侧边栏下面那一块（固定的壁纸画不到那里） */
+  background: var(--bg-edge, var(--bg-base));
 }
 
 body {
@@ -139,7 +142,9 @@ body {
   min-height: 100dvh;
   font: var(--fw) calc(15px * var(--fs)) / 1.5 var(--font);
   color: var(--text);
-  background: var(--bg-base); /* 图片没出来之前的纯色占位，避免白屏 */
+  /* body 不设底色：html 设了底色以后，body 的底色会盖在壁纸（#bg）上面。
+     壁纸本身在 #bg 里，图片没出来之前 #bg 先显示纯色占位 */
+  background: transparent;
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
 }
@@ -244,6 +249,15 @@ svg.icon {
   background: var(--bg-base);
 }
 
+/* 壁纸的模糊小图（boot.js / background.js 设置）：清晰的图还没下载好之前先垫在下面，不再先灰一下 */
+:root[data-bgthumb] #bg::before {
+  content: "";
+  position: absolute;
+  inset: -40px;
+  background: var(--bg-thumb) center / cover no-repeat;
+  filter: blur(20px);
+}
+
 .bg-layer {
   position: absolute;
   inset: calc(var(--blur) * -2); /* 模糊时向外扩一圈，避免边缘发虚露底 */
@@ -273,6 +287,13 @@ svg.icon {
   transition: none;
 }
 
+/* 上次那张壁纸由 boot.js 直接画在第一层：浏览器缓存里有的话页面一出来就是清晰的图 */
+:root[data-bgimg] #bg-a {
+  background: center / cover no-repeat var(--bg-img);
+  opacity: 1;
+  transition: none;
+}
+
 /* 上次的渐变/纯色背景由 boot.js 提前写好，打开页面立刻显示，不闪 */
 :root[data-bginstant] #bg-a {
   background: var(--bg-instant);
@@ -284,6 +305,27 @@ svg.icon {
   position: absolute;
   inset: 0;
   background: rgb(0 0 0 / var(--dim));
+}
+
+/* 壁纸最下面的一小段：从透明渐变到网页底色。只在手机、平板上需要（那里的 Safari 工具栏压在页面下面）。
+   用"不透明的底色 + 渐变遮罩"而不是渐变背景：Safari 会读贴着屏幕边的固定元素的底色来给工具栏上色 */
+#bg-edge {
+  display: none;
+}
+@media (pointer: coarse) {
+  #bg-edge {
+    display: block;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 56px;
+    z-index: -1;
+    pointer-events: none;
+    background-color: var(--bg-edge, var(--bg-base));
+    -webkit-mask-image: linear-gradient(to bottom, transparent, #000 90%);
+    mask-image: linear-gradient(to bottom, transparent, #000 90%);
+  }
 }
 
 /* ---------- 4. 顶栏 ---------- */
@@ -332,6 +374,10 @@ main {
   padding-top: clamp(68px, 15vh, 170px);
   text-align: center;
 }
+/* 首页显示行情时，上面少留点空，让应用栏也在第一屏里 */
+.hero:has(> .market:not([hidden])) {
+  padding-top: clamp(56px, 11vh, 150px);
+}
 
 .clock {
   margin-bottom: clamp(18px, 4vh, 34px);
@@ -350,6 +396,17 @@ main {
   margin: 6px 0 0;
   font-size: calc(clamp(15px, 3.6vw, 18px) * var(--fs));
   font-weight: var(--fw-medium);
+}
+/* 天气：跟在问候语后面；这一行放不下时整句换到下一行，前面的小圆点去掉（见 widgets.js） */
+.clock-weather {
+  white-space: nowrap;
+}
+.clock-sub.wrap .clock-sep {
+  display: none;
+}
+.clock-sub.wrap .clock-weather {
+  display: block;
+  margin-top: 2px;
 }
 
 /* ---------- 6. 搜索 ---------- */
@@ -394,6 +451,7 @@ main {
 }
 
 .search-clear,
+.search-mic,
 .search-go {
   flex: none;
   display: grid;
@@ -419,7 +477,8 @@ main {
   height: 14px;
 }
 .engine-badge:hover,
-.search-clear:hover {
+.search-clear:hover,
+.search-mic:hover {
   background: var(--sb-hover);
 }
 
@@ -474,6 +533,32 @@ main {
   background: linear-gradient(135deg, var(--ai-1), var(--ai-2));
   color: #ffffff;
   box-shadow: none;
+}
+
+/* 语音输入：正在听的时候，麦克风按钮变成红色并一圈圈往外扩（表示"在听"） */
+.is-listening .search-mic {
+  position: relative;
+  background: #ef4444;
+  color: #ffffff;
+}
+.is-listening .search-mic::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  box-shadow: 0 0 0 0 rgb(239 68 68 / 0.55);
+  animation: mic-pulse 1.4s ease-out infinite;
+  pointer-events: none;
+}
+@keyframes mic-pulse {
+  to {
+    box-shadow: 0 0 0 12px rgb(239 68 68 / 0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .is-listening .search-mic::after {
+    animation: none;
+  }
 }
 
 /* 搜索历史下拉 */
@@ -690,7 +775,7 @@ main {
   margin-top: 0;
 }
 
-/* 应用栏：没有底板，图标直接摆在背景上，全部排成一行 */
+/* 应用栏：没有底板，图标直接摆在背景上 */
 .dock {
   width: 100%;
 }
@@ -706,31 +791,15 @@ main {
   color: var(--wall-text);
   text-shadow: var(--wall-shadow);
 }
+/* 一行放得下就排成一行；放不下就平均分成几行（比如手机上 8 个排成 4 + 4），每行多少个由 nav.js 算好写进 --per-row */
 .app-grid {
-  display: flex;
-  flex-wrap: nowrap; /* 不换行：放不下时每个格子先收窄，再不够就可以左右滑动 */
-  gap: 2px;
+  display: grid;
+  grid-template-columns: repeat(var(--per-row, 5), minmax(0, 76px));
+  justify-content: center;
+  gap: 6px 2px;
   margin: 0;
   padding: 4px 0 2px;
   list-style: none;
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
-  scrollbar-width: none;
-}
-.app-grid::-webkit-scrollbar {
-  display: none;
-}
-.app-grid > li {
-  flex: 1 1 72px;
-  min-width: 54px;
-  max-width: 76px;
-}
-/* 两头用自动留白：一行放得下时整体居中，放不下时可以从最左边开始滑 */
-.app-grid > li:first-child {
-  margin-left: auto;
-}
-.app-grid > li:last-child {
-  margin-right: auto;
 }
 .app {
   position: relative;
@@ -785,6 +854,11 @@ main {
   white-space: nowrap;
   font-size: calc(12px * var(--fs));
   line-height: 1.3;
+}
+/* 名字放不下时（nav.js 的 fitRows 判断）：字缩小一点 */
+.app-name.is-tight {
+  font-size: calc(11px * var(--fs));
+  letter-spacing: -0.03em;
 }
 @media (hover: hover) {
   .app:hover .app-icon {
@@ -1539,23 +1613,29 @@ input[type="color"] {
 .ai-form-set .inline-form .btn {
   flex: none;
 }
-.ai-status:empty {
+.ai-status:empty,
+.place-status:empty {
   display: none;
 }
-.ai-status {
+.ai-status,
+.place-status {
   margin-top: 10px;
   overflow-wrap: anywhere;
 }
-.ai-status[data-kind="ok"] {
+.ai-status[data-kind="ok"],
+.place-status[data-kind="ok"] {
   color: #4ade80;
 }
-.ai-status[data-kind="bad"] {
+.ai-status[data-kind="bad"],
+.place-status[data-kind="bad"] {
   color: #f87171;
 }
-:root[data-theme="light"] .ai-status[data-kind="ok"] {
+:root[data-theme="light"] .ai-status[data-kind="ok"],
+:root[data-theme="light"] .place-status[data-kind="ok"] {
   color: #15803d;
 }
-:root[data-theme="light"] .ai-status[data-kind="bad"] {
+:root[data-theme="light"] .ai-status[data-kind="bad"],
+:root[data-theme="light"] .place-status[data-kind="bad"] {
   color: #b91c1c;
 }
 

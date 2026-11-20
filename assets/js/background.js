@@ -6,6 +6,11 @@ import { images } from "./idb.js";
 import { $, h, toast } from "./ui.js";
 
 const CACHE_KEY = "sp:bg-cache"; // 给 boot.js 用：下次打开时立刻还原
+// 最近几张壁纸的“预览”：几百字节的模糊小图 + 平均色 + 亮度 + 最下面一条的颜色。
+// 打开页面时先把小图模糊着铺满，清晰的图下载好再淡入——不再先灰一下
+const THUMBS_KEY = "sp:bg-thumbs";
+const THUMB_SIDE = 32; // 小图最长边的像素
+const THUMBS_MAX = 6;
 const LAST_KEY = "sp:bg-last"; // 上次随机到的图片，避免连续两次一样
 const ONLINE_KEY = "sp:bg-online"; // 在线壁纸的轮换记录：{ seed 当前这张, next 预先下载好的下一张, at 换上的时间, credit 这张的出处, ... }
 const ONLINE_PERIOD = { hour: 60 * 60 * 1000, day: 24 * 60 * 60 * 1000 };
@@ -26,6 +31,17 @@ let sessionPick = ""; // 本次打开页面随机到的图片
 let onlineSeed = ""; // 本次打开页面显示的在线壁纸编号
 let onlineFailed = false; // 在线壁纸这次加载失败了（只提示一次）
 let hideTimer = 0;
+let loadedKey = ""; // 清晰的图已经完全显示出来的那一张（之后就不用再垫模糊小图了）
+let bootImg = ""; // boot.js 直接画在第一层上的那张图（完整地址）；脚本加载好同一张以后接手，不再淡入一遍
+const absUrl = (src) => {
+  try {
+    return new URL(src, location.href).href;
+  } catch {
+    return "";
+  }
+};
+// 现在这张图最下面一条的颜色（还没算暗度遮罩）：给 iPhone Safari 填它工具栏下面那一块用，见 paintEdge()
+let edge = { key: "", color: "" };
 
 // ---------- 颜色计算 ----------
 function hexToRgb(hex) {
@@ -43,6 +59,51 @@ function luminance([r, g, b]) {
 }
 
 const toHex = (rgb) => "#" + rgb.map((v) => Math.round(v).toString(16).padStart(2, "0")).join("");
+const isHex = (v) => typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v);
+/** 按暗度遮罩压暗一个颜色 */
+const dimHex = (hex, dim) => toHex(hexToRgb(hex).map((v) => v * (1 - dim / 100)));
+
+// ---------- 壁纸预览（模糊小图） ----------
+function readThumbs() {
+  const all = readJSON(THUMBS_KEY, {});
+  return all && typeof all === "object" && !Array.isArray(all) ? all : {};
+}
+
+/** 这张壁纸记下的预览；没有就是 null */
+function previewFor(key) {
+  const p = key ? readThumbs()[key] : null;
+  return p && typeof p === "object" && typeof p.thumb === "string" && p.thumb.startsWith("data:image/") && isHex(p.color) ? p : null;
+}
+
+function rememberPreview(key, preview) {
+  if (!key || !preview) return;
+  const all = readThumbs();
+  all[key] = { ...preview, at: Date.now() };
+  const keep = Object.entries(all)
+    .sort((a, b) => (Number(b[1]?.at) || 0) - (Number(a[1]?.at) || 0))
+    .slice(0, THUMBS_MAX);
+  writeJSON(THUMBS_KEY, Object.fromEntries(keep));
+}
+
+/** 从已经加载好的图片做预览。图片内容读不了（别的网站不允许跨域读取）时返回 null */
+function previewOf(img) {
+  try {
+    const w = img.naturalWidth || img.width;
+    const h = img.naturalHeight || img.height;
+    if (!w || !h) return null;
+    const k = THUMB_SIDE / Math.max(w, h);
+    const small = w > 240 ? drawScaled(img, 240, Math.max(1, Math.round((240 * h) / w))) : img;
+    const thumb = drawScaled(small, Math.max(1, Math.round(w * k)), Math.max(1, Math.round(h * k))).toDataURL("image/jpeg", 0.7);
+    if (!thumb.startsWith("data:image/jpeg")) return null;
+    const { color, lum } = sampleColor(img);
+    return { thumb, color, lum, edge: sampleEdge(img) };
+  } catch {
+    return null;
+  }
+}
+
+/** 在线壁纸某一张的标识（和 describe() 里的 key 一致） */
+const onlineKey = (online, seed) => `o:${online.source}:${online.url}:${seed}`;
 
 // ---------- 把设置翻译成"要显示什么" ----------
 export function presetById(id) {
@@ -163,7 +224,12 @@ function preloadNextOnline() {
   const next = newSeed(source.id, onlineSeed);
   const img = new Image();
   img.crossOrigin = "anonymous";
-  img.onload = () => writeJSON(ONLINE_KEY, { ...onlineState(), next }); // 下载成功了才记下来
+  img.onload = () => {
+    // 下载成功了才记下来；顺便做好它的模糊小图，下次打开先显示它
+    writeJSON(ONLINE_KEY, { ...onlineState(), next });
+    rememberPreview(onlineKey(bg.online, next), previewOf(img));
+    apply();
+  };
   img.src = onlineUrl(bg.online, next);
 }
 
@@ -248,7 +314,7 @@ function describe(bg) {
     const source = sourceOf(bg.online);
     const creditKeyOf = `${source.id}:${seed}`;
     return {
-      key: `o:${bg.online.source}:${bg.online.url}:${seed}`,
+      key: onlineKey(bg.online, seed),
       src,
       online: true,
       // 去哪查这张图的出处：本站代取的来源问本站后台，Picsum 问它自己；自定义接口查不了
@@ -258,8 +324,8 @@ function describe(bg) {
           ? { key: creditKeyOf, url: `https://picsum.photos/seed/${seed}/info`, picsum: true }
           : null,
       cors: bg.online.source !== "custom", // 除了自定义接口，其他来源都允许读取图片内容（用来取色）
-      color: known ? st.color : "#1e293b",
-      lum: known ? Number(st.lum) || 0 : UNKNOWN_LUM,
+      color: known ? st.color : previewFor(onlineKey(bg.online, seed))?.color || "#1e293b",
+      lum: known ? Number(st.lum) || 0 : (previewFor(onlineKey(bg.online, seed))?.lum ?? UNKNOWN_LUM),
     };
   }
   if (bg.type === "color") {
@@ -281,13 +347,16 @@ function describe(bg) {
 }
 
 // ---------- 两层图片交替淡入 ----------
-function crossfade(paint) {
+function crossfade(paint, instant = false) {
   clearTimeout(hideTimer);
   const next = active === 0 ? 1 : 0;
   const nextEl = layers[next];
   const prevEl = active >= 0 ? layers[active] : null;
   paint(nextEl);
-  if (!prevEl) {
+  if (!prevEl && instant) {
+    // 刚打开页面、下面已经垫着这张图的模糊小图：清晰的图直接换上，不再慢慢淡入（不然会看到一层“雾”慢慢散开）
+    nextEl.classList.add("no-anim", "is-on");
+  } else if (!prevEl) {
     nextEl.classList.remove("no-anim");
     void nextEl.offsetWidth; // 强制浏览器先画一帧透明，再开始淡入
     nextEl.classList.add("is-on");
@@ -338,7 +407,24 @@ function searchToneFor(bgLum, alpha) {
   return mixed >= LIGHT_TONE_FROM ? "light" : "dark";
 }
 
+/**
+ * 网页"底色"：iPhone 上的新版 Safari 不会把固定铺满屏幕的壁纸画到它的工具栏（底部地址栏、侧边栏）下面，
+ * 而是用网页的底色把那一块填满。所以底色要和壁纸最下面一条的颜色一致（再按暗度遮罩压暗），看起来才连得上。
+ * 页面最下面还有一段从透明渐变到这个颜色的过渡（#bg-edge，只在触屏设备上显示），把接缝藏起来。
+ * 返回算好的颜色。
+ */
+function paintEdge(view, bg) {
+  let color = edge.key === view.key && edge.color ? edge.color : view.color;
+  if (view.css && bg.type === "color" && bg.color.gradient) color = bg.color.c2; // 渐变：靠下的那一端
+  if (view.online && onlineFailed) color = presetById(bg.preset).color;
+  const out = dimHex(color, bg.dim);
+  root.style.setProperty("--bg-edge", out);
+  $('meta[name="theme-color"]')?.setAttribute("content", out);
+  return out;
+}
+
 function showCss(css) {
+  bootImg = "";
   crossfade((el) => {
     el.replaceChildren();
     el.style.background = css;
@@ -362,11 +448,32 @@ async function showImage(view, src, mine, onDone) {
     return;
   }
   if (mine !== token) return onDone?.();
-  // 直接把下载好的这张 <img> 放进图层，不再让浏览器按地址重新请求一次
-  crossfade((el) => {
-    el.style.background = "";
-    el.replaceChildren(img);
-  });
+  if (bootImg && active === 0 && absUrl(src) === bootImg) {
+    // boot.js 已经把这张图画在第一层上了（屏幕上已经是清晰的图）：换成下载好的 <img>，画面不变
+    layers[0].style.background = "";
+    layers[0].replaceChildren(img);
+  } else {
+    // 直接把下载好的这张 <img> 放进图层，不再让浏览器按地址重新请求一次
+    crossfade((el) => {
+      el.style.background = "";
+      el.replaceChildren(img);
+    }, active < 0 && root.hasAttribute("data-bgthumb"));
+  }
+  bootImg = "";
+  // 记下这张图最下面一条的颜色（读不到图片内容时就用整张的平均色）
+  try {
+    edge = { key: view.key, color: readable ? sampleEdge(img) : "" };
+  } catch {
+    edge = { key: view.key, color: "" };
+  }
+  paintEdge(view, store.get().bg);
+  if (readable && !previewFor(view.key)) rememberPreview(view.key, previewOf(img));
+  // 淡入结束后：清晰的图已经铺满，撤掉垫在下面的模糊小图（apply() 会顺便把预览记进 boot.js 用的缓存）
+  setTimeout(() => {
+    if (shownKey !== view.key) return;
+    loadedKey = view.key;
+    apply();
+  }, 700);
   if (view.online) {
     onlineFailed = false;
     if (readable) rememberOnlineColor(img, src);
@@ -387,6 +494,40 @@ function imageFailed(view) {
   if (preset.css) showCss(preset.css);
   apply(); // 占位色和明暗改按内置背景来
   if (first) toast("在线壁纸暂时加载不了，先显示内置背景");
+}
+
+/** 模糊小图：有这张的预览、清晰的图又还没完全显示出来时垫在下面 */
+function showThumb(view, pv) {
+  const on = !!pv && view.key !== loadedKey;
+  // 刚打开页面、boot.js 已经垫上了上次记下的小图，但这张还没有预览（比如“每日一图”刚换了天）：
+  // 先留着那张小图，等清晰的图出来再换，总比先灰一下好
+  if (!pv && !view.css && !loadedKey && (active < 0 || bootImg) && root.hasAttribute("data-bgthumb")) return;
+  if (on) root.style.setProperty("--bg-thumb", `url("${pv.thumb}")`);
+  else root.style.removeProperty("--bg-thumb");
+  root.toggleAttribute("data-bgthumb", on);
+}
+
+/** 下次打开页面时要显示的那张图的地址（只限普通网址；上传的图片、渐变返回空） */
+function nextSrc(bg, view) {
+  let src = view.src || "";
+  if (view.online && bg.online.every === "open" && !sourceOf(bg.online).daily) {
+    const st = onlineState();
+    src = st.source === bg.online.source && typeof st.next === "string" && st.next ? onlineUrl(bg.online, st.next) : "";
+  }
+  const abs = src ? absUrl(src) : "";
+  return /^https?:\/\//.test(abs) && abs.length < 2048 ? abs : "";
+}
+
+/** 下次打开页面时 boot.js 先显示哪张的预览（没有就返回 null） */
+function nextOpen(bg, view, pv) {
+  if (view.online && bg.online.every === "open" && !sourceOf(bg.online).daily) {
+    const st = onlineState();
+    const seed = st.source === bg.online.source && typeof st.next === "string" ? st.next : "";
+    const key = seed ? onlineKey(bg.online, seed) : "";
+    const npv = previewFor(key);
+    return npv ? { key, ...npv } : null; // 下一张还没下载好：只能先按现在的颜色
+  }
+  return pv ? { key: view.key, ...pv } : null;
 }
 
 // ---------- 应用背景 ----------
@@ -414,8 +555,27 @@ async function apply() {
   const hasCredit = !!view.credit && !onlineFailed;
   root.toggleAttribute("data-credit", hasCredit);
   if (!hasCredit) setCredit("", null);
-  $('meta[name="theme-color"]')?.setAttribute("content", view.color);
-  writeJSON(CACHE_KEY, { color: view.color, css: view.css || "", tone, blur: bg.blur, dim: bg.dim, searchAlpha, searchTone, credit: hasCredit });
+  // 这张壁纸记下过预览：最下面一条的颜色直接用，清晰的图出来之前先垫模糊小图
+  const pv = view.css ? null : previewFor(view.key);
+  if (pv && isHex(pv.edge) && !(edge.key === view.key && edge.color)) edge = { key: view.key, color: pv.edge };
+  showThumb(view, pv);
+  const edgeColor = paintEdge(view, bg);
+  // edgeKey / edgeRaw：这张壁纸最下面一条的颜色（还没压暗）。下次打开同一张时直接用，不用等图片下载完再取色
+  const known = edge.key === view.key && edge.color;
+  const cache = { color: view.color, edge: edgeColor, edgeKey: known ? edge.key : "", edgeRaw: known ? edge.color : "", css: view.css || "", tone, blur: bg.blur, dim: bg.dim, searchAlpha, searchTone, credit: hasCredit };
+  // 下次打开时要先显示的那张的预览：一般就是现在这张；“每次打开换一张”时是已经提前下载好的下一张
+  const next = nextOpen(bg, view, pv);
+  // 下次打开时那张图本身的地址：boot.js 直接把它画上去，浏览器缓存里有的话页面一出来就是清晰的
+  const src = nextSrc(bg, view);
+  if (src) cache.src = src;
+  if (next) {
+    Object.assign(cache, { color: next.color, edgeKey: next.key, edgeRaw: isHex(next.edge) ? next.edge : "", thumb: next.thumb });
+    cache.edge = dimHex(isHex(next.edge) ? next.edge : next.color, bg.dim);
+    const lum = Number(next.lum) || 0;
+    cache.tone = toneFor(lum, bg.dim);
+    cache.searchTone = searchToneFor(dimmed(lum, bg.dim), searchAlpha);
+  }
+  writeJSON(CACHE_KEY, cache);
 
   if (view.key === shownKey) return; // 只是调了模糊/暗度，画面内容没变
   shownKey = view.key;
@@ -446,6 +606,10 @@ async function apply() {
 
 export function initBackground() {
   layers = [$("#bg-a"), $("#bg-b")];
+  // 上次记下的"壁纸最下面一条的颜色"：还是同一张壁纸的话，打开时直接用它
+  // （不然在图片下载完、重新取色之前，iPhone 工具栏下面那一块会先闪一下整张图的平均色）
+  const saved = readJSON(CACHE_KEY, {});
+  if (saved && typeof saved.edgeKey === "string" && saved.edgeKey && /^#[0-9a-f]{6}$/i.test(saved.edgeRaw || "")) edge = { key: saved.edgeKey, color: saved.edgeRaw };
   // boot.js 已经把上次的渐变画在第一层了：接管过来，后面按正常流程切换
   if (root.hasAttribute("data-bginstant")) {
     const cache = readJSON(CACHE_KEY, {});
@@ -456,6 +620,19 @@ export function initBackground() {
     if (view.css === cache.css) shownKey = view.key;
     root.removeAttribute("data-bginstant");
     root.style.removeProperty("--bg-instant");
+  }
+  // boot.js 已经把上次那张图直接画在第一层了：接管过来（等脚本把同一张图加载好，原地换成 <img>，不再淡入）
+  if (root.hasAttribute("data-bgimg")) {
+    const src = readJSON(CACHE_KEY, {})?.src;
+    const abs = typeof src === "string" ? absUrl(src) : "";
+    if (abs) {
+      layers[0].style.background = `center / cover no-repeat url("${abs.replace(/["\\]/g, "")}")`;
+      layers[0].classList.add("no-anim", "is-on");
+      active = 0;
+      bootImg = abs;
+    }
+    root.removeAttribute("data-bgimg");
+    root.style.removeProperty("--bg-img");
   }
   // 主页最底下的"壁纸出处"
   const creditEl = $("#wall-credit");
@@ -569,6 +746,26 @@ function sampleColor(source) {
     if (i < 160) topLum += luminance(px);
   }
   return { color: toHex(sum.map((v) => v / 256)), lum: topLum / 160 };
+}
+
+/** 图片最下面一条（中间那一段，铺满屏幕时两边常被裁掉）的平均色 */
+function sampleEdge(source) {
+  const w = source.width || source.naturalWidth;
+  const h = source.height || source.naturalHeight;
+  const small = w > 240 ? drawScaled(source, 240, Math.max(1, Math.round((240 * h) / w))) : source;
+  const tiny = drawScaled(small, 16, 16).getContext("2d").getImageData(0, 0, 16, 16).data;
+  const sum = [0, 0, 0];
+  let n = 0;
+  for (let y = 14; y < 16; y++) {
+    for (let x = 3; x < 13; x++) {
+      const i = (y * 16 + x) * 4;
+      sum[0] += tiny[i];
+      sum[1] += tiny[i + 1];
+      sum[2] += tiny[i + 2];
+      n++;
+    }
+  }
+  return toHex(sum.map((v) => v / n));
 }
 
 /** 上传本地图片（可多选）。返回成功和失败的数量 */

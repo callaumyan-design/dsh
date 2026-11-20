@@ -1,0 +1,9 @@
+<!-- 四象限：四个圆角方块排成田字（重要/紧急的四个象限），左上角“重要且紧急”那一格打了勾。白色图形，底是透明的：主页上由网页垫一块毛玻璃。
+     不要给它加 filter（投影、模糊）或 mask：iPhone 的 Safari 会把带这些效果的 svg 图片按低分辨率画，图标会糊。 -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <rect x="22" y="22" width="36" height="36" rx="9" fill="#fff"/>
+  <rect x="62" y="22" width="36" height="36" rx="9" fill="#fff" fill-opacity=".72"/>
+  <rect x="22" y="62" width="36" height="36" rx="9" fill="#fff" fill-opacity=".72"/>
+  <rect x="62" y="62" width="36" height="36" rx="9" fill="#fff" fill-opacity=".45"/>
+  <path d="M31.5 40.5l6.5 6.5 12-13" fill="none" stroke="#0f172a" stroke-opacity=".6" stroke-width="4.6" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

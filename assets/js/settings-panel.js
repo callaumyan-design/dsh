@@ -1,7 +1,7 @@
-// 设置面板（右上角齿轮）：背景、搜索、链接、主题、小组件、数据导出/导入/恢复默认。
+// 设置面板（右上角齿轮）：背景、搜索、链接、主题、小组件（时钟、天气）、数据导出/导入/恢复默认。
 // 所有改动立刻生效，并保存在浏览器本地。
 import { BACKGROUND_PRESETS, AI } from "../../config/site.js";
-import { store, safeTemplate, safeUrl, uid, defaultSettings } from "./store.js";
+import { store, safeTemplate, safeUrl, uid, defaultSettings, removeKey } from "./store.js";
 import { addUploads, addImageUrl, removeImage, selectImage, shownImageId, shuffleBackground, thumbFor, nextOnlineWallpaper, ONLINE_SOURCES, onCredit } from "./background.js";
 import { FONT_CHOICES, WEIGHT_NAMES } from "./typography.js";
 import { listEngines } from "./engines.js";
@@ -10,6 +10,8 @@ import { buildExport, applyImport, pruneImages } from "./backup.js";
 import { aiAuth } from "./ai/auth.js";
 import { userApi } from "./ai/api.js";
 import { AI_PRESETS, testApi, fetchModels } from "./ai/api-tools.js";
+import { quotesAuth } from "./market/auth.js";
+import { relocate, weatherPlace } from "./weather.js";
 import { h, icon, iconButton, toast, openDialog, confirmDialog, downloadText } from "./ui.js";
 
 let dialog = null;
@@ -452,6 +454,13 @@ function searchSection() {
     switchRow("记住上次用的引擎", "关掉后，每次打开都用默认引擎", (s) => s.search.remember, (s, v) => (s.search.remember = v)),
     switchRow("按 Tab 切换引擎", "在搜索框里按 Tab 换引擎，按 Esc 离开搜索框", (s) => s.search.tabSwitch, (s, v) => (s.search.tabSwitch = v)),
     switchRow("记录搜索历史", "只保存在这台设备上，不会上传", (s) => s.search.history, (s, v) => (s.search.history = v)),
+    selectRow(
+      "语音输入的语言",
+      "点搜索框里的麦克风说话，说完直接搜。声音由浏览器交给它自己的语音服务识别（Safari 是苹果，Chrome 是谷歌），不经过本站",
+      () => [["zh-CN", "普通话"], ["en-US", "English"]],
+      (s) => s.search.voiceLang,
+      (s, v) => (s.search.voiceLang = v)
+    ),
     h("div", { class: "btn-row" }, clearBtn),
     h("p", { class: "hint" }, "快捷键：按 / 聚焦搜索框，Enter 搜索。输入“!g 关键词”直接用 Google 搜，“!b”Bing，“!bd”百度，“!d”DuckDuckGo，“!ai 问题”直接问 AI。"),
     h("h4", { class: "field-label" }, "自定义搜索引擎"),
@@ -620,6 +629,113 @@ function aiSection() {
   );
 }
 
+// ---------- 行情 ----------
+function marketSection() {
+  const tokenStatus = h("p", { class: "hint" });
+  const clearToken = h(
+    "button",
+    {
+      type: "button",
+      class: "btn",
+      onclick: () => {
+        quotesAuth.clear();
+        toast("已清除行情访问口令");
+        refresh();
+      },
+    },
+    "清除访问口令"
+  );
+  syncers.push(() => {
+    const days = quotesAuth.daysLeft();
+    // 口令是可选的：后台没设就不需要，这里也就不显示
+    tokenStatus.textContent = days ? `访问口令已保存在本机，还有 ${days} 天到期。` : "";
+    tokenStatus.hidden = !days;
+    clearToken.hidden = !days;
+  });
+  return section(
+    "market",
+    "trending-up",
+    "行情",
+    switchRow("在首页显示行情", "显示在搜索框下面；关掉后不显示，也不去取数据", (s) => s.market.enabled, (s, v) => (s.market.enabled = v)),
+    selectRow("涨跌颜色", null, () => [["red-up", "红涨绿跌"], ["green-up", "绿涨红跌"]], (s) => s.market.colors, (s, v) => (s.market.colors = v)),
+    selectRow(
+      "自动刷新",
+      "页面在前台时才刷新；关注的市场都休市时最多 30 分钟一次",
+      () => [["1", "每 1 分钟"], ["5", "每 5 分钟"], ["15", "每 15 分钟"]],
+      (s) => String(s.market.refresh),
+      (s, v) => (s.market.refresh = Number(v))
+    ),
+    h("p", { class: "hint" }, "关注列表在首页行情下面那行小字右边点铅笔编辑，只保存在这台设备的浏览器里，“导出设置”会带上它。行情由本站后台代取，部分是延时行情，会标出“延时”。"),
+    tokenStatus,
+    h("div", { class: "btn-row" }, clearToken)
+  );
+}
+
+// ---------- 小组件 ----------
+/** "3 分钟前""2 小时前" */
+function ago(at) {
+  const min = Math.max(0, Math.round((Date.now() - at) / 60000));
+  if (min < 1) return "刚刚";
+  if (min < 60) return `${min} 分钟前`;
+  if (min < 48 * 60) return `${Math.round(min / 60)} 小时前`;
+  return `${Math.round(min / 1440)} 天前`;
+}
+
+function widgetsSection() {
+  // 天气按定位显示，不用选城市；这里只显示现在按哪里显示，以及"重新定位"
+  const now = h("p", { class: "hint" });
+  const status = h("p", { class: "hint place-status", role: "status" });
+  const say = (message, kind = "") => {
+    status.textContent = message;
+    status.dataset.kind = kind; // ok 绿色 / bad 红色 / 空 普通
+  };
+  const showNow = () => {
+    const { where, fallback } = weatherPlace();
+    now.textContent = where
+      ? `现在按定位显示：${where.name || "你所在的位置"}（${ago(where.at)}定位）`
+      : fallback
+        ? `还没有定位，现在显示默认城市：${fallback.name}。`
+        : "还没有定位。";
+  };
+  const howTo = "要用定位：iPhone 上在 Safari 地址栏点网站设置按钮 → 网站设置 → 位置 → 允许；也可以到 iPhone 的 设置 → App → Safari → 位置 → 允许。";
+  const relocateBtn = h("button", { type: "button", class: "btn" }, icon("refresh-cw"), "重新定位");
+  relocateBtn.addEventListener("click", async () => {
+    relocateBtn.disabled = true;
+    say("正在定位…（浏览器问的话，点“允许”）");
+    const result = await relocate();
+    relocateBtn.disabled = false;
+    showNow();
+    const { where, fallback } = weatherPlace();
+    if (result === "moved" || result === "same") say(`已更新：${where?.name || "你所在的位置"}。`, "ok");
+    else if (result === "denied") say(`没有定位权限，先显示默认城市${fallback ? `（${fallback.name}）` : ""}。${howTo}`, "bad");
+    else if (result === "unsupported") say("这个浏览器不支持定位。", "bad");
+    else if (result === "off") say("天气关着。", "bad");
+    else say("暂时定位不了（信号不好，或者手机的定位服务关着），过一会儿再试。", "bad");
+  });
+
+  const placeBox = h(
+    "div",
+    { class: "place-set" },
+    now,
+    h("div", { class: "btn-row" }, relocateBtn),
+    status,
+    h("p", { class: "hint" }, "天气来自 Open-Meteo，地名来自 OpenStreetMap（© OpenStreetMap 贡献者）。由浏览器直接去取，只发送大致位置（约 1 公里），不经过本站后台。")
+  );
+  syncers.push((s) => {
+    showNow();
+    placeBox.hidden = !s.widgets.weather;
+  });
+
+  return section(
+    "widgets",
+    "layout-dashboard",
+    "小组件",
+    switchRow("时间、日期和问候语", null, (s) => s.widgets.clock, (s, v) => (s.widgets.clock = v)),
+    switchRow("天气", "跟在问候语后面，如“布里斯班 28° 多云”，按你所在的位置显示，每 30 分钟更新；上一项关掉时不显示", (s) => s.widgets.weather, (s, v) => (s.widgets.weather = v)),
+    placeBox
+  );
+}
+
 // ---------- 数据 ----------
 function dataSection() {
   const withImages = h("input", { type: "checkbox", id: "export-images", role: "switch", checked: true });
@@ -635,7 +751,7 @@ function dataSection() {
           const data = await buildExport(withImages.checked);
           // 文件名只用英文和数字，避免个别系统把中文文件名弄乱
           downloadText(`start-page-settings-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(data));
-          toast("已导出。搜索历史、AI 的 API Key 和访问密码不会包含在文件里");
+          toast("已导出。搜索历史、AI 的 API Key 和访问密码、行情访问口令不会包含在文件里");
         } catch {
           toast("导出失败，请重试");
         }
@@ -676,12 +792,16 @@ function dataSection() {
       onclick: async () => {
         const ok = await confirmDialog({
           title: "恢复默认设置？",
-          message: "所有设置回到初始状态，上传的背景图片、搜索历史和填写的 AI 接口（含 API Key）会被删除。导航的改动不受影响（在编辑模式里单独恢复）。",
+          message: "所有设置回到初始状态，上传的背景图片、搜索历史、填写的 AI 接口（含 API Key）、行情关注列表和访问口令会被删除。导航的改动不受影响（在编辑模式里单独恢复）。",
           okText: "恢复默认",
           danger: true,
         });
         if (!ok) return;
         userApi.clear(); // 先清掉，下面换设置时界面会跟着刷新
+        quotesAuth.clear();
+        removeKey("sp:quotes-cache");
+        removeKey("sp:where"); // 天气：上次定到的位置
+        removeKey("sp:weather");
         store.replace(null);
         searchHistory.clear();
         await pruneImages();
@@ -730,7 +850,8 @@ function build() {
         (s, v) => (s.linkTarget = v)
       )
     ),
-    section("widgets", "layout-dashboard", "小组件", switchRow("时间、日期和问候语", null, (s) => s.widgets.clock, (s, v) => (s.widgets.clock = v))),
+    widgetsSection(),
+    marketSection(),
     aiSection(),
     dataSection(),
     h("p", { class: "hint panel-foot" }, h("a", { href: "about/index.html" }, "关于本站"))

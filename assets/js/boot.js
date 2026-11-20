@@ -28,10 +28,22 @@
   if (cache && typeof cache === "object") {
     // 占位纯色：图片还没出来之前先显示它
     if (typeof cache.color === "string") root.style.setProperty("--bg-base", cache.color);
+    // 网页底色（iPhone Safari 用它填工具栏下面那一块）：壁纸最下面一条的颜色
+    if (typeof cache.edge === "string" && /^#[0-9a-f]{6}$/i.test(cache.edge)) root.style.setProperty("--bg-edge", cache.edge);
     // 渐变/纯色背景可以立刻画出来；图片背景要等加载，先只显示占位色
     if (typeof cache.css === "string" && cache.css) {
       root.style.setProperty("--bg-instant", cache.css);
       root.setAttribute("data-bginstant", "");
+    }
+    // 壁纸的模糊小图（几百字节，background.js 记下的）：清晰的图还没下载好之前先铺满，不再先灰一下
+    if (typeof cache.thumb === "string" && cache.thumb.length < 16000 && /^data:image\/jpeg;base64,[A-Za-z0-9+\/=]+$/.test(cache.thumb)) {
+      root.style.setProperty("--bg-thumb", 'url("' + cache.thumb + '")');
+      root.setAttribute("data-bgthumb", "");
+    }
+    // 上次那张壁纸本身：直接画上去。浏览器缓存里有的话，页面一出来就是清晰的图，不用等脚本（小图只在没缓存时垫底）
+    if (!cache.css && typeof cache.src === "string" && cache.src.length < 2048 && /^https?:\/\/[^"'\\\s()<>]+$/.test(cache.src)) {
+      root.style.setProperty("--bg-img", 'url("' + cache.src + '")');
+      root.setAttribute("data-bgimg", "");
     }
     if (cache.tone === "light" || cache.tone === "dark") root.setAttribute("data-bgtone", cache.tone);
     if (typeof cache.blur === "number" && cache.blur > 0) {

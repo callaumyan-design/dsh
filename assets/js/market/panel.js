@@ -1,0 +1,624 @@
+// 行情：首页搜索框下面的一小块，透明底、白字直接压在壁纸上（和时钟一样）。打开页面后马上加载（main.js 里），设置里关掉时不加载、不联网。
+// 平时分左右两列：左边股票和指数，右边汇率，各自从上往下排；每个一行：名称、现价、涨跌幅。
+// 屏幕太窄、两列并排放不下时，自动排成一列（股票在上、汇率在下），数字照样对齐。
+// 最下面一行小字是更新时间，旁边是刷新和编辑按钮。代码、币种、涨跌额、市场状态在编辑时才显示。
+//
+// 数据：先显示上次存下的行情（连同它的更新时间），同时去后台 /api/quotes 拿新的（一分钟内刚拿过的不重复拿）。
+// 刷新：页面在前台时，按设置每 1 / 5 / 15 分钟刷新一次；关注的市场都不在交易时，最多 30 分钟一次。
+//       页面切到后台就停；切回来时如果数据已经过期，立刻刷新一次。
+// 编辑：点右上角的铅笔，在这一块里直接排序、删除；"添加关注"是这一块里的另一页（搜名称、拼音或代码）。
+// 演示：网址带 ?demo=quotes 时不连后台，用本地假数据，标出"演示数据"。
+import { store, readJSON, writeJSON } from "../store.js";
+import { $, h, icon, iconButton, toast } from "../ui.js";
+import { GROUPS, groupOf, isIndex, MAX_IDS, CURRENCIES } from "./ids.js";
+import { marketStatus, isLive, STATUS_TEXT } from "./hours.js";
+import { quotesAuth, tokenDays } from "./auth.js";
+
+const CACHE_KEY = "sp:quotes-cache"; // 上次拿到的行情：{ at, quotes: { 代码: 行情 } }
+const DEMO = new URLSearchParams(location.search).get("demo") === "quotes";
+const QUIET = 30; // 关注的市场都不在交易时，最多多少分钟刷新一次
+const FRESH = 60000; // 打开页面时，一分钟内刚拿过的就不重复拿（后台的缓存也是一分钟）
+
+// 这一块的样式单独放在 market.css，和这个文件一起加载（地址按这个文件的位置算，线上会自动带上版本号）
+const CSS_URL = new URL("../../css/market.css", import.meta.url).href;
+function loadStyles() {
+  return new Promise((resolve) => {
+    const link = h("link", { rel: "stylesheet", href: CSS_URL });
+    link.addEventListener("load", resolve);
+    link.addEventListener("error", resolve); // 样式加载失败也照样显示，只是不好看
+    document.head.append(link);
+  });
+}
+
+let root, bodyEl, noticeEl, listEl, addEl, infoEl, footEl, editBtn, refreshBtn;
+let view = "list"; // list 看行情 | edit 编辑列表（排序、删除）| add 添加关注
+let loading = false;
+let phase = "idle"; // idle | ok | partial | error | offline | auth
+let authMessage = "";
+let focusToken = false; // 刚输错口令：重新画出来后把光标放回输入框
+let failed = new Map(); // 代码 → 这次为什么取不到
+let refreshTimer = 0;
+let lastAttempt = 0; // 上次去拿数据的时间（不管成没成功）
+let tickTimer = 0;
+let cache = loadCache();
+
+function loadCache() {
+  const raw = readJSON(CACHE_KEY, null);
+  const quotes = raw && typeof raw.quotes === "object" && raw.quotes ? raw.quotes : {};
+  return { at: Number(raw?.at) || 0, quotes };
+}
+function saveCache() {
+  // 只留还在关注列表里的
+  const keep = new Set(store.get().market.list.map((x) => x.id));
+  const quotes = Object.fromEntries(Object.entries(cache.quotes).filter(([id]) => keep.has(id)));
+  cache.quotes = quotes;
+  if (!DEMO) writeJSON(CACHE_KEY, { at: cache.at, quotes });
+}
+
+const list = () => store.get().market.list;
+const enabled = () => store.get().market.enabled;
+
+// ---------- 数字的样子 ----------
+function decimals(id, price) {
+  if (id.startsWith("FX:")) return 4;
+  if (price < 1) return 4;
+  if (id.startsWith("HK:") && !isIndex(id) && price < 10) return 3;
+  return 2;
+}
+const fmt = (n, d) => (Number.isFinite(n) ? n.toFixed(d) : "—");
+// 带正负号的数；四舍五入以后是 0 的（比如 −0.002%）不带符号，显示成 0.00
+const signed = (n, d) => (Number.isFinite(n) ? (Number(n.toFixed(d)) > 0 ? "+" : Number(n.toFixed(d)) < 0 ? "−" : "") + Math.abs(n).toFixed(d) : "—");
+const dirOf = (n) => (!Number.isFinite(n) || n === 0 ? "flat" : n > 0 ? "up" : "down");
+/** 涨还是跌：涨跌幅四舍五入到 0.00% 的算没变（不然会出现绿色的"0.00%"） */
+const moveOf = (q) => (q && Number.isFinite(q.changePct) && Math.abs(q.changePct) < 0.005 ? "flat" : dirOf(q?.change));
+
+/** 代码的简短写法：沪 600519、港 00700、美 NVDA、AUD/CNY */
+function shortCode(id) {
+  const [market, code] = id.split(":");
+  if (market === "FX") return `${code.slice(0, 3)}/${code.slice(3)}`;
+  return `${{ SH: "沪", SZ: "深", BJ: "北", HK: "港", US: "美" }[market]} ${code}`;
+}
+
+/** "14:02 更新"；不是今天的写上日期 */
+function timeText(at) {
+  if (!at) return "";
+  const d = new Date(at);
+  const hm = d.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false });
+  const sameDay = d.toDateString() === new Date().toDateString();
+  return `${sameDay ? "" : `${d.getMonth() + 1}月${d.getDate()}日 `}${hm} 更新`;
+}
+
+// 首页上用的短名字：常用指数用大家平时的叫法
+const SHORT = { "US:.IXIC": "纳斯达克", "US:.DJI": "道琼斯", "US:.INX": "标普500", "HK:HSTECH": "恒生科技", "HK:HSCEI": "国企指数" };
+const currencyName = (code) => (CURRENCIES[code] || "").replace(/（.*）/, "");
+
+/** 首页上显示的名字（省地方）：常用指数用短叫法；对人民币的汇率只写外币（澳元、美元），离岸的写"美元 离岸" */
+function displayName(item, q) {
+  if (SHORT[item.id]) return SHORT[item.id];
+  if (item.id.startsWith("FX:")) {
+    const base = currencyName(item.id.slice(3, 6));
+    const quote = item.id.slice(6);
+    if (base && quote === "CNY") return base;
+    if (base && quote === "CNH") return `${base} 离岸`;
+    if (base && currencyName(quote)) return `${base}/${currencyName(quote)}`;
+  }
+  return item.name || q?.name || shortCode(item.id);
+}
+
+// ---------- 搭建 ----------
+function build() {
+  root = $("#market");
+  noticeEl = h("div", { class: "mk-notice" });
+  listEl = h("div", { class: "mk-groups" });
+  addEl = buildAddPanel();
+  addEl.hidden = true;
+  refreshBtn = iconButton("refresh-cw", "刷新行情", { class: "mk-tool", onclick: () => refresh() });
+  editBtn = iconButton("pencil", "编辑关注列表", { class: "mk-tool", onclick: () => setView(view === "list" ? "edit" : "list") });
+  infoEl = h("div", { class: "mk-info" });
+  bodyEl = h("div", { class: "mk-body" }, noticeEl, listEl, addEl);
+  // 最下面一行：更新时间、标记 …… 刷新、编辑（标题"行情"只给读屏软件读，页面上不显示）
+  footEl = h("div", { class: "mk-foot" }, infoEl, h("div", { class: "mk-tools" }, refreshBtn, editBtn));
+  root.replaceChildren(h("h2", { id: "mk-title", class: "sr-only" }, "行情"), bodyEl, footEl);
+  root.setAttribute("aria-labelledby", "mk-title");
+  if (typeof ResizeObserver === "function") new ResizeObserver(() => view === "list" && fitCols()).observe(root.parentElement);
+  document.fonts?.ready.then(() => view === "list" && fitCols());
+
+  // Esc：添加页 → 编辑列表 → 看行情，一层一层退（焦点在这一块里时）
+  root.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape" || view === "list") return;
+    e.preventDefault();
+    e.stopPropagation();
+    setView(view === "add" ? "edit" : "list");
+    (view === "edit" ? listEl.querySelector(".mk-add-btn") : editBtn)?.focus({ preventScroll: true });
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) stopTimers();
+    else {
+      if (enabled() && isStale()) refresh();
+      startTimers();
+    }
+  });
+  window.addEventListener("online", () => enabled() && phase === "offline" && refresh());
+
+  let wasOn = enabled();
+  store.subscribe(() => {
+    const on = enabled();
+    root.hidden = !on;
+    if (!on) {
+      wasOn = false;
+      stopTimers();
+      return;
+    }
+    if (!wasOn) {
+      // 在设置里重新打开：马上拿一次
+      wasOn = true;
+      render();
+      refresh();
+      startTimers();
+      return;
+    }
+    // 别处改了关注列表（导入设置、恢复默认）：新代码没有数据就去拿
+    if (view === "list") {
+      render();
+      if (list().some((x) => !cache.quotes[x.id])) refresh();
+    }
+  });
+}
+
+// ---------- 启动 ----------
+export async function initMarket() {
+  if (root) return;
+  await loadStyles();
+  build();
+  root.hidden = !enabled();
+  render();
+  if (!enabled()) return;
+  // 先显示上次的数据；一分钟内刚拿过的就不重复拿，都休市时按刷新间隔
+  const due = Date.now() - cache.at > (anyLive() ? FRESH : interval());
+  if (list().length && (DEMO || due || !Object.keys(cache.quotes).length)) refresh();
+  else startTimers();
+}
+
+// ---------- 刷新 ----------
+/** 现在该多久刷新一次（毫秒） */
+function interval() {
+  const minutes = store.get().market.refresh;
+  return (anyLive() ? minutes : Math.max(minutes, QUIET)) * 60000;
+}
+const isStale = () => Date.now() - cache.at >= interval();
+
+function anyLive(now = Date.now()) {
+  const groups = new Set(list().map((x) => groupOf(x.id)));
+  return [...groups].some((g) => isLive(groupStatus(g, now)));
+}
+
+function startTimers() {
+  stopTimers();
+  if (!root || !enabled() || document.hidden) return;
+  // 正在拿数据时先不排下一次：拿完以后 refresh() 会按新的时间重新排。
+  // 等你输入口令时不自动刷新（免得打断输入）；失败了也按正常间隔再试，不会一直频繁请求
+  if (list().length && !DEMO && !loading && phase !== "auth") {
+    const wait = Math.max(5000, Math.max(cache.at, lastAttempt) + interval() - Date.now());
+    refreshTimer = setTimeout(() => refresh(), wait);
+  }
+  // 每 30 秒更新一下"几分钟前"和市场状态（不联网）
+  tickTimer = setInterval(() => view === "list" && !root.contains(document.activeElement) && render(), 30000);
+}
+function stopTimers() {
+  clearTimeout(refreshTimer);
+  clearInterval(tickTimer);
+}
+
+/** 去后台要数据。访问口令是可选的：后台设了口令（返回 401）才需要，记住的口令会自动带上 */
+async function request(ids, { token = quotesAuth.get() } = {}) {
+  if (DEMO) return { ok: true, data: (await import("./demo.js")).demoQuotes(ids) }; // 演示数据：用到才加载
+  let res;
+  try {
+    res = await fetch(`./api/quotes?ids=${encodeURIComponent(ids.join(","))}`, {
+      headers: token ? { "X-Quotes-Token": token } : {},
+      cache: "no-store",
+      credentials: "same-origin",
+    });
+  } catch {
+    return { ok: false, kind: "offline" };
+  }
+  if (res.status === 401) return { ok: false, kind: "auth", bad: !!token };
+  let data = null;
+  try {
+    data = await res.json();
+  } catch {
+    /* 下面按出错处理 */
+  }
+  if (!res.ok || !data || !Array.isArray(data.quotes)) return { ok: false, kind: "error" };
+  return { ok: true, data };
+}
+
+/** 按名称 / 代码搜。返回 { ok, data: { results } } 或 { ok: false, kind } */
+async function searchRequest(q) {
+  if (DEMO) return { ok: true, data: (await import("./demo.js")).demoSearch(q) };
+  const token = quotesAuth.get();
+  let res;
+  try {
+    res = await fetch(`./api/quotes/search?q=${encodeURIComponent(q)}`, { headers: token ? { "X-Quotes-Token": token } : {}, cache: "no-store", credentials: "same-origin" });
+  } catch {
+    return { ok: false, kind: "offline" };
+  }
+  if (res.status === 401) return { ok: false, kind: "auth", bad: !!token };
+  const data = await res.json().catch(() => null);
+  if (!res.ok || !data || !Array.isArray(data.results)) return { ok: false, kind: "error" };
+  return { ok: true, data };
+}
+
+/** 拿一次最新数据。typedToken：刚在这里输入、还没验证过的口令 */
+async function refresh({ typedToken } = {}) {
+  const ids = list().map((x) => x.id);
+  if (!ids.length || loading || !enabled()) return;
+  loading = true;
+  lastAttempt = Date.now();
+  stopTimers();
+  render();
+  const result = await request(ids, typedToken ? { token: typedToken } : {});
+  loading = false;
+  if (result.ok) {
+    if (typedToken) quotesAuth.save(typedToken); // 验证通过了才记住
+    authMessage = "";
+    const errors = Array.isArray(result.data.errors) ? result.data.errors : [];
+    for (const q of result.data.quotes) if (q && typeof q.id === "string") cache.quotes[q.id] = q;
+    failed = new Map(errors.filter((e) => e && typeof e.id === "string").map((e) => [e.id, String(e.reason || "")]));
+    cache.at = Date.now(); // 更新时间按这台设备的时间记（不用服务器的时间，免得两边时钟不一致）
+    saveCache();
+    phase = !result.data.quotes.length && failed.size ? "error" : failed.size ? "partial" : "ok";
+  } else {
+    phase = result.kind;
+    if (result.kind === "auth") {
+      if (result.bad && !typedToken) quotesAuth.clear(); // 记住的口令不对了（比如后台换了口令）
+      authMessage = result.bad ? "口令不对，请重新输入。" : "";
+      focusToken = !!typedToken;
+    }
+  }
+  render();
+  // 排下一次刷新（出错时也按正常间隔再试，不会因为一直失败而频繁请求）
+  startTimers();
+}
+
+// ---------- 显示 ----------
+function groupStatus(group, now = Date.now()) {
+  const times = list()
+    .filter((x) => groupOf(x.id) === group)
+    .map((x) => cache.quotes[x.id]?.time)
+    .filter((t) => Number.isFinite(t));
+  return marketStatus(group, now, times.length ? Math.max(...times) : undefined);
+}
+
+function render() {
+  if (!root) return;
+  root.dataset.colors = store.get().market.colors;
+  root.dataset.view = view;
+  root.classList.toggle("is-editing", view === "edit");
+  // 添加页单独占满这一块：不显示行情列表和提示
+  noticeEl.hidden = listEl.hidden = view === "add";
+  addEl.hidden = view !== "add";
+  footEl.hidden = view === "add";
+  root.setAttribute("aria-busy", String(loading));
+  refreshBtn.classList.toggle("is-spinning", loading);
+  refreshBtn.disabled = loading || !list().length;
+  refreshBtn.hidden = view !== "list";
+  renderNotice();
+  renderGroups();
+  renderInfo();
+}
+
+function renderNotice() {
+  const items = list();
+  const parts = [];
+  if (!items.length && view === "list") {
+    parts.push(
+      h(
+        "div",
+        { class: "mk-empty" },
+        h("p", null, "还没有关注任何行情。"),
+        h("button", { type: "button", class: "btn btn-primary", onclick: () => setView("add") }, icon("plus"), "添加")
+      )
+    );
+  } else if (phase === "auth") {
+    parts.push(tokenForm());
+  } else if (phase === "offline") {
+    parts.push(message("triangle-alert", "连不上服务器", "可能是网络断了。下面显示的是上次的数据。", retryButton()));
+  } else if (phase === "error") {
+    const why = [...failed.values()][0];
+    parts.push(message("triangle-alert", "暂时取不到行情", (why ? `原因：${why}。` : "数据源暂时出了问题。") + "下面显示的是上次的数据。", retryButton()));
+  } else if (loading && !Object.keys(cache.quotes).length) {
+    parts.push(h("p", { class: "mk-loading", role: "status" }, "正在获取行情…"));
+  }
+  noticeEl.replaceChildren(...parts);
+}
+
+const message = (iconName, title, text, ...actions) => h("div", { class: "mk-msg", role: "alert" }, h("h3", null, icon(iconName), title), h("p", null, text), actions.length ? h("div", { class: "btn-row" }, actions) : null);
+const retryButton = () => h("button", { type: "button", class: "btn", onclick: () => refresh() }, icon("refresh-cw"), "重试");
+
+function tokenForm() {
+  const input = h("input", { class: "input", type: "password", autocomplete: "current-password", placeholder: "访问口令", "aria-label": "行情访问口令", maxLength: 200 });
+  const form = h("form", { class: "inline-form" }, input, h("button", { type: "submit", class: "btn btn-primary" }, "确认"));
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const token = input.value.trim();
+    if (token) refresh({ typedToken: token });
+  });
+  // 刚输错：光标放回输入框（打开页面时不抢搜索框的焦点）
+  if (focusToken) {
+    focusToken = false;
+    setTimeout(() => input.isConnected && input.focus({ preventScroll: true }), 0);
+  }
+  return h(
+    "div",
+    { class: "mk-msg", role: "alert" },
+    h("h3", null, icon("lock"), authMessage ? "口令不对" : "输入访问口令"),
+    h("p", null, authMessage || `后台设置了访问口令（Cloudflare 后台的 QUOTES_TOKEN），请输入。验证通过后在这台设备上记住 ${tokenDays} 天。`),
+    form
+  );
+}
+
+function renderGroups() {
+  const items = list();
+  const now = Date.now();
+  // 平时：两列，左边股票和指数（A 股、港股、美股的顺序），右边汇率，各自从上往下排；只有一种时就一列
+  if (view === "list") {
+    const order = (x) => GROUPS.findIndex((g) => g.id === groupOf(x.id));
+    const stocks = items.filter((x) => groupOf(x.id) !== "FX").sort((a, b) => order(a) - order(b));
+    const fx = items.filter((x) => groupOf(x.id) === "FX");
+    // role="list"：排成一列时这两个列表在样式上会"拆开"，写明是列表，读屏软件才照样当列表读
+    const col = (name, list) => h("ul", { class: "mk-rows mk-col", role: "list", "aria-label": name }, list.map((item) => row(item, GROUPS.find((g) => g.id === groupOf(item.id)))));
+    listEl.replaceChildren(
+      h("div", { class: "mk-cols" }, stocks.length ? col("股票和指数", stocks) : null, fx.length ? col("汇率", fx) : null)
+    );
+    fitCols();
+    return;
+  }
+  const groups = GROUPS.map((g) => ({ ...g, items: items.filter((x) => groupOf(x.id) === g.id) })).filter((g) => g.items.length);
+  const sections = groups.map((g) => {
+    const status = groupStatus(g.id, now);
+    return h(
+      "section",
+      { class: "mk-group", "aria-label": g.name },
+      h("h3", { class: "mk-group-title" }, g.name, h("span", { class: `mk-status is-${status}` }, STATUS_TEXT[status])),
+      h("ul", { class: "mk-rows" }, g.items.map((item) => row(item, g)))
+    );
+  });
+  // 编辑时，列表最后是"添加关注"
+  sections.push(
+    h(
+      "button",
+      { type: "button", class: "btn mk-add-btn", disabled: items.length >= MAX_IDS, onclick: () => setView("add") },
+      icon("plus"),
+      items.length >= MAX_IDS ? `最多关注 ${MAX_IDS} 个` : "添加关注"
+    )
+  );
+  listEl.replaceChildren(...sections);
+}
+
+/**
+ * 两列并排放不下（屏幕窄、名字长）时，排成一列：股票在上、汇率在下，共用一套对齐。
+ * 每次画完和屏幕宽度变了的时候看一次。
+ */
+function fitCols() {
+  const cols = listEl?.querySelector(".mk-cols");
+  if (!cols) return;
+  cols.classList.remove("is-stacked");
+  if (cols.children.length > 1 && cols.scrollWidth > cols.clientWidth + 1) cols.classList.add("is-stacked");
+}
+
+/** 一个：平时一行（名称、现价、涨跌幅）；编辑时是名称和代码 + 上移、下移、删除 */
+function row(item, group) {
+  const q = cache.quotes[item.id];
+  const stale = failed.has(item.id) || (!q && !loading && phase !== "idle");
+  const name = view === "list" ? displayName(item, q) : item.name || q?.name || shortCode(item.id);
+  const d = q ? decimals(item.id, q.price) : 2;
+  const currency = q ? q.currency || (isIndex(item.id) ? "点" : "") : "";
+  const li = h(
+    "li",
+    { class: `mk-row${stale ? " is-stale" : ""}`, dataset: { id: item.id, dir: stale ? "flat" : moveOf(q) } },
+    h(
+      "div",
+      { class: "mk-name" },
+      h("span", { class: "mk-title" }, name, q?.reference && !stale ? h("small", { class: "mk-ref" }, "参考价") : null),
+      h("span", { class: "mk-code" }, shortCode(item.id))
+    ),
+    h("div", { class: "mk-price" }, h("span", { class: "mk-num" }, q ? fmt(q.price, d) : "—"), h("span", { class: "mk-cur" }, currency)),
+    h("div", { class: "mk-chg" }, h("span", { class: "mk-num mk-amt" }, q ? signed(q.change, d) : ""), h("span", { class: "mk-num mk-pct" }, q ? signed(q.changePct, 2) + "%" : ""))
+  );
+  const notes = [];
+  if (q?.extended && !stale) {
+    const x = q.extended;
+    notes.push(h("span", { class: "mk-ext", dataset: { dir: dirOf(x.change) } }, `${x.label} ${fmt(x.price, d)} ${signed(x.change, d)}（${signed(x.changePct, 2)}%）`));
+  }
+  // 只有部分取不到时才在那一行写明；全部取不到时上面已经有提示，不每行重复
+  if (stale && phase === "partial") notes.push(h("span", { class: "mk-fail", title: failed.get(item.id) || "" }, q ? "暂时取不到，显示的是上次的价格" : "暂时取不到"));
+  if (notes.length) li.append(h("div", { class: "mk-notes" }, notes));
+  if (view === "edit") li.append(editTools(item, group));
+  return li;
+}
+
+/** 最下面那行小字：更新时间、演示 / 延时 / 几项取不到 */
+function renderInfo() {
+  const ids = list().map((x) => x.id);
+  const shown = ids.map((id) => cache.quotes[id]).filter(Boolean);
+  const failing = ids.filter((id) => failed.has(id)).length; // 删掉的代码不算
+  const tags = [];
+  if (DEMO) tags.push(h("span", { class: "mk-tag mk-tag-demo" }, "演示数据"));
+  if (shown.some((q) => q.delayed)) tags.push(h("span", { class: "mk-tag", title: "部分行情是延时的（港股免费行情通常延时约 15 分钟）" }, "延时"));
+  if (failing && phase === "partial") tags.push(h("span", { class: "mk-tag mk-tag-warn" }, `${failing} 项暂时取不到`));
+  const time = view !== "list" || !ids.length ? "" : loading ? "正在刷新…" : timeText(cache.at) || "还没有数据";
+  infoEl.replaceChildren(...(view === "list" ? [time && h("span", { class: "mk-time" }, time), ...tags] : []));
+  const editingNow = view !== "list";
+  editBtn.replaceChildren(icon(editingNow ? "check" : "pencil"));
+  editBtn.setAttribute("aria-label", editingNow ? "完成编辑" : "编辑关注列表");
+  editBtn.title = editingNow ? "完成编辑" : "编辑关注列表";
+  editBtn.setAttribute("aria-pressed", String(editingNow));
+}
+
+// ---------- 编辑关注列表 ----------
+/** 切换这一块里的页：list 看行情、edit 编辑列表、add 添加关注 */
+function setView(next) {
+  // 编辑完回到行情：新加的代码还没有数据，马上取一次
+  const needData = view !== "list" && next === "list" && list().some((x) => !cache.quotes[x.id]);
+  const from = view;
+  view = next;
+  render();
+  if (next === "add") {
+    addEl.reset();
+    addEl.querySelector("input").focus({ preventScroll: true });
+    root.scrollIntoView({ block: "nearest" });
+  } else if (from === "add" && next === "edit") {
+    // 从添加页回来：停在"添加关注"按钮上（刚加的那些就在它上面）
+    listEl.querySelector(".mk-add-btn")?.focus({ preventScroll: true });
+  }
+  if (needData) refresh();
+}
+
+function updateList(mutate) {
+  store.update((s) => {
+    const next = s.market.list.map((x) => ({ ...x }));
+    mutate(next);
+    s.market.list = next;
+  });
+  render();
+}
+
+function editTools(item, group) {
+  const same = () => list().filter((x) => groupOf(x.id) === group.id);
+  const index = same().findIndex((x) => x.id === item.id);
+  /** 在同一个市场里和前一个 / 后一个交换位置 */
+  const move = (step) =>
+    updateList((all) => {
+      const mine = all.filter((x) => groupOf(x.id) === group.id);
+      const other = mine[index + step];
+      if (!other) return;
+      const a = all.findIndex((x) => x.id === item.id);
+      const b = all.findIndex((x) => x.id === other.id);
+      [all[a], all[b]] = [all[b], all[a]];
+    });
+  const label = item.name || shortCode(item.id);
+  return h(
+    "div",
+    { class: "mk-edit-tools" },
+    iconButton("chevron-up", `上移 ${label}`, { class: "mk-tool", disabled: index === 0, onclick: () => move(-1) }),
+    iconButton("chevron-down", `下移 ${label}`, { class: "mk-tool", disabled: index === same().length - 1, onclick: () => move(1) }),
+    iconButton("trash-2", `删除 ${label}`, {
+      class: "mk-tool mk-del",
+      onclick: () => {
+        updateList((all) => all.splice(all.findIndex((x) => x.id === item.id), 1));
+        toast(`已删除 ${label}`);
+      },
+    })
+  );
+}
+
+/** 添加页：一个搜索框，名称、拼音首字母、代码都能搜，A 股、港股、美股、汇率一起找 */
+function buildAddPanel() {
+  const input = h("input", {
+    class: "input",
+    type: "search",
+    placeholder: "搜名称、拼音或代码",
+    "aria-label": "搜索要添加的行情",
+    autocomplete: "off",
+    autocapitalize: "off",
+    spellcheck: false,
+    maxLength: 20,
+    enterKeyHint: "search",
+  });
+  const results = h("ul", { class: "mk-found", "aria-label": "搜索结果" });
+  const EXAMPLE = "例：茅台、txkg、600519、腾讯、NVDA、纳斯达克、澳元、美元离岸";
+  const status = h("p", { class: "hint mk-search-status", role: "status" }, EXAMPLE);
+  let seq = 0; // 第几次搜索：慢的旧结果回来时不要盖掉新的
+  let timer = 0;
+
+  async function run(q) {
+    const mine = ++seq;
+    if (!q) {
+      results.replaceChildren();
+      status.textContent = EXAMPLE;
+      return;
+    }
+    status.textContent = "正在搜索…";
+    const result = await searchRequest(q);
+    if (mine !== seq) return;
+    if (!result.ok) {
+      if (result.kind === "auth") {
+        phase = "auth";
+        authMessage = result.bad ? "口令不对，请重新输入。" : "";
+        setView("list");
+        return;
+      }
+      results.replaceChildren();
+      status.textContent = result.kind === "offline" ? "连不上服务器，请稍后再试。" : "搜索出了点问题，请稍后再试。";
+      return;
+    }
+    const found = result.data.results.filter((r) => r && typeof r.id === "string" && r.quote);
+    results.replaceChildren(...found.map((r) => resultRow(r)));
+    status.textContent = found.length ? "" : `没有找到“${q}”。可以换个说法，或者直接输代码。`;
+  }
+
+  /** 一条结果：名称、种类和代码、现价和涨跌；点一下加入 */
+  function resultRow(r) {
+    const q = r.quote;
+    const d = decimals(r.id, q.price);
+    const added = () => list().some((x) => x.id === r.id);
+    const mark = h("span", { class: "mk-found-add", "aria-hidden": "true" }, icon(added() ? "check" : "plus"));
+    const btn = h(
+      "button",
+      {
+        type: "button",
+        class: "mk-found-btn",
+        disabled: added(),
+        dataset: { dir: moveOf(q) },
+        onclick: () => {
+          if (added()) return;
+          if (list().length >= MAX_IDS) return toast(`最多关注 ${MAX_IDS} 个`);
+          cache.quotes[r.id] = q;
+          updateList((all) => all.push({ id: r.id, name: String(r.name || q.name || "").slice(0, 40) }));
+          saveCache();
+          btn.disabled = true;
+          mark.replaceChildren(icon("check"));
+          btn.setAttribute("aria-label", `${r.name}，已添加`);
+          toast(`已添加 ${r.name}`);
+        },
+      },
+      h("span", { class: "mk-found-name" }, h("span", { class: "mk-title" }, r.name), h("span", { class: "mk-code" }, `${r.kind} · ${shortCode(r.id)}`)),
+      h("span", { class: "mk-found-price" }, h("span", { class: "mk-num" }, fmt(q.price, d)), h("span", { class: "mk-num mk-pct" }, signed(q.changePct, 2) + "%")),
+      mark
+    );
+    btn.setAttribute("aria-label", `${r.name}（${shortCode(r.id)}），${added() ? "已添加" : "点一下添加"}`);
+    return h("li", null, btn);
+  }
+
+  // 边输入边搜（停顿 0.35 秒再搜）；中文输入法选字时不搜，选完再搜
+  input.addEventListener("input", (e) => {
+    if (e.isComposing) return;
+    clearTimeout(timer);
+    timer = setTimeout(() => run(input.value.trim()), 350);
+  });
+  input.addEventListener("compositionend", () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => run(input.value.trim()), 350);
+  });
+  const form = h("form", { class: "mk-search", role: "search" }, input);
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    clearTimeout(timer);
+    run(input.value.trim());
+  });
+  const back = h("button", { type: "button", class: "btn btn-ghost mk-back", onclick: () => setView("edit") }, icon("chevron-left"), "返回");
+  // 手机键盘弹起后，确保输入框在看得见的地方
+  input.addEventListener("focus", () => setTimeout(() => input.scrollIntoView({ block: "nearest" }), 300));
+  const panel = h("div", { class: "mk-add" }, h("div", { class: "mk-add-head" }, back, h("h3", null, "添加关注")), form, status, results);
+  /** 进入添加页时清空上次的搜索 */
+  panel.reset = () => {
+    seq++;
+    clearTimeout(timer);
+    input.value = "";
+    results.replaceChildren();
+    status.textContent = EXAMPLE;
+  };
+  return panel;
+}

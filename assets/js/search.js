@@ -1,7 +1,7 @@
-// 搜索框：引擎切换、快捷键、"!前缀"直达、本地搜索历史
+// 搜索框：引擎切换、快捷键、"!前缀"直达、本地搜索历史、语音输入
 import { store, readJSON, writeJSON, removeKey } from "./store.js";
 import { listEngines, buildSearchUrl, parseBang } from "./engines.js";
-import { $, h, icon, iconButton, announce, isModalOpen, isFramed } from "./ui.js";
+import { $, h, icon, iconButton, announce, isModalOpen, isFramed, toast } from "./ui.js";
 
 const HISTORY_KEY = "sp:history";
 const HISTORY_MAX = 50; // 最多保存多少条
@@ -48,6 +48,7 @@ export function initSearch({ onAsk, onAddEngine }) {
   const form = $("#search");
   const input = $("#q");
   const clearBtn = $("#q-clear");
+  const micBtn = $("#q-mic");
   const goBtn = $("#q-go");
   const badge = $("#engine-badge");
   const badgeMark = $("#badge-mark");
@@ -291,7 +292,70 @@ export function initSearch({ onAsk, onAddEngine }) {
 
   function syncClear() {
     clearBtn.hidden = !input.value;
+    // 麦克风和清空按钮二选一：框里没字时显示麦克风（正在听的时候也一直显示，再点一下就停）
+    micBtn.hidden = !voiceOk || (!!input.value && !voice);
   }
+
+  // ---------- 语音输入 ----------
+  // 浏览器自带的语音识别；说完自动搜索。代码在 voice.js，点麦克风时才加载。
+  const voiceOk = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+  let voice = null; // 正在听：{ stop, abort }
+  let placeholder = input.placeholder;
+  function voiceState(on) {
+    form.classList.toggle("is-listening", on);
+    micBtn.setAttribute("aria-pressed", String(on));
+    micBtn.setAttribute("aria-label", on ? "停止语音输入" : "语音输入");
+    micBtn.title = on ? "停止语音输入" : "语音输入";
+    if (on) placeholder = input.placeholder;
+    input.placeholder = on ? "请说话…" : placeholder;
+  }
+  async function startVoice() {
+    if (voice) {
+      voice.stop(); // 再点一下：说完了，按听到的结果搜
+      return;
+    }
+    closeHistory();
+    closeMenu();
+    let mod;
+    try {
+      mod = await import("./voice.js");
+    } catch {
+      toast("语音输入加载失败，检查一下网络");
+      return;
+    }
+    const before = input.value;
+    voiceState(true);
+    voice = mod.listen({
+      lang: store.get().search.voiceLang,
+      onText: (text) => {
+        input.value = text;
+        syncClear();
+      },
+      onError: (code) => toast(mod.voiceError(code), 6000),
+      onDone: (text) => {
+        voice = null;
+        voiceState(false);
+        input.value = text || before;
+        syncClear();
+        if (text) {
+          announce(`识别结果：${text}`);
+          submit(); // 说完直接搜
+        }
+      },
+    });
+    syncClear();
+  }
+  micBtn.addEventListener("click", startVoice);
+  // 正在听时按 Esc：取消
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && voice) {
+      e.preventDefault();
+      voice.abort();
+    }
+  });
+  // 切到别的标签页：取消
+  document.addEventListener("visibilitychange", () => document.hidden && voice?.abort());
+  syncClear(); // 一打开就按浏览器支不支持，决定显不显示麦克风
 
   form.addEventListener("submit", (e) => {
     e.preventDefault();

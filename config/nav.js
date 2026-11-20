@@ -22,8 +22,8 @@
 //     请在页面右上角的"编辑"模式里添加（只保存在你自己的浏览器里）。
 
 export default [
-  // 页面最下面的五个应用。图标是专门画的（assets/icons/apps/ 里的 svg：白色图形、透明底），垫在毛玻璃底上。
-  // ./duo/ 和 ./uq/ 是本网站自己的子目录（文件就在仓库的 duo/ 和 uq/ 文件夹里）；
+  // 页面最下面的应用。图标是专门画的（assets/icons/apps/ 里的 svg：白色图形、透明底），垫在毛玻璃底上。
+  // ./duo/ 和 ./uq/ 是本网站自己的子页面（./uq/ 的文件在仓库的 uq/ 文件夹里；./duo/ 由后台去 GitHub 取每天最新的，见 tools/worker/duo.js）；
   // CatGPT、砚录、WiFi Drop 是另外部署的，写的是它们现在的真实地址。
   // （CatGPT 和 WiFi Drop 原来在 callaum.com，起始页接管这个域名后搬到了 chat.callaum.com。）
   {
@@ -51,6 +51,41 @@ export default [
     newTab: false,
   },
   {
+    name: "my.UQ",
+    icon: "./assets/icons/apps/myuq.svg",
+    url: "https://portal.my.uq.edu.au/#/dashboard",
+    desc: "UQ 学生门户（课表、成绩、选课）",
+    group: "应用",
+    newTab: false,
+  },
+  // 本网站的子页面 /flywire/：另一个仓库 flywire-fx-compare 每周自动生成的报告，由后台转交（见 tools/worker/flywire.js）
+  {
+    name: "飞汇地区比价",
+    icon: "./assets/icons/apps/flywire.svg",
+    url: "./flywire/",
+    desc: "对比飞汇各地区刷卡的汇率加点，找最省的付款方式",
+    group: "应用",
+    newTab: false,
+  },
+  // 简汇：多币种汇率换算（源码在本仓库 claude/zealous-pascal-ivvt6b 分支的 huilv/，另外部署成 Cloudflare Worker “huilv”）
+  {
+    name: "简汇",
+    icon: "./assets/icons/apps/huilv.svg",
+    url: "https://huilv.callaum.com/",
+    desc: "多币种汇率对比：一种货币输入，其他同时换算；左滑看 K 线",
+    group: "应用",
+    newTab: false,
+  },
+  // 本网站的子页面 /planner/：四象限任务计划（源码在本仓库 main 分支的 quadrant/，编译好的放在 planner/，见 tools/refresh-apps.sh）
+  {
+    name: "四象限",
+    icon: "./assets/icons/apps/quadrant.svg",
+    url: "./planner/",
+    desc: "按重要和紧急程度把事情分进四个象限，拖动整理优先级",
+    group: "应用",
+    newTab: false,
+  },
+  {
     name: "砚录",
     icon: "./assets/icons/apps/yanlu.svg",
     url: "https://ocr.callaum.com/",
@@ -63,6 +98,31 @@ export default [
     icon: "./assets/icons/apps/wifidrop.svg",
     url: "https://chat.callaum.com/drop/",
     desc: "同一个 WiFi 下互传文件",
+    group: "应用",
+    newTab: false,
+  },
+  // 三个外部 AI 的网页版，点开直达
+  {
+    name: "Claude",
+    icon: "./assets/icons/apps/claude.svg",
+    url: "https://claude.ai/",
+    desc: "Anthropic 的 AI 助手",
+    group: "应用",
+    newTab: false,
+  },
+  {
+    name: "ChatGPT",
+    icon: "./assets/icons/apps/chatgpt.svg",
+    url: "https://chatgpt.com/",
+    desc: "OpenAI 的 AI 助手",
+    group: "应用",
+    newTab: false,
+  },
+  {
+    name: "Muse",
+    icon: "./assets/icons/apps/muse.svg",
+    url: "https://muse.ai/",
+    desc: "Meta 的个人 AI 助手",
     group: "应用",
     newTab: false,
   },
