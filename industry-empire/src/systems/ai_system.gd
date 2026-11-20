@@ -1,7 +1,7 @@
 class_name AISystem
 extends RefCounted
 ## Rule-driven utility AI. Each week every AI nation analyses its economy and
-## the strategic situation, scores possible actions (benefit − cost − risk,
+## the strategic situation, scores possible actions (benefit - cost - risk,
 ## weighted by personality) and executes the best ones through Commands —
 ## exactly the same API and costs as the human player. No hidden bonuses.
 
@@ -658,13 +658,26 @@ static func _wartime_orders(state: GameState, n: Nation, ctx: Dictionary, war: D
 				Commands.move_army(state, n.id, a.id, back[0])
 				log.append("%s 补给断绝，撤退" % a.name)
 				continue
-		# defend the capital if it is threatened and this is not the main army
-		if i > 0 and cap != null:
-			var threat_cap := 0.0
-			for nb in WorldMapSystem.neighbors(state, cap.id) + [cap.id]:
+		# defend the capital when it is threatened. Secondary armies always
+		# respond; the main army returns unless it is about to take the enemy
+		# capital or the threat is minor compared with its own strength.
+		if cap != null and cap.controller == n.id:
+			var threat_cap := MilitarySystem.power_in(state, cap.id, enemy) * 2.0
+			for nb in WorldMapSystem.neighbors(state, cap.id):
 				threat_cap += MilitarySystem.power_in(state, nb, enemy)
-			if threat_cap > 0.0 and a.province != cap.id:
-				Commands.move_army(state, n.id, a.id, cap.id)
+			var own_pw := MilitarySystem.army_power(state, a)
+			var near_win := false
+			var ecap: Province = state.provinces.get(state.nations[enemy].capital)
+			if ecap != null and a.province == ecap.id and not ecap.siege.is_empty() and float(ecap.siege["progress"]) > 50.0:
+				near_win = true
+			var must := threat_cap > 0.0 and (i > 0 or (threat_cap > own_pw * 0.4 and not near_win))
+			if must and a.province != cap.id:
+				var r := Commands.move_army(state, n.id, a.id, cap.id)
+				if r["ok"]:
+					log.append("%s 回援首都" % a.name)
+					continue
+			elif must:
+				a.path = []
 				continue
 		_attack_or_defend(state, n, a, enemy, log)
 

@@ -1,0 +1,26 @@
+name: industry-empire tests
+
+on:
+  push:
+    paths:
+      - "industry-empire/**"
+      - ".github/workflows/industry-empire-tests.yml"
+  pull_request:
+    paths:
+      - "industry-empire/**"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download Godot 4.7.2
+        run: |
+          curl -sSL -o godot.zip https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip
+          unzip -q godot.zip
+          echo "GODOT=$PWD/Godot_v4.7.2-stable_linux.x86_64" >> "$GITHUB_ENV"
+      - name: Simulation and system tests
+        run: industry-empire/tools/run_tests.sh
+      - name: UI smoke test
+        run: $GODOT --headless --path industry-empire res://tests/ui_smoke.tscn
