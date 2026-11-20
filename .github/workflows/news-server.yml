@@ -1,0 +1,38 @@
+name: 科技晨读（服务器）
+
+# 服务器代码改动时运行测试（含针对 Azurite 存储模拟器的测试）。
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'news/server/**'
+      - '.github/workflows/news-server.yml'
+  pull_request:
+    paths:
+      - 'news/server/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: news/server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: news/server/package-lock.json
+      - run: npm ci
+      - name: 启动 Azurite
+        run: |
+          npx --yes azurite@3 --silent --inMemoryPersistence --skipApiVersionCheck --loose &
+          sleep 5
+      - run: npm test
+        env:
+          AZURITE: '1'
