@@ -270,12 +270,12 @@ export function Row({ code, active, value, sub, change, missing, noSep, peek, on
 }
 
 /** 编辑模式下的一行：拖动把手排序、删除 */
-export function EditRow({ code, canRemove, onRemove }: { code: string; canRemove: boolean; onRemove: () => void }) {
+export function EditRow({ code, canRemove, hidden, onRemove }: { code: string; canRemove: boolean; hidden?: boolean; onRemove: () => void }) {
   const c = CURRENCY_MAP[code];
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: code });
   const style: CSSProperties = { transform: CSS.Translate.toString(transform), transition };
   return (
-    <div ref={setNodeRef} style={style} className={`row is-edit${isDragging ? ' is-dragging' : ''}`} data-code={code}>
+    <div ref={setNodeRef} style={style} className={`row is-edit${isDragging ? ' is-dragging' : ''}${hidden ? ' is-hidden-slot' : ''}`} data-code={code}>
       <button
         type="button"
         className="remove"
@@ -289,7 +289,10 @@ export function EditRow({ code, canRemove, onRemove }: { code: string; canRemove
       <Flag code={code} />
       <span className="meta">
         <span className="code">{code}</span>
-        <span className="name">{c?.name}</span>
+        <span className="name">
+          {c?.name}
+          {hidden && <span className="tag">放不下</span>}
+        </span>
       </span>
       <button type="button" className="handle" ref={setActivatorNodeRef} {...attributes} {...listeners} aria-label={`拖动排序 ${c?.name ?? code}`}>
         <GripVertical size={20} />

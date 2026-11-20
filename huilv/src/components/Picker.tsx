@@ -16,6 +16,10 @@ export function Picker({ open, onClose, replace }: { open: boolean; onClose: () 
   const rates = useStore((s) => s.rates.rates);
   const toggle = useStore((s) => s.toggle);
   const replaceCode = useStore((s) => s.replace);
+  const slots = useStore((s) => s.slots);
+  /** 添加模式下屏幕已经放满：再选一种会替换最后一行 */
+  const full = !replace && list.length >= slots;
+  const lastVisible = list[Math.min(slots, list.length) - 1];
 
   // 面板先出现并开始动画，列表下一帧再渲染，避免打开时卡一下
   const [ready, setReady] = useState(false);
@@ -79,15 +83,26 @@ export function Picker({ open, onClose, replace }: { open: boolean; onClose: () 
       );
     }
     const last = on && list.length <= 1;
+    const hiddenOnScreen = on && list.indexOf(c.code) >= slots;
     return (
       <li key={c.code}>
-        <button type="button" className={`pick${on ? ' is-on' : ''}`} onClick={() => toggle(c.code)} disabled={(missing && !on) || last} aria-pressed={on}>
+        <button
+          type="button"
+          className={`pick${on ? ' is-on' : ''}`}
+          onClick={() => {
+            toggle(c.code);
+            // 放满时选中一种是替换最后一行，替换完就关闭
+            if (!on && full) close();
+          }}
+          disabled={(missing && !on) || last}
+          aria-pressed={on}
+        >
           <Flag code={c.code} size={32} />
           <span className="pick-text">
             <span className="pick-title">
               <b>{c.code}</b> {c.name}
             </span>
-            <span className="pick-sub">{missing ? '暂无汇率' : `${c.region} · ${c.en}`}</span>
+            <span className="pick-sub">{missing ? '暂无汇率' : hiddenOnScreen ? '已选 · 这块屏幕放不下，暂不显示' : `${c.region} · ${c.en}`}</span>
           </span>
           <span className="pick-check" aria-hidden="true">
             {on && <Check size={15} strokeWidth={3} />}
@@ -108,7 +123,9 @@ export function Picker({ open, onClose, replace }: { open: boolean; onClose: () 
       footer={
         replace ? undefined : (
           <div className="sheet-foot">
-            <span>已选 {list.length} 种</span>
+            <span>
+              屏幕上 {Math.min(list.length, slots)} / {slots} 行
+            </span>
             <button type="button" className="btn-primary" onClick={close}>
               完成
             </button>
@@ -129,6 +146,11 @@ export function Picker({ open, onClose, replace }: { open: boolean; onClose: () 
           enterKeyHint="search"
         />
       </label>
+      {full && (
+        <p className="pick-note">
+          这块屏幕最多显示 {slots} 种货币。再选一种会替换最后一行的 {lastVisible}；也可以在主界面右滑任意一行直接更换。
+        </p>
+      )}
       {ready && empty && <p className="empty">没有找到“{q}”，试试货币代码或中文名。</p>}
       {!ready && <div className="pick-placeholder" />}
       {ready &&

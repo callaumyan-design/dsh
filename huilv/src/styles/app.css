@@ -301,13 +301,72 @@ button:disabled {
 .list {
   flex: 1;
   min-height: 0;
+  /* 行数按屏幕高度算好，正好放满，不需要上下滚动 */
+  overflow: hidden;
+  padding: 2px 8px 10px;
+  padding-left: max(8px, env(safe-area-inset-left, 0px));
+  padding-right: max(8px, env(safe-area-inset-right, 0px));
+  /* 金额字号随行高变化：行越高字越大 */
+  --amt: clamp(21px, calc(var(--row-h, 72px) * 0.36), 32px);
+}
+
+/* 编辑模式下键盘收起，列表可以滚动 */
+.list.is-editing {
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 2px 8px 12px;
-  padding-left: max(8px, env(safe-area-inset-left, 0px));
-  padding-right: max(8px, env(safe-area-inset-right, 0px));
   scrollbar-width: thin;
+}
+
+.row-wrap,
+.add-slot {
+  height: var(--row-h, 72px);
+}
+
+.row-wrap > .row {
+  height: 100%;
+  min-height: 0;
+  padding-block: 4px;
+}
+
+.add-slot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  border-radius: 16px;
+  border: 1.5px dashed var(--line);
+  color: var(--accent);
+  font-family: var(--font-cjk);
+  font-weight: 600;
+}
+
+.add-slot:hover {
+  background: var(--pad);
+}
+
+.edit-note {
+  margin: 6px 12px 8px;
+  font-family: var(--font-cjk);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.row.is-hidden-slot .flag,
+.row.is-hidden-slot .code {
+  opacity: 0.45;
+}
+
+.tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--pad);
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 18px;
 }
 
 .row {
@@ -550,7 +609,7 @@ button.row.is-active:hover {
   display: flex;
   align-items: center;
   max-width: 100%;
-  font-size: 26px;
+  font-size: var(--amt, 26px);
   font-weight: 600;
   letter-spacing: -0.015em;
   line-height: 1.15;
@@ -561,13 +620,13 @@ button.row.is-active:hover {
 }
 
 .amount.len-m {
-  font-size: 22px;
+  font-size: calc(var(--amt, 26px) * 0.85);
 }
 .amount.len-l {
-  font-size: 19px;
+  font-size: calc(var(--amt, 26px) * 0.74);
 }
 .amount.len-xl {
-  font-size: 16px;
+  font-size: calc(var(--amt, 26px) * 0.62);
 }
 
 .is-active .amount {
@@ -1331,6 +1390,16 @@ button.row.is-active:hover {
   margin-top: 2px;
 }
 
+.pick-note {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--accent-soft);
+  color: var(--ink-2);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
 .empty {
   margin: 24px 0;
   text-align: center;
@@ -1483,10 +1552,6 @@ button.row.is-active:hover {
 }
 
 @media (max-height: 600px) {
-  .row {
-    min-height: 62px;
-    padding-block: 7px;
-  }
   .key {
     height: 42px;
   }

@@ -72,6 +72,11 @@ export interface State extends Prefs {
   key: (k: Key) => void;
   setActive: (code: string) => void;
   moveActive: (delta: number) => void;
+  /** 当前屏幕能放下的行数（按列表区域高度计算，不保存） */
+  slots: number;
+  setSlots: (n: number) => void;
+  /** 屏幕上显示的货币：列表的前 slots 个 */
+  visible: () => string[];
   add: (code: string) => void;
   remove: (code: string) => void;
   toggle: (code: string) => void;
@@ -91,6 +96,7 @@ const prefs = loadPrefs();
 export const useStore = create<State>((set, get) => ({
   ...prefs,
   fresh: true,
+  slots: 7,
   rates: loadRates(),
   status: 'idle',
   editing: false,
@@ -122,16 +128,25 @@ export const useStore = create<State>((set, get) => ({
   },
 
   moveActive: (delta) => {
-    const { list, active } = get();
-    const i = list.indexOf(active);
-    const next = list[(i + delta + list.length) % list.length];
+    const { active } = get();
+    const vis = get().visible();
+    const i = vis.indexOf(active);
+    const next = vis[(i + delta + vis.length) % vis.length];
     if (next) get().setActive(next);
   },
 
+  setSlots: (n) => {
+    if (n !== get().slots) set({ slots: n });
+  },
+
+  visible: () => get().list.slice(0, get().slots),
+
   add: (code) => {
-    const { list } = get();
+    const { list, slots } = get();
     if (!CURRENCY_MAP[code] || list.includes(code)) return;
-    set({ list: [...list, code] });
+    // 屏幕放满了：替换最后一行
+    if (list.length >= slots) get().replace(list[slots - 1], code);
+    else set({ list: [...list, code] });
   },
 
   remove: (code) => {
@@ -194,6 +209,13 @@ export const useStore = create<State>((set, get) => ({
     get().showToast('已恢复默认设置');
   },
 }));
+
+// 当前输入的货币必须在屏幕上：行数变少或排序后它被挤出去时，改成第一行
+useStore.subscribe((s, prev) => {
+  if (s.list === prev.list && s.slots === prev.slots && s.active === prev.active) return;
+  const vis = s.list.slice(0, s.slots);
+  if (vis.length && !vis.includes(s.active)) s.setActive(vis[0]);
+});
 
 // 偏好设置变化时保存
 useStore.subscribe((s, prev) => {

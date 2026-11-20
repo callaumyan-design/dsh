@@ -85,17 +85,18 @@ test('电脑键盘输入', async ({ page, isMobile }) => {
 
 test('添加、移除货币，刷新后保留', async ({ page }) => {
   await open(page);
-  await page.getByRole('button', { name: '添加货币' }).click();
+  // 先移除一种，保证屏幕没放满
+  await page.getByRole('button', { name: '编辑列表' }).click();
+  await page.getByRole('button', { name: '移除 港币' }).click();
+  await page.getByRole('button', { name: '完成' }).click();
+  await expect(row(page, 'HKD')).toHaveCount(0);
+
+  await page.getByRole('button', { name: '添加货币' }).first().click();
   await page.locator('#currency-search').fill('taizhu');
   await page.getByRole('button', { name: /THB 泰铢/ }).click();
   await page.getByRole('button', { name: '完成' }).click();
   await expect(row(page, 'THB')).toBeVisible();
   await expect(amount(page, 'THB')).toHaveText('500.00');
-
-  await page.getByRole('button', { name: '编辑列表' }).click();
-  await page.getByRole('button', { name: '移除 港币' }).click();
-  await page.getByRole('button', { name: '完成' }).click();
-  await expect(row(page, 'HKD')).toHaveCount(0);
 
   await page.reload();
   await expect(row(page, 'THB')).toBeVisible();
@@ -312,4 +313,58 @@ test('长按后直接松手复制金额', async ({ page, context, isMobile }) =>
   await longPress(page, 'USD', 0, false);
   await expect(page.locator('.toast')).toHaveText('已复制 14.29 USD');
   await expect(row(page, 'CNY')).toHaveClass(/is-active/);
+});
+
+test('按屏幕高度固定行数：行等高、正好放满、不能上下滚动', async ({ page }) => {
+  // 矮一点的屏幕
+  await page.setViewportSize({ width: 390, height: 600 });
+  await open(page);
+  const slots = Number(await page.locator('.list').getAttribute('data-slots'));
+  expect(slots).toBeGreaterThanOrEqual(3);
+  expect(slots).toBeLessThan(7);
+  await expect(page.locator('.row-wrap')).toHaveCount(slots);
+  const m = await page.evaluate(() => {
+    const l = document.querySelector('.list')!;
+    const hs = [...document.querySelectorAll('.row-wrap')].map((r) => r.getBoundingClientRect().height);
+    return { scrollable: l.scrollHeight > l.clientHeight + 1, min: Math.min(...hs), max: Math.max(...hs) };
+  });
+  expect(m.scrollable).toBe(false);
+  expect(m.max - m.min).toBeLessThan(1);
+  expect(m.min).toBeGreaterThanOrEqual(64);
+
+  // 放满时添加：替换最后一行，然后关闭面板
+  const last = await page.locator('.row').nth(slots - 1).getAttribute('data-code');
+  await page.getByRole('button', { name: '添加货币' }).click();
+  await expect(page.locator('.pick-note')).toContainText(`最多显示 ${slots} 种`);
+  await page.locator('#currency-search').fill('THB');
+  await page.getByRole('button', { name: /THB 泰铢/ }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.locator('.row').nth(slots - 1)).toHaveAttribute('data-code', 'THB');
+  await expect(row(page, last!)).toHaveCount(0);
+});
+
+test('屏幕变矮时当前输入的货币仍在屏幕上；放不下的货币不会丢', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  await open(page);
+  await row(page, 'AUD').click();
+  await expect(row(page, 'AUD')).toHaveClass(/is-active/);
+  await page.setViewportSize({ width: 390, height: 600 });
+  await expect(row(page, 'AUD')).toHaveCount(0);
+  await expect(page.locator('.row').first()).toHaveClass(/is-active/);
+  // 编辑模式里能看到放不下的货币
+  await page.getByRole('button', { name: '编辑列表' }).click();
+  await expect(page.locator('.row.is-edit[data-code="AUD"] .tag')).toHaveText('放不下');
+  await page.getByRole('button', { name: '完成' }).click();
+  await page.setViewportSize({ width: 390, height: 900 });
+  await expect(row(page, 'AUD')).toBeVisible();
+});
+
+test('货币比行数少时显示“添加货币”空位', async ({ page }) => {
+  await open(page);
+  await page.getByRole('button', { name: '编辑列表' }).click();
+  for (const name of ['港币', '欧元', '日元']) await page.getByRole('button', { name: `移除 ${name}` }).click();
+  await page.getByRole('button', { name: '完成' }).click();
+  await expect(page.locator('.add-slot')).toBeVisible();
+  await page.locator('.add-slot').click();
+  await expect(page.getByRole('dialog', { name: '添加货币' })).toBeVisible();
 });

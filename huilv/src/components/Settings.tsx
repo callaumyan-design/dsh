@@ -42,6 +42,7 @@ export function Settings({ open, onClose }: { open: boolean; onClose: () => void
   const setTheme = useStore((s) => s.setTheme);
   const refresh = useStore((s) => s.refresh);
   const reset = useStore((s) => s.reset);
+  const slots = useStore((s) => s.slots);
   const [confirmReset, setConfirmReset] = useState(false);
   const [canInstall, setCanInstall] = useState(false);
 
@@ -115,6 +116,7 @@ export function Settings({ open, onClose }: { open: boolean; onClose: () => void
           <li>点任意一行，把它设为要输入的货币</li>
           <li>向左滑一行，查看它的走势 K 线</li>
           <li>向右滑一行，换成别的货币</li>
+          <li>行数按屏幕大小自动确定（这块屏幕 {slots} 行），不用上下滚动</li>
           <li>长按一行再上下拖动，调整顺序</li>
           <li>长按后直接松手（电脑上右键）复制金额</li>
           <li>可以直接算：100 × 3 + 25</li>

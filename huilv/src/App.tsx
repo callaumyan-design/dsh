@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import {
   DndContext,
   KeyboardSensor,
@@ -12,7 +12,7 @@ import {
   type DragStartEvent,
 } from '@dnd-kit/core';
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { restrictToFirstScrollableAncestor, restrictToParentElement, restrictToVerticalAxis } from '@dnd-kit/modifiers';
+import { restrictToParentElement, restrictToVerticalAxis } from '@dnd-kit/modifiers';
 import { ArrowDownUp, Plus, RefreshCw, Settings2 } from 'lucide-react';
 import { useStore } from './store';
 import { hasOperator, type Key } from './lib/calc';
@@ -27,6 +27,39 @@ import { Settings } from './components/Settings';
 import { Trend } from './components/Trend';
 
 const HINT_KEY = 'huilv:hint-swipe';
+/** 每行至少这么高（像素），据此算出一屏放几行 */
+const MIN_ROW = 64;
+const MIN_SLOTS = 3;
+const MAX_SLOTS = 12;
+
+/** 按列表区域的高度算出能放几行、每行多高；编辑模式下键盘收起，不重新计算 */
+function useSlots(editing: boolean) {
+  const ref = useRef<HTMLElement>(null);
+  const [rowH, setRowH] = useState(MIN_ROW);
+  const setSlots = useStore((s) => s.setSlots);
+  const editingRef = useRef(editing);
+  editingRef.current = editing;
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => {
+      if (editingRef.current) return;
+      const cs = getComputedStyle(el);
+      const h = el.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+      if (!(h > 0)) return;
+      const n = Math.max(MIN_SLOTS, Math.min(MAX_SLOTS, Math.floor(h / MIN_ROW)));
+      setSlots(n);
+      setRowH(Math.floor((h / n) * 10) / 10);
+    };
+    measure();
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
+    ro?.observe(el);
+    return () => ro?.disconnect();
+  }, [setSlots]);
+
+  return { ref, rowH };
+}
 
 const KEYMAP: Record<string, Key> = {
   '0': '0',
@@ -81,7 +114,9 @@ function useNow(ms: number) {
 
 export default function App() {
   const s = useStore();
-  const { list, active, expr, rates, decimals, status, editing, toast } = s;
+  const { list, active, expr, rates, decimals, status, editing, toast, slots } = s;
+  const visible = useMemo(() => list.slice(0, slots), [list, slots]);
+  const { ref: listRef, rowH } = useSlots(editing);
   const [picker, setPicker] = useState(false);
   /** 正在更换的那一行（左滑） */
   const [swapFor, setSwapFor] = useState<string | null>(null);
@@ -176,11 +211,6 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [picker, settings, editing, swapFor, trend, copy, openTrend]);
 
-  // 切换基准货币后把那一行滚动到可见区域
-  useEffect(() => {
-    document.querySelector(`.row[data-code="${active}"]`)?.scrollIntoView({ block: 'nearest' });
-  }, [active]);
-
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
@@ -213,7 +243,8 @@ export default function App() {
       return;
     }
     if (!over || over.id === id) return;
-    s.reorder(arrayMove(list, list.indexOf(id), list.indexOf(String(over.id))));
+    // 只在屏幕上的几行之间排序，放不下的货币保持在后面
+    s.reorder([...arrayMove(visible, visible.indexOf(id), visible.indexOf(String(over.id))), ...list.slice(visible.length)]);
   };
 
   const onDragEnd = (e: DragEndEvent) => {
@@ -227,7 +258,7 @@ export default function App() {
   const rows = useMemo(() => {
     const r = rates.rates;
     const prev = rates.prev;
-    return list.map((code) => {
+    return visible.map((code) => {
       const missing = !r[code];
       if (code === active) {
         const showResult = hasOperator(expr);
@@ -251,7 +282,7 @@ export default function App() {
         change: pct === null ? null : { text: formatPct(pct), dir: (formatPct(pct) === '0.00%' ? 'flat' : pct > 0 ? 'up' : 'down') as 'up' | 'down' | 'flat' },
       };
     });
-  }, [list, active, expr, amount, rates, decimals]);
+  }, [visible, active, expr, amount, rates, decimals]);
 
   const live = rates.fetchedAt > 0 && status !== 'error';
   const stale = Date.now() - new Date(`${rates.date}T00:00:00Z`).getTime() > 3 * 86400_000;
@@ -301,13 +332,20 @@ export default function App() {
         </div>
       </header>
 
-      <main className={`list${sortingId ? ' is-sorting' : ''}`} aria-label="货币列表">
+      <main
+        ref={listRef}
+        className={`list${sortingId ? ' is-sorting' : ''}${editing ? ' is-editing' : ''}`}
+        style={{ '--row-h': `${rowH}px` } as CSSProperties}
+        aria-label="货币列表"
+        data-slots={slots}
+      >
         {editing ? (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd} modifiers={[restrictToVerticalAxis, restrictToParentElement]}>
+            {list.length > slots && <p className="edit-note">这块屏幕显示前 {slots} 种，排在后面的暂时不显示。</p>}
             <SortableContext items={list} strategy={verticalListSortingStrategy}>
               <div className="edit-list">
-                {list.map((code) => (
-                  <EditRow key={code} code={code} canRemove={list.length > 1} onRemove={() => s.remove(code)} />
+                {list.map((code, i) => (
+                  <EditRow key={code} code={code} hidden={i >= slots} canRemove={list.length > 1} onRemove={() => s.remove(code)} />
                 ))}
               </div>
             </SortableContext>
@@ -322,9 +360,9 @@ export default function App() {
             onDragStart={onRowDragStart}
             onDragEnd={onRowDragEnd}
             onDragCancel={endRowDrag}
-            modifiers={[restrictToVerticalAxis, restrictToFirstScrollableAncestor]}
+            modifiers={[restrictToVerticalAxis, restrictToParentElement]}
           >
-            <SortableContext items={list} strategy={verticalListSortingStrategy}>
+            <SortableContext items={visible} strategy={verticalListSortingStrategy}>
               {rows.map((r, i) => (
                 <Row
                   key={r.code}
@@ -346,6 +384,11 @@ export default function App() {
                 />
               ))}
             </SortableContext>
+            {visible.length < slots && (
+              <button type="button" className="add-slot" onClick={() => setPicker(true)}>
+                <Plus size={18} /> 添加货币
+              </button>
+            )}
           </DndContext>
         )}
       </main>
