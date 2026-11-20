@@ -75,6 +75,8 @@ export interface State extends Prefs {
   add: (code: string) => void;
   remove: (code: string) => void;
   toggle: (code: string) => void;
+  /** 把列表里的 old 换成 next；next 已经在列表里时两者交换位置 */
+  replace: (old: string, next: string) => void;
   reorder: (list: string[]) => void;
   setDecimals: (d: Decimals) => void;
   setTheme: (t: Theme) => void;
@@ -147,6 +149,20 @@ export const useStore = create<State>((set, get) => ({
     const { list } = get();
     if (list.includes(code)) get().remove(code);
     else get().add(code);
+  },
+
+  replace: (old, next) => {
+    const { list, active } = get();
+    const i = list.indexOf(old);
+    if (i < 0 || old === next || !CURRENCY_MAP[next]) return;
+    const j = list.indexOf(next);
+    const nl = [...list];
+    nl[i] = next;
+    if (j >= 0) nl[j] = old;
+    // 换掉的是当前输入的货币：金额换算到新货币
+    if (active === old) get().setActive(next);
+    set({ list: nl });
+    get().showToast(j >= 0 ? `已交换 ${old} 和 ${next} 的位置` : `已将 ${old} 换成 ${next}`);
   },
 
   reorder: (list) => set({ list }),

@@ -12,6 +12,9 @@ import { Row, EditRow } from './components/Row';
 import { Keypad } from './components/Keypad';
 import { Picker } from './components/Picker';
 import { Settings } from './components/Settings';
+import { Trend } from './components/Trend';
+
+const HINT_KEY = 'huilv:hint-swipe';
 
 const KEYMAP: Record<string, Key> = {
   '0': '0', '1': '1', '2': '2', '3': '3', '4': '4', '5': '5', '6': '6', '7': '7', '8': '8', '9': '9',
@@ -44,7 +47,12 @@ export default function App() {
   const s = useStore();
   const { list, active, expr, rates, decimals, status, editing, toast } = s;
   const [picker, setPicker] = useState(false);
+  /** 正在更换的那一行（左滑） */
+  const [swapFor, setSwapFor] = useState<string | null>(null);
+  /** 正在查看走势的货币对（右滑） */
+  const [trend, setTrend] = useState<{ from: string; to: string } | null>(null);
   const [settings, setSettings] = useState(false);
+  const [peek, setPeek] = useState(false);
   const now = useNow(30_000);
   useTheme();
 
@@ -62,7 +70,28 @@ export default function App() {
     };
   }, []);
 
+  // 第一次使用时，让第二行左右轻轻滑一下，提示可以滑动
+  useEffect(() => {
+    let seen = true;
+    try {
+      seen = localStorage.getItem(HINT_KEY) === '1';
+      localStorage.setItem(HINT_KEY, '1');
+    } catch {
+      /* 存不了就不提示 */
+    }
+    if (seen) return;
+    setPeek(true);
+    const t = window.setTimeout(() => setPeek(false), 2600);
+    return () => window.clearTimeout(t);
+  }, []);
+
   const amount = s.amount();
+
+  const openTrend = useCallback((code: string) => {
+    const base = useStore.getState().active;
+    const to = code !== base ? base : code === 'USD' ? 'CNY' : 'USD';
+    setTrend({ from: code, to });
+  }, []);
 
   const copy = useCallback(
     async (code: string, text: string) => {
@@ -76,7 +105,7 @@ export default function App() {
   // 电脑键盘输入
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (picker || settings || editing) return;
+      if (picker || settings || editing || swapFor || trend) return;
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
       if ((e.metaKey || e.ctrlKey) && (e.key === 'c' || e.key === 'C')) {
@@ -95,6 +124,14 @@ export default function App() {
         useStore.getState().moveActive(e.key === 'ArrowDown' ? 1 : -1);
         return;
       }
+      // 和手势对应：← 更换当前货币，→ 查看走势
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        e.preventDefault();
+        const code = useStore.getState().active;
+        if (e.key === 'ArrowLeft') setSwapFor(code);
+        else openTrend(code);
+        return;
+      }
       const k = KEYMAP[e.key];
       if (!k) return;
       // 焦点在按钮上时，回车交给按钮本身
@@ -104,7 +141,7 @@ export default function App() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [picker, settings, editing, copy]);
+  }, [picker, settings, editing, swapFor, trend, copy, openTrend]);
 
   // 切换基准货币后把那一行滚动到可见区域
   useEffect(() => {
@@ -218,7 +255,7 @@ export default function App() {
             </button>
           </DndContext>
         ) : (
-          rows.map((r) => (
+          rows.map((r, i) => (
             <Row
               key={r.code}
               code={r.code}
@@ -227,7 +264,10 @@ export default function App() {
               sub={r.sub}
               change={r.change}
               missing={r.missing}
+              peek={peek && i === 1}
               onSelect={() => s.setActive(r.code)}
+              onSwap={() => setSwapFor(r.code)}
+              onTrend={() => openTrend(r.code)}
               onCopy={() => {
                 const v = r.code === active ? formatAmount(amount, decimals) : r.value;
                 if (v !== '—') copy(r.code, v);
@@ -248,6 +288,8 @@ export default function App() {
       </div>
 
       <Picker open={picker} onClose={() => setPicker(false)} />
+      <Picker open={!!swapFor} replace={swapFor} onClose={() => setSwapFor(null)} />
+      <Trend pair={trend} onClose={() => setTrend(null)} onInvert={() => setTrend((t) => (t ? { from: t.to, to: t.from } : t))} />
       <Settings open={settings} onClose={() => setSettings(false)} />
     </div>
   );

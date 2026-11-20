@@ -113,9 +113,11 @@ export function Settings({ open, onClose }: { open: boolean; onClose: () => void
         <h3>用法</h3>
         <ul className="tips">
           <li>点任意一行，把它设为要输入的货币</li>
+          <li>向左滑一行，换成别的货币</li>
+          <li>向右滑一行，查看它的走势 K 线</li>
           <li>长按一行（电脑上右键）复制金额</li>
           <li>可以直接算：100 × 3 + 25</li>
-          <li>电脑上可以用键盘输入，↑ ↓ 切换货币，Esc 清零</li>
+          <li>电脑上可以用键盘输入：↑ ↓ 切换货币，← 更换，→ 走势，Esc 清零</li>
         </ul>
       </div>
 

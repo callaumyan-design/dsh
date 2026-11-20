@@ -1,4 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
+import { readFileSync } from 'node:fs';
+
+const HISTORY = JSON.parse(readFileSync(new URL('./fixtures/usdcny-3m.json', import.meta.url), 'utf8'));
 
 // 固定汇率，方便断言：1 USD = 7 CNY = 150 JPY = 0.9 EUR …
 const usd: Record<string, number> = { USD: 1, CNY: 7, HKD: 7.8, EUR: 0.9, JPY: 150, GBP: 0.75, AUD: 1.5, KRW: 1400, THB: 35, SGD: 1.3, CAD: 1.4 };
@@ -8,12 +11,21 @@ const API = { date: '2026-11-20', prevDate: '2026-11-19', source: 'fawazahmed0/e
 const row = (page: Page, code: string) => page.locator(`.row[data-code="${code}"]`);
 const amount = (page: Page, code: string) => row(page, code).locator('.amount');
 
-async function open(page: Page, opts: { offline?: boolean } = {}) {
+async function open(page: Page, opts: { offline?: boolean; hint?: boolean } = {}) {
   await page.route('**/api/rates', (r) => (opts.offline ? r.abort() : r.fulfill({ json: API })));
+  await page.route('**/api/history**', (r) => {
+    if (opts.offline) return r.abort();
+    const u = new URL(r.request().url());
+    return r.fulfill({ json: { ...HISTORY, from: u.searchParams.get('from'), to: u.searchParams.get('to'), range: u.searchParams.get('range') } });
+  });
   // 不让测试访问外网
-  await page.route(/jsdelivr|currency-api|er-api/, (r) => r.abort());
+  await page.route(/jsdelivr|currency-api|er-api|frankfurter/, (r) => r.abort());
   await page.goto('./');
-  await page.evaluate(() => localStorage.clear());
+  await page.evaluate((hint) => {
+    localStorage.clear();
+    // 默认跳过第一次使用时的滑动提示动画
+    if (!hint) localStorage.setItem('huilv:hint-swipe', '1');
+  }, !!opts.hint);
   await page.reload();
   await expect(row(page, 'CNY')).toBeVisible();
 }
@@ -141,4 +153,108 @@ test('页面不横向滚动', async ({ page }) => {
   await keys(page, ['9', '9', '9', '9', '9', '9', '9', '9', '9', '9', '9', '9']);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
   expect(overflow).toBe(false);
+});
+
+/** 在一行上横向滑动：电脑用鼠标，手机用触摸 */
+async function swipe(page: Page, code: string, dx: number, isMobile: boolean) {
+  const b = (await row(page, code).boundingBox())!;
+  const x = b.x + b.width / 2;
+  const y = b.y + b.height / 2;
+  if (isMobile) {
+    const cdp = await page.context().newCDPSession(page);
+    const touch = (type: 'touchStart' | 'touchMove' | 'touchEnd', tx: number) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x: tx, y }] });
+    await touch('touchStart', x);
+    for (let i = 1; i <= 10; i++) await touch('touchMove', x + (dx * i) / 10);
+    await touch('touchEnd', x + dx);
+  } else {
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x + dx, y, { steps: 10 });
+    await page.mouse.up();
+  }
+}
+
+test('左滑一行更换货币', async ({ page, isMobile }) => {
+  await open(page);
+  await swipe(page, 'HKD', -120, isMobile);
+  await expect(page.getByRole('dialog', { name: /把 HKD 港币换成/ })).toBeVisible();
+  // 没有切换输入货币
+  await expect(row(page, 'CNY')).toHaveClass(/is-active/);
+  await page.locator('#currency-search').fill('THB');
+  await page.getByRole('button', { name: /THB 泰铢/ }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(row(page, 'HKD')).toHaveCount(0);
+  await expect(page.locator('.row').nth(2)).toHaveAttribute('data-code', 'THB');
+  await expect(page.locator('.toast')).toHaveText('已将 HKD 换成 THB');
+});
+
+test('更换成已在列表里的货币时交换位置；更换当前输入货币时金额跟着换算', async ({ page }) => {
+  await open(page);
+  await row(page, 'USD').click();
+  await keys(page, ['1', '0']);
+  await swipe(page, 'USD', -120, false);
+  await page.locator('#currency-search').fill('EUR');
+  await page.getByRole('button', { name: /EUR 欧元/ }).click();
+  await expect(page.locator('.row').nth(1)).toHaveAttribute('data-code', 'EUR');
+  await expect(page.locator('.row').nth(3)).toHaveAttribute('data-code', 'USD');
+  await expect(row(page, 'EUR')).toHaveClass(/is-active/);
+  await expect(amount(page, 'EUR')).toHaveText('9');
+});
+
+test('短距离滑动不触发，也不会切换货币', async ({ page, isMobile }) => {
+  await open(page);
+  await swipe(page, 'USD', -40, isMobile);
+  await page.waitForTimeout(300);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(row(page, 'CNY')).toHaveClass(/is-active/);
+});
+
+test('右滑一行查看走势 K 线', async ({ page, isMobile }) => {
+  await open(page);
+  await swipe(page, 'USD', 120, isMobile);
+  const sheet = page.getByRole('dialog', { name: 'USD/CNY 走势' });
+  await expect(sheet).toBeVisible();
+  await expect(sheet.locator('.pair-code')).toHaveText('USD / CNY');
+  await expect(sheet.locator('.chart svg g.k-up, .chart svg g.k-down')).toHaveCount(HISTORY.candles.length);
+  await expect(sheet.locator('.trend-last')).toHaveText('6.6683');
+  await expect(sheet.locator('.ohlc')).toContainText('收 6.6683');
+
+  // 切换时间范围
+  const req = page.waitForRequest((r) => r.url().includes('range=1y'));
+  await sheet.getByRole('radio', { name: '1年' }).click();
+  await req;
+  await expect(sheet.locator('.trend-span')).toHaveText('近1年');
+
+  // 反转货币对
+  const inv = page.waitForRequest((r) => r.url().includes('from=CNY&to=USD'));
+  await sheet.getByRole('button', { name: '反转为 CNY/USD' }).click();
+  await inv;
+  await expect(page.getByRole('dialog', { name: 'CNY/USD 走势' })).toBeVisible();
+});
+
+test('走势图上移动查看某一天', async ({ page, isMobile }) => {
+  test.skip(isMobile, '鼠标悬停在电脑上测试');
+  await open(page);
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('ArrowRight');
+  const sheet = page.getByRole('dialog', { name: 'USD/CNY 走势' });
+  await expect(sheet).toBeVisible();
+  const box = (await sheet.locator('.k-hit').boundingBox())!;
+  await page.mouse.move(box.x + 3, box.y + box.height / 2);
+  await expect(sheet.locator('.ohlc-date')).toHaveText('2026年8月20日');
+  await expect(sheet.locator('.k-cross')).toBeVisible();
+});
+
+test('走势加载失败时可以重试', async ({ page }) => {
+  await open(page, { offline: true });
+  await swipe(page, 'USD', 120, false);
+  await expect(page.getByText('暂时无法获取走势数据')).toBeVisible();
+  await expect(page.getByRole('button', { name: '重试' })).toBeVisible();
+});
+
+test('第一次打开时提示可以左右滑动', async ({ page }) => {
+  await open(page, { hint: true });
+  await expect(page.locator('.row-wrap.is-peek')).toHaveAttribute('data-wrap', 'USD');
+  await page.reload();
+  await expect(page.locator('.row-wrap.is-peek')).toHaveCount(0);
 });
