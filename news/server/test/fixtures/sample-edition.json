@@ -1,0 +1,294 @@
+{
+  "date": "2026-11-21",
+  "generatedAt": "2026-11-20T22:51:00.000Z",
+  "ai": {
+    "provider": "sample",
+    "model": "示例数据"
+  },
+  "headline": "示例数据：这里是 AI 写的一句话今日总览",
+  "stories": [
+    {
+      "id": "s01",
+      "title": "示例：某手机厂商发布三折叠屏新机",
+      "summary": "这是一条示例新闻，用来展示版式。正式上线后，这里会是 AI 根据多家媒体报道写的 2 到 3 句中文摘要，交代事实、关键数字和为什么重要。",
+      "category": "数码",
+      "importance": 5,
+      "image": null,
+      "publishedAt": "2026-11-20T19:47:00.000Z",
+      "sources": [
+        {
+          "name": "IT之家",
+          "url": "https://example.com/s01/IT%E4%B9%8B%E5%AE%B6",
+          "title": "（示例）示例：某手机厂商发布三折叠屏新机",
+          "lang": "zh",
+          "publishedAt": null
+        },
+        {
+          "name": "The Verge",
+          "url": "https://example.com/s01/The%20Verge",
+          "title": "（示例）示例：某手机厂商发布三折叠屏新机",
+          "lang": "en",
+          "publishedAt": null
+        },
+        {
+          "name": "GSMArena",
+          "url": "https://example.com/s01/GSMArena",
+          "title": "（示例）示例：某手机厂商发布三折叠屏新机",
+          "lang": "en",
+          "publishedAt": null
+        },
+        {
+          "name": "爱范儿",
+          "url": "https://example.com/s01/%E7%88%B1%E8%8C%83%E5%84%BF",
+          "title": "（示例）示例：某手机厂商发布三折叠屏新机",
+          "lang": "zh",
+          "publishedAt": null
+        }
+      ]
+    },
+    {
+      "id": "s02",
+      "title": "示例：大模型公司发布新一代推理模型",
+      "summary": "示例摘要。多家媒体报道同一件事时，会合并成一条，下方显示“等 N 家报道”，点开标题可以看到每家媒体的原文链接。",
+      "category": "AI",
+      "importance": 5,
+      "image": null,
+      "publishedAt": "2026-11-20T17:47:00.000Z",
+      "sources": [
+        {
+          "name": "36氪",
+          "url": "https://example.com/s02/36%E6%B0%AA",
+          "title": "（示例）示例：大模型公司发布新一代推理模型",
+          "lang": "zh",
+          "publishedAt": null
+        },
+        {
+          "name": "TechCrunch",
+          "url": "https://example.com/s02/TechCrunch",
+          "title": "（示例）示例：大模型公司发布新一代推理模型",
+          "lang": "en",
+          "publishedAt": null
+        }
+      ]
+    },
+    {
+      "id": "s03",
+      "title": "示例：芯片厂商公布 2nm 工艺量产时间表",
+      "summary": "示例摘要，展示“芯片与硬件”分类的样子。",
+      "category": "芯片与硬件",
+      "importance": 4,
+      "image": null,
+      "publishedAt": "2026-11-20T14:47:00.000Z",
+      "sources": [
+        {
+          "name": "Ars Technica",
+          "url": "https://example.com/s03/Ars%20Technica",
+          "title": "（示例）示例：芯片厂商公布 2nm 工艺量产时间表",
+          "lang": "en",
+          "publishedAt": null
+        }
+      ]
+    },
+    {
+      "id": "s04",
+      "title": "示例：主流浏览器默认启用新的隐私保护功能",
+      "summary": "示例摘要，展示“互联网”分类。",
+      "category": "互联网",
+      "importance": 3,
+      "image": null,
+      "publishedAt": "2026-11-20T12:47:00.000Z",
+      "sources": [
+        {
+          "name": "少数派",
+          "url": "https://example.com/s04/%E5%B0%91%E6%95%B0%E6%B4%BE",
+          "title": "（示例）示例：主流浏览器默认启用新的隐私保护功能",
+          "lang": "zh",
+          "publishedAt": null
+        },
+        {
+          "name": "Engadget",
+          "url": "https://example.com/s04/Engadget",
+          "title": "（示例）示例：主流浏览器默认启用新的隐私保护功能",
+          "lang": "en",
+          "publishedAt": null
+        }
+      ]
+    },
+    {
+      "id": "s05",
+      "title": "示例：开源社区发布新版编程语言",
+      "summary": "示例摘要，展示“开发者”分类。",
+      "category": "开发者",
+      "importance": 3,
+      "image": null,
+      "publishedAt": "2026-11-20T10:47:00.000Z",
+      "sources": [
+        {
+          "name": "极客公园",
+          "url": "https://example.com/s05/%E6%9E%81%E5%AE%A2%E5%85%AC%E5%9B%AD",
+          "title": "（示例）示例：开源社区发布新版编程语言",
+          "lang": "zh",
+          "publishedAt": null
+        }
+      ]
+    },
+    {
+      "id": "s06",
+      "title": "示例：研究团队公布新型电池材料成果",
+      "summary": "示例摘要，展示“科学与前沿”分类。",
+      "category": "科学与前沿",
+      "importance": 2,
+      "image": null,
+      "publishedAt": "2026-11-20T07:47:00.000Z",
+      "sources": [
+        {
+          "name": "MIT Technology Review",
+          "url": "https://example.com/s06/MIT%20Technology%20Review",
+          "title": "（示例）示例：研究团队公布新型电池材料成果",
+          "lang": "en",
+          "publishedAt": null
+        }
+      ]
+    },
+    {
+      "id": "s07",
+      "title": "示例：监管机构发布应用商店新规",
+      "summary": "示例摘要，展示“商业与政策”分类。",
+      "category": "商业与政策",
+      "importance": 3,
+      "image": null,
+      "publishedAt": "2026-11-20T04:47:00.000Z",
+      "sources": [
+        {
+          "name": "虎嗅",
+          "url": "https://example.com/s07/%E8%99%8E%E5%97%85",
+          "title": "（示例）示例：监管机构发布应用商店新规",
+          "lang": "zh",
+          "publishedAt": null
+        },
+        {
+          "name": "9to5Mac",
+          "url": "https://example.com/s07/9to5Mac",
+          "title": "（示例）示例：监管机构发布应用商店新规",
+          "lang": "en",
+          "publishedAt": null
+        }
+      ]
+    }
+  ],
+  "products": [
+    {
+      "id": "ph1",
+      "name": "示例产品 1",
+      "url": "https://example.com/ph1",
+      "tagline": "一句话说明这个新产品是什么",
+      "summary": "示例简介：正式上线后来自 Product Hunt 当天的新品。",
+      "image": null
+    },
+    {
+      "id": "ph2",
+      "name": "示例产品 2",
+      "url": "https://example.com/ph2",
+      "tagline": "一句话说明这个新产品是什么",
+      "summary": "示例简介：正式上线后来自 Product Hunt 当天的新品。",
+      "image": null
+    },
+    {
+      "id": "ph3",
+      "name": "示例产品 3",
+      "url": "https://example.com/ph3",
+      "tagline": "一句话说明这个新产品是什么",
+      "summary": "示例简介：正式上线后来自 Product Hunt 当天的新品。",
+      "image": null
+    }
+  ],
+  "github": [
+    {
+      "id": "gh-elementalsouls--Claude-BugHunter",
+      "name": "elementalsouls/Claude-BugHunter",
+      "url": "https://github.com/elementalsouls/Claude-BugHunter",
+      "tagline": null,
+      "summary": "A Claude Code skill bundle for bug hunting and external red-team work - 82 skills, 15 slash commands, 681 disclosed-report patterns curated across 24 core vulnerability classes, plus enterprise identity + infrastructure attack matrices.",
+      "image": null,
+      "repo": {
+        "language": "Python",
+        "stars": 13577,
+        "starsToday": 1660
+      }
+    },
+    {
+      "id": "gh-obra--superpowers",
+      "name": "obra/superpowers",
+      "url": "https://github.com/obra/superpowers",
+      "tagline": null,
+      "summary": "An agentic skills framework & software development methodology that works.",
+      "image": null,
+      "repo": {
+        "language": "Shell",
+        "stars": 322589,
+        "starsToday": 888
+      }
+    },
+    {
+      "id": "gh-HKUDS--CLI-Anything",
+      "name": "HKUDS/CLI-Anything",
+      "url": "https://github.com/HKUDS/CLI-Anything",
+      "tagline": null,
+      "summary": "\"CLI-Anything: Making ALL Software Agent-Native\" -- CLI-Hub: https://clianything.cc/",
+      "image": null,
+      "repo": {
+        "language": "Python",
+        "stars": 61076,
+        "starsToday": 774
+      }
+    },
+    {
+      "id": "gh-jingyaogong--minimind",
+      "name": "jingyaogong/minimind",
+      "url": "https://github.com/jingyaogong/minimind",
+      "tagline": null,
+      "summary": "🧠 两小时从 0 训出你的 64M 大模型。Train your own 64M LLM from scratch in 2 hours.",
+      "image": null,
+      "repo": {
+        "language": "Python",
+        "stars": 67523,
+        "starsToday": 841
+      }
+    },
+    {
+      "id": "gh-cursor--plugins",
+      "name": "cursor/plugins",
+      "url": "https://github.com/cursor/plugins",
+      "tagline": null,
+      "summary": "Cursor plugin specification and official plugins",
+      "image": null,
+      "repo": {
+        "language": "TypeScript",
+        "stars": 17746,
+        "starsToday": 292
+      }
+    },
+    {
+      "id": "gh-firecrawl--firecrawl",
+      "name": "firecrawl/firecrawl",
+      "url": "https://github.com/firecrawl/firecrawl",
+      "tagline": null,
+      "summary": "Knowledge infrastructure to make your agents smarter. Search, scrape and 550+ data providers through one API.",
+      "image": null,
+      "repo": {
+        "language": "TypeScript",
+        "stars": 204888,
+        "starsToday": 1226
+      }
+    }
+  ],
+  "sourceStatus": [
+    {
+      "id": "x",
+      "name": "x",
+      "ok": true,
+      "count": 1
+    }
+  ],
+  "aiErrors": []
+}
