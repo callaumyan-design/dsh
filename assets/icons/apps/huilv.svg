@@ -1,0 +1,14 @@
+<!-- 简汇：两枚交叠的硬币，前面那枚上有一对来回的箭头（换算）。白色图形，底是透明的：主页上由网页垫一块毛玻璃。
+     不要给它加 filter（投影、模糊）或 mask：iPhone 的 Safari 会把带这些效果的 svg 图片按低分辨率画，图标会糊。 -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <defs>
+    <!-- 后面那枚硬币在前面那枚周围留一圈空隙：用"整个画布减去一个圆"来裁切 -->
+    <clipPath id="gap"><path clip-rule="evenodd" d="M0 0H120V120H0Z M17 69a32 32 0 1 0 64 0a32 32 0 1 0 -64 0Z"/></clipPath>
+  </defs>
+  <circle cx="72" cy="48" r="27" fill="#fff" fill-opacity=".72" clip-path="url(#gap)"/>
+  <circle cx="49" cy="69" r="27" fill="#fff"/>
+  <g fill="none" stroke="#0f172a" stroke-opacity=".55" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M37 62h22m-6-6l6 6-6 6"/>
+    <path d="M61 77H39m6-6l-6 6 6 6"/>
+  </g>
+</svg>

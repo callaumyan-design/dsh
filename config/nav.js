@@ -67,6 +67,15 @@ export default [
     group: "应用",
     newTab: false,
   },
+  // 简汇：多币种汇率换算（源码在本仓库 claude/zealous-pascal-ivvt6b 分支的 huilv/，另外部署成 Cloudflare Worker “huilv”）
+  {
+    name: "简汇",
+    icon: "./assets/icons/apps/huilv.svg",
+    url: "https://huilv.callaum.com/",
+    desc: "多币种汇率对比：一种货币输入，其他同时换算；左滑看 K 线",
+    group: "应用",
+    newTab: false,
+  },
   // 本网站的子页面 /planner/：四象限任务计划（源码在本仓库 main 分支的 quadrant/，编译好的放在 planner/，见 tools/refresh-apps.sh）
   {
     name: "四象限",

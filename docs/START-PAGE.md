@@ -47,7 +47,7 @@
 
 入口在页面最下面显示成一排小应用图标，全部排成一行（放不下时可以左右滑动）。
 
-现在的五个应用用的是专门画的图标，文件在 `assets/icons/apps/`（白色图形、透明底的 svg）。
+现在的应用用的是专门画的图标，文件在 `assets/icons/apps/`（白色图形、透明底的 svg）。
 想给新入口也画一个：照着那里的文件做一张 120×120 的 svg，图形用白色，再把 `icon` 写成它的路径。
 **svg 里不要用 filter（投影、模糊）和 mask**：iPhone 的 Safari 会把带这些效果的 svg 图片按低分辨率画，图标会糊。
 要挖空就用 `clip-path`，要半透明就用 `fill-opacity` / `stroke-opacity`。
@@ -255,7 +255,7 @@
 
 ## 应用栏里的应用
 
-一行放得下就排成一行；放不下就平均分成几行（手机上 11 个排成 4 + 4 + 3），由 `nav.js` 的 `fitRows()` 按宽度算。
+一行放得下就排成一行；放不下就平均分成几行（手机上 12 个排成 4 + 4 + 4），由 `nav.js` 的 `fitRows()` 按宽度算。
 
 | 应用 | 地址 | 说明 |
 | --- | --- | --- |
@@ -264,6 +264,7 @@
 | UQ 校历 | `./uq/`（本网站的子目录） | 仓库里的 `uq/index.html`，是 UQ 校历分支上那个网页文件的副本 |
 | my.UQ | `https://portal.my.uq.edu.au/#/dashboard` | UQ 学生门户，图标是一顶学士帽 |
 | 飞汇地区比价 | `./flywire/`（本网站的子页面） | 另一个仓库每周自动更新的报告（Claude 云端定时任务），见下面“飞汇地区比价” |
+| 简汇 | `https://huilv.callaum.com/` | 多币种汇率对比与换算：输入一种货币，其他货币同时换算，左滑看 K 线、右滑换币种。源码在本仓库 `claude/zealous-pascal-ivvt6b` 分支的 `huilv/`，另外部署在 Cloudflare 上（Worker 名 `huilv`，也可以用 huilv.botian-yan.workers.dev 打开），更新时在那里运行 `npm run deploy`，不用重新发布起始页 |
 | 四象限 | `./planner/`（本网站的子目录） | 四象限任务计划。源码在本仓库 main 分支的 `quadrant/`，`planner/` 里是编译好的版本；它是独立的 PWA，可以单独“添加到主屏幕”，离线也能用，任务只存在自己的浏览器里（`quadrant-planner:v1`） |
 | 砚录 | `https://ocr.callaum.com/` | 另外部署在 Cloudflare 上 |
 | WiFi Drop | `https://chat.callaum.com/drop/` | 和 CatGPT 在同一台服务器上 |
@@ -408,4 +409,4 @@ node tools/deploy-cloudflare.mjs
 ## 图标来源
 
 `assets/js/icons.js` 里的图标取自 [Lucide](https://lucide.dev)（ISC 许可，见 `assets/icons/LICENSE-lucide.txt`）。
-`assets/icons/apps/` 里的五个应用图标是为这个网站单独画的。
+`assets/icons/apps/` 里的应用图标是为这个网站单独画的。
