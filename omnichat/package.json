@@ -1,0 +1,56 @@
+{
+  "name": "omnichat",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A self-hosted, multi-device, multi-provider AI chat web app",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "dev": "concurrently -k -n server,web -c blue,green \"npm:dev:server\" \"npm:dev:web\"",
+    "dev:server": "tsx watch --clear-screen=false server/node.ts",
+    "dev:web": "vite",
+    "build": "npm run build:web && npm run build:server",
+    "build:web": "vite build",
+    "build:server": "esbuild server/node.ts --bundle --platform=node --format=esm --target=node22 --outfile=dist/server/index.mjs --external:node:* --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\"",
+    "start": "node --disable-warning=ExperimentalWarning dist/server/index.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.server.json --noEmit",
+    "cf:dev": "npm run build:web && wrangler dev",
+    "cf:deploy": "npm run build:web && wrangler deploy"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.5",
+    "clsx": "^2.1.1",
+    "highlight.js": "^11.11.1",
+    "hono": "^4.13.13",
+    "katex": "^0.19.1",
+    "lucide-react": "^1.61.0",
+    "mermaid": "^12.2.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "react-markdown": "^10.1.0",
+    "rehype-highlight": "^7.0.2",
+    "rehype-katex": "^7.0.1",
+    "remark-gfm": "^4.0.1",
+    "remark-math": "^6.0.0",
+    "undici": "^8.12.3",
+    "zustand": "^5.0.16"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261024.1",
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/node": "^22.19.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "concurrently": "^10.0.6",
+    "esbuild": "^0.28.2",
+    "tailwindcss": "^4.3.3",
+    "tsx": "^4.23.15",
+    "typescript": "~5.9.3",
+    "vite": "^8.3.5",
+    "wrangler": "^4.152.0"
+  }
+}

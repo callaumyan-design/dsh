@@ -1,0 +1,7 @@
+node_modules
+dist
+data
+.wrangler
+.git
+*.log
+screenshots

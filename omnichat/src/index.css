@@ -1,0 +1,379 @@
+@import 'tailwindcss';
+@import 'katex/dist/katex.min.css';
+@import 'highlight.js/styles/github-dark.css';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --bg: #ffffff;
+  --bg-soft: #f7f7f8;
+  --bg-muted: #f0f0f2;
+  --bg-hover: #e9e9ec;
+  --bg-elevated: #ffffff;
+  --fg: #1b1b1f;
+  --fg-muted: #5d5e66;
+  --fg-subtle: #9a9ba4;
+  --line: #e7e7eb;
+  --line-strong: #d5d5db;
+  --accent: #5b5bd6;
+  --accent-hover: #4b4bc2;
+  --accent-fg: #ffffff;
+  --accent-soft: color-mix(in oklab, var(--accent) 12%, transparent);
+  --danger: #d93a45;
+  --success: #15803d;
+  --warning: #b45309;
+  --bubble: #f1f1f4;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 6px 24px rgb(0 0 0 / 0.08);
+  --code-bg: #111318;
+  --code-head: #1b1e25;
+  color-scheme: light;
+}
+
+.dark {
+  --bg: #161618;
+  --bg-soft: #1b1b1e;
+  --bg-muted: #242428;
+  --bg-hover: #2c2c31;
+  --bg-elevated: #212125;
+  --fg: #ececf1;
+  --fg-muted: #a6a6b0;
+  --fg-subtle: #6f6f7a;
+  --line: #2c2c31;
+  --line-strong: #3b3b42;
+  --accent: #7474ee;
+  --accent-hover: #8686f3;
+  --accent-fg: #ffffff;
+  --danger: #f05561;
+  --success: #3ec27a;
+  --warning: #e3a33b;
+  --bubble: #29292e;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 10px 30px rgb(0 0 0 / 0.45);
+  --code-bg: #0e0f13;
+  --code-head: #181a20;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-soft: var(--bg-soft);
+  --color-muted: var(--bg-muted);
+  --color-hover: var(--bg-hover);
+  --color-elevated: var(--bg-elevated);
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-subtle: var(--fg-subtle);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-soft: var(--accent-soft);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-bubble: var(--bubble);
+  --shadow-pop: var(--shadow);
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei',
+    'Noto Sans SC', 'Noto Sans', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'JetBrains Mono', 'Cascadia Code', Menlo, Consolas, 'Liberation Mono', monospace;
+}
+
+code,
+pre,
+kbd,
+.font-mono {
+  font-variant-ligatures: none;
+  font-feature-settings: 'liga' 0, 'calt' 0;
+}
+
+html {
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+html[data-font='sm'] {
+  font-size: 15px;
+}
+html[data-font='lg'] {
+  font-size: 17px;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overscroll-behavior-y: none;
+}
+
+#root {
+  height: 100dvh;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--accent) 28%, transparent);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+button,
+[role='button'] {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: not-allowed;
+}
+
+.focus-ring:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes blink {
+  0%,
+  100% {
+    opacity: 0.2;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+.anim-fade {
+  animation: fade-in 0.15s ease-out;
+}
+.anim-pop {
+  animation: pop-in 0.14s ease-out;
+}
+.anim-up {
+  animation: slide-up 0.2s ease-out;
+}
+
+.typing-dots span {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 4px;
+  border-radius: 9999px;
+  background: currentColor;
+  animation: blink 1.2s infinite;
+}
+.typing-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.typing-dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+.streaming-cursor::after {
+  content: '';
+  display: inline-block;
+  width: 0.5em;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: -0.15em;
+  border-radius: 2px;
+  background: var(--accent);
+  animation: blink 1s infinite;
+}
+
+/* ---------- Markdown ---------- */
+.md {
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.md > :first-child {
+  margin-top: 0 !important;
+}
+.md > :last-child {
+  margin-bottom: 0 !important;
+}
+.md p,
+.md ul,
+.md ol,
+.md blockquote,
+.md table,
+.md pre,
+.md .code-block,
+.md .katex-display {
+  margin: 0.75em 0;
+}
+.md h1,
+.md h2,
+.md h3,
+.md h4,
+.md h5,
+.md h6 {
+  font-weight: 650;
+  line-height: 1.35;
+  margin: 1.4em 0 0.6em;
+}
+.md h1 {
+  font-size: 1.5em;
+}
+.md h2 {
+  font-size: 1.3em;
+}
+.md h3 {
+  font-size: 1.15em;
+}
+.md h4,
+.md h5,
+.md h6 {
+  font-size: 1em;
+}
+.md ul {
+  list-style: disc;
+  padding-left: 1.5em;
+}
+.md ol {
+  list-style: decimal;
+  padding-left: 1.6em;
+}
+.md li {
+  margin: 0.25em 0;
+}
+.md li > ul,
+.md li > ol {
+  margin: 0.2em 0;
+}
+.md li::marker {
+  color: var(--fg-subtle);
+}
+.md a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in oklab, var(--accent) 40%, transparent);
+  text-underline-offset: 2px;
+}
+.md a:hover {
+  text-decoration-color: var(--accent);
+}
+.md strong {
+  font-weight: 650;
+}
+.md blockquote {
+  border-left: 3px solid var(--line-strong);
+  padding: 0.1em 0 0.1em 1em;
+  color: var(--fg-muted);
+}
+.md hr {
+  border: none;
+  border-top: 1px solid var(--line);
+  margin: 1.5em 0;
+}
+.md table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-size: 0.92em;
+}
+.md th,
+.md td {
+  border: 1px solid var(--line);
+  padding: 0.45em 0.8em;
+  text-align: left;
+}
+.md th {
+  background: var(--bg-muted);
+  font-weight: 600;
+}
+.md tr:nth-child(even) td {
+  background: color-mix(in oklab, var(--bg-muted) 45%, transparent);
+}
+.md img {
+  max-width: 100%;
+  border-radius: 8px;
+}
+.md :not(pre) > code {
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+  padding: 0.15em 0.4em;
+  border-radius: 6px;
+  background: var(--bg-muted);
+  border: 1px solid var(--line);
+}
+.md pre {
+  margin: 0;
+}
+.md pre code.hljs,
+.md pre code {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  line-height: 1.6;
+  padding: 0.9em 1em;
+  overflow-x: auto;
+  background: var(--code-bg);
+  color: #e6edf3;
+}
+.md .code-wrap pre code {
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.md .katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.2em 0;
+}
+.md input[type='checkbox'] {
+  margin-right: 0.4em;
+  vertical-align: -0.1em;
+}
+.md details {
+  margin: 0.75em 0;
+}
+
+.safe-bottom {
+  padding-bottom: max(env(safe-area-inset-bottom), 0px);
+}
+.safe-top {
+  padding-top: env(safe-area-inset-top);
+}

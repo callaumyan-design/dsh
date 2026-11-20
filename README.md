@@ -29,3 +29,7 @@ This repository may initially contain only distribution documentation and Releas
 - [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)
 - [Upstream license](https://github.com/deepseek-ai/deepseek-harness/blob/master/LICENSE)
 - [Upstream third-party notices](https://github.com/deepseek-ai/deepseek-harness/blob/master/THIRD_PARTY_NOTICES.md)
+
+## OmniChat 网页应用
+
+本仓库的 [`omnichat/`](omnichat/) 目录包含一个可自托管的多模型 AI 聊天网页应用：通过 API 调用 OpenAI、Claude、Gemini、DeepSeek、通义千问等主流模型，对话与设置保存在自己的服务器上，并在电脑、手机等多设备间同步。部署与使用说明见 [omnichat/README.md](omnichat/README.md)。

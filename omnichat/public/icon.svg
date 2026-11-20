@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <style>
+    .tile, .cat { fill: #ffffff; }
+    .tile { stroke: #e4e4ee; }
+    .face { fill: #14141f; }
+    @media (prefers-color-scheme: dark) {
+      .tile, .cat { fill: #0b0b14; }
+      .tile { stroke: none; }
+      .face { fill: #f4f4ff; }
+    }
+  </style>
+  <rect class="tile" x="1" y="1" width="126" height="126" rx="27" stroke-width="2"/>
+  <path d="M26 102 Q18 80 26 60 L22 20 L50 40 Q64 36 78 40 L106 20 L102 60 Q110 80 102 102 Q64 120 26 102 Z" fill="#22e6ff" transform="translate(-4 0)" opacity=".9"/>
+    <path d="M26 102 Q18 80 26 60 L22 20 L50 40 Q64 36 78 40 L106 20 L102 60 Q110 80 102 102 Q64 120 26 102 Z" fill="#ff2bd6" transform="translate(4 1)" opacity=".9"/>
+    <path class="cat" d="M26 102 Q18 80 26 60 L22 20 L50 40 Q64 36 78 40 L106 20 L102 60 Q110 80 102 102 Q64 120 26 102 Z"/>
+    <rect x="18" y="44" width="40" height="5" fill="#22e6ff" opacity=".8"/>
+    <rect x="70" y="96" width="34" height="4" fill="#ff2bd6" opacity=".8"/>
+    <path class="face" d="M42 66 L56 62 L56 72 Z M86 66 L72 62 L72 72 Z M60 86 h8 l-4 4z"/>
+    <rect x="40" y="76" width="22" height="3" fill="#ff2bd6"/>
+</svg>
