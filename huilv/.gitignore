@@ -1,0 +1,10 @@
+node_modules
+dist
+dist-single
+dist-artifact
+test-results
+playwright-report
+.wrangler
+*.local
+worker/.files
+worker/files.gen.ts

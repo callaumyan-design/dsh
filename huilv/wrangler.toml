@@ -1,0 +1,12 @@
+# Cloudflare Workers 部署（免费额度足够个人使用）：npm run deploy
+# 构建产物（dist/）由 scripts/worker-files.mjs 嵌进脚本，不需要单独上传静态资源。
+name = "huilv"
+main = "worker/index.ts"
+compatibility_date = "2025-10-01"
+workers_dev = true
+preview_urls = false
+
+[[rules]]
+type = "Data"
+globs = ["**/*.bin"]
+fallthrough = false
