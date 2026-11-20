@@ -1,0 +1,114 @@
+{
+  "version": 1,
+  "calendar": {"start_year": 1820, "weeks_per_year": 52},
+  "storage": {"city_base": 80, "rural_base": 50},
+  "population": {
+    "food_per_pop": 0.05,
+    "labor_ratio": 0.5,
+    "growth_rate": 0.03,
+    "min_growth": 2,
+    "starvation_rate": 0.05,
+    "homeless_leave_rate": 0.1,
+    "satisfaction_base": 60,
+    "satisfaction_food_weight": 30,
+    "satisfaction_war": -5,
+    "satisfaction_occupied": -20,
+    "satisfaction_bankrupt": -15,
+    "satisfaction_adjust": 0.25,
+    "growth_min_satisfaction": 40,
+    "city_tax_per_pop": 0.12,
+    "rural_tax_per_pop": 0.02,
+    "rural_growth_rate": 0.004,
+    "rural_capacity_factor": 1.3,
+    "draft_ratio": 0.15,
+    "min_pop": 20
+  },
+  "tax_policies": {
+    "low":    {"name": "轻税", "mult": 0.7,  "satisfaction": 10},
+    "normal": {"name": "常税", "mult": 1.0,  "satisfaction": 0},
+    "high":   {"name": "重税", "mult": 1.35, "satisfaction": -15}
+  },
+  "research": {
+    "base": 1.0,
+    "per_city_pop": 0.01,
+    "funding_levels": [0, 10, 25, 50],
+    "money_per_point": 5.0
+  },
+  "construction": {"demolish_refund": 0.5, "occupied_damage": 0.2, "repair_per_week": 0.05},
+  "logistics": {
+    "army_buffer_weeks": 2.0,
+    "path_max_hops": 6,
+    "rural_reserve_weeks": 0.0
+  },
+  "market": {
+    "sell_ratio": 0.8,
+    "buy_ratio": 1.3,
+    "coastal_capacity": 12,
+    "land_capacity": 4,
+    "trade_agreement_capacity": 6,
+    "trade_agreement_tax_bonus": 0.05
+  },
+  "military": {
+    "recruit_morale": 0.5,
+    "morale_recovery": 0.1,
+    "attrition_no_food": 0.04,
+    "morale_loss_no_food": 0.1,
+    "starving_weeks_for_attrition": 1,
+    "reinforce_rate": 0.1,
+    "fort_capital": 2,
+    "siege_base": 12.0,
+    "siege_fort_factor": 1.0,
+    "loot_destroy_ratio": 0.5,
+    "occupation_damage": 0.25,
+    "occupation_stability_loss": 30,
+    "occupied_output_factor": 0.5,
+    "occupied_tax_factor": 0.5
+  },
+  "combat": {
+    "rounds_per_week": 3,
+    "casualty_rate": 0.06,
+    "morale_damage": 0.9,
+    "morale_base_loss": 0.04,
+    "break_morale": 0.2,
+    "random_min": 0.85,
+    "random_max": 1.15,
+    "fort_defense_per_level": 0.15,
+    "arms_attack_floor": 0.5,
+    "food_floor": 0.7,
+    "morale_floor": 0.4,
+    "battle_score_scale": 4.0,
+    "battle_score_cap": 12.0
+  },
+  "war": {
+    "truce_weeks": 20,
+    "exhaustion_per_week": 0.4,
+    "exhaustion_per_casualty": 0.02,
+    "exhaustion_per_occupied": 0.3,
+    "province_value_base": 10,
+    "province_value_per_dev": 2,
+    "capital_value_mult": 2.0,
+    "reparations_score_per_100": 4,
+    "reparations_weeks": 10,
+    "battle_score_decay": 0.02,
+    "capitulation_score": 60,
+    "relation_on_war": -60,
+    "declare_war_max_relation": 30
+  },
+  "diplomacy": {
+    "relation_drift": 0.5,
+    "trade_relation_bonus": 0.5,
+    "trade_relation_target": 40,
+    "border_tension": -0.2,
+    "claim_relation_penalty": -10,
+    "trade_min_relation": -20
+  },
+  "claims": {"weeks": 6, "cost_base": 150, "cost_per_dev": 40, "cost_per_garrison": 30},
+  "bankruptcy": {"collapse_weeks": 16, "collapse_debt": -500, "efficiency_penalty": 0.2, "morale_penalty": 0.05},
+  "victory": {
+    "economic": {"industry_target": 240, "treasury_min": 2000, "stable_weeks": 8},
+    "military": {"capitulation_score": 60},
+    "hegemony": {"province_share": 0.85, "techs_required": 7, "stable_weeks": 8},
+    "defeat": {"capital_lost_weeks": 3}
+  },
+  "events": {"chance": 0.12}
+}

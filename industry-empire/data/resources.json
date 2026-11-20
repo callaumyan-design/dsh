@@ -1,0 +1,12 @@
+{
+  "resources": [
+    {"id": "wood",  "name": "木材", "base_price": 2.0,  "color": "#8a6a3f", "glyph": "木", "industrial": false},
+    {"id": "stone", "name": "石材", "base_price": 2.0,  "color": "#9a9a92", "glyph": "石", "industrial": false},
+    {"id": "grain", "name": "谷物", "base_price": 1.5,  "color": "#d8b84a", "glyph": "谷", "industrial": false},
+    {"id": "food",  "name": "食品", "base_price": 3.0,  "color": "#c9763a", "glyph": "食", "industrial": true},
+    {"id": "coal",  "name": "煤炭", "base_price": 3.0,  "color": "#3c3c44", "glyph": "煤", "industrial": false},
+    {"id": "iron",  "name": "铁矿", "base_price": 3.0,  "color": "#a0583c", "glyph": "铁", "industrial": false},
+    {"id": "steel", "name": "钢铁", "base_price": 9.0,  "color": "#6f8fae", "glyph": "钢", "industrial": true},
+    {"id": "arms",  "name": "武器", "base_price": 14.0, "color": "#b04a4a", "glyph": "械", "industrial": true}
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "techs": [
+    {"id": "agri_improve", "name": "农业增产", "branch": "经济", "cost": 50, "requires": [],
+     "desc": "轮作与新式农具：农场产量 +25%。",
+     "effects": [{"type": "output_mult", "building": "farm", "value": 0.25}]},
+    {"id": "storage", "name": "仓储扩容", "branch": "经济", "cost": 50, "requires": [],
+     "desc": "标准化仓储：所有库存容量 +50%。",
+     "effects": [{"type": "storage_mult", "value": 0.5}]},
+    {"id": "transport", "name": "运输效率", "branch": "经济", "cost": 80, "requires": ["storage"],
+     "desc": "碎石公路与驿站：省份间运输容量 +40%，军队行军速度 +15%。",
+     "effects": [{"type": "transport_mult", "value": 0.4}, {"type": "speed_mult", "value": 0.15}]},
+    {"id": "steel_eff", "name": "炼钢效率", "branch": "工业", "cost": 80, "requires": [],
+     "desc": "热风炉：炼钢厂煤炭消耗减半。",
+     "effects": [{"type": "input_mult", "building": "steel_mill", "resource": "coal", "value": -0.5}]},
+    {"id": "industry", "name": "工业生产", "branch": "工业", "cost": 120, "requires": ["steel_eff"],
+     "desc": "蒸汽动力：工业建筑（食品工坊、炼钢厂、兵工厂）的吞吐量 +25%（原料与产出同比增加）。",
+     "effects": [{"type": "throughput_mult", "category": "industry", "value": 0.25}]},
+    {"id": "military_training", "name": "军事训练", "branch": "军事", "cost": 70, "requires": [],
+     "desc": "常备军操典：全部兵种攻防 +15%，最大士气 +0.1。",
+     "effects": [{"type": "unit_attack_mult", "unit": "*", "value": 0.15}, {"type": "unit_defense_mult", "unit": "*", "value": 0.15}, {"type": "morale_bonus", "value": 0.1}]},
+    {"id": "rifles", "name": "改良步枪", "branch": "军事", "cost": 110, "requires": ["military_training"],
+     "desc": "膛线步枪：步兵攻击 +30%，民兵攻击 +15%。",
+     "effects": [{"type": "unit_attack_mult", "unit": "infantry", "value": 0.3}, {"type": "unit_attack_mult", "unit": "militia", "value": 0.15}]},
+    {"id": "artillery_modern", "name": "现代炮兵", "branch": "军事", "cost": 150, "requires": ["rifles", "steel_eff"],
+     "desc": "后装钢炮：炮兵攻击 +40%，攻城能力 +50%。",
+     "effects": [{"type": "unit_attack_mult", "unit": "artillery", "value": 0.4}, {"type": "siege_mult", "unit": "artillery", "value": 0.5}]}
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "personalities": {
+    "industrialist": {"name": "工业主义", "aggression": 0.4, "expansion": 0.6, "military": 0.8, "industry": 1.3, "commerce": 1.0, "science": 1.0, "war_ratio": 1.6, "peace_bias": 0.1},
+    "expansionist":  {"name": "扩张主义", "aggression": 0.8, "expansion": 1.4, "military": 1.2, "industry": 1.0, "commerce": 0.7, "science": 0.8, "war_ratio": 1.3, "peace_bias": -0.1},
+    "mercantile":    {"name": "商业主义", "aggression": 0.3, "expansion": 0.8, "military": 0.7, "industry": 1.0, "commerce": 1.5, "science": 1.0, "war_ratio": 1.8, "peace_bias": 0.2},
+    "defensive":     {"name": "防御主义", "aggression": 0.2, "expansion": 0.5, "military": 1.1, "industry": 1.0, "commerce": 1.0, "science": 1.0, "war_ratio": 2.2, "peace_bias": 0.3},
+    "scientific":    {"name": "科技主义", "aggression": 0.3, "expansion": 0.7, "military": 0.8, "industry": 1.0, "commerce": 1.0, "science": 1.5, "war_ratio": 1.8, "peace_bias": 0.2}
+  },
+  "difficulty": {
+    "easy":   {"name": "简单", "ai_output_mult": 0.9, "war_grace_weeks": 40, "aggression_mult": 0.7},
+    "normal": {"name": "普通", "ai_output_mult": 1.0, "war_grace_weeks": 20, "aggression_mult": 1.0},
+    "hard":   {"name": "困难", "ai_output_mult": 1.1, "war_grace_weeks": 12, "aggression_mult": 1.25}
+  },
+  "planning": {
+    "min_treasury_reserve": 80,
+    "food_buffer_weeks": 4,
+    "max_builds_per_turn": 2,
+    "army_target_base": 6,
+    "army_target_per_threat": 1.2,
+    "garrison_min": 2,
+    "attack_min_ratio": 1.25,
+    "retreat_ratio": 0.6
+  }
+}

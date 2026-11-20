@@ -1,0 +1,29 @@
+{
+  "units": [
+    {
+      "id": "militia", "name": "民兵", "glyph": "民",
+      "desc": "廉价的地方武装。在本国领土防守时获得加成，进攻能力弱。",
+      "cost": {"money": 15, "arms": 1}, "manpower": 20, "upkeep": 0.5,
+      "attack": 1.5, "defense": 2.5, "max_morale": 0.7, "speed": 1.0, "siege": 0.5,
+      "supply": {"food": 0.3, "arms": 0.05}, "casualty_weight": 1.2,
+      "home_defense_bonus": 0.25, "terrain_attack": {}, "requires_building": ""
+    },
+    {
+      "id": "infantry", "name": "步兵", "glyph": "步",
+      "desc": "主力单位，攻防均衡。需要兵营招募。",
+      "cost": {"money": 35, "arms": 3}, "manpower": 30, "upkeep": 1.5,
+      "attack": 3.0, "defense": 3.0, "max_morale": 1.0, "speed": 1.0, "siege": 1.0,
+      "supply": {"food": 0.5, "arms": 0.15}, "casualty_weight": 1.0,
+      "home_defense_bonus": 0.0, "terrain_attack": {}, "requires_building": "barracks"
+    },
+    {
+      "id": "artillery", "name": "炮兵", "glyph": "炮",
+      "desc": "火力强大并擅长攻城，但防御薄弱、行军缓慢、极度依赖武器补给；在森林和山地火力下降。",
+      "cost": {"money": 70, "arms": 6, "steel": 2}, "manpower": 30, "upkeep": 3.0,
+      "attack": 6.0, "defense": 1.5, "max_morale": 0.9, "speed": 0.75, "siege": 4.0,
+      "supply": {"food": 0.5, "arms": 0.4}, "casualty_weight": 0.5,
+      "home_defense_bonus": 0.0, "terrain_attack": {"forest": -0.3, "mountains": -0.4},
+      "fort_ignore": 0.5, "requires_building": "barracks"
+    }
+  ]
+}

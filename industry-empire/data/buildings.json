@@ -1,0 +1,104 @@
+{
+  "buildings": [
+    {
+      "id": "road", "name": "道路", "glyph": "路", "category": "infrastructure",
+      "desc": "连接建筑与仓库的物流通道。未经道路连通仓库的建筑无法收发货物。",
+      "size": [1, 1], "cost": {"money": 2, "stone": 1}, "build_weeks": 0, "upkeep": 0.0, "workers": 0,
+      "allowed_tiles": ["grass", "fertile", "forest", "rock", "coal", "iron"],
+      "needs_connection": false, "color": "#c8b48a", "priority": 0
+    },
+    {
+      "id": "warehouse", "name": "仓库", "glyph": "仓", "category": "logistics",
+      "desc": "物流枢纽，提供库存容量。生产建筑必须经道路连通仓库才能运作。",
+      "size": [2, 2], "cost": {"money": 60, "wood": 15, "stone": 10}, "build_weeks": 2, "upkeep": 2.0, "workers": 4,
+      "storage": 60, "hub": true,
+      "allowed_tiles": ["grass", "fertile", "forest", "rock"],
+      "needs_connection": false, "color": "#7a6248", "priority": 5
+    },
+    {
+      "id": "residence", "name": "住宅", "glyph": "宅", "category": "housing",
+      "desc": "提供 40 人口容量。必须连通仓库才能获得食品供应，否则不提供容量。",
+      "size": [2, 2], "cost": {"money": 30, "wood": 10, "stone": 4}, "build_weeks": 1, "upkeep": 0.5, "workers": 0,
+      "housing": 40,
+      "allowed_tiles": ["grass", "fertile", "forest", "rock"],
+      "needs_connection": true, "color": "#c97b5a", "priority": 1
+    },
+    {
+      "id": "lumber_camp", "name": "林场", "glyph": "林", "category": "raw", "stage": 0,
+      "desc": "砍伐周边森林生产木材。附近（2格内）森林越多产量越高。",
+      "size": [2, 2], "cost": {"money": 30, "wood": 4, "stone": 2}, "build_weeks": 1, "upkeep": 1.5, "workers": 10,
+      "outputs": {"wood": 4},
+      "allowed_tiles": ["grass", "fertile", "forest"],
+      "site": {"type": "nearby", "tile": "forest", "radius": 2, "base": 0.4, "per_tile": 0.06, "max": 1.4},
+      "needs_connection": true, "color": "#6b8e4e", "priority": 30
+    },
+    {
+      "id": "quarry", "name": "采石场", "glyph": "石", "category": "raw", "stage": 0,
+      "desc": "开采岩地生产石材。必须覆盖至少一格岩地，覆盖越多产量越高。",
+      "size": [2, 2], "cost": {"money": 35, "wood": 8}, "build_weeks": 1, "upkeep": 1.5, "workers": 10,
+      "outputs": {"stone": 3},
+      "allowed_tiles": ["grass", "rock", "forest"], "require_any_tile": "rock",
+      "site": {"type": "footprint", "tile": "rock", "base": 0.3, "per_ratio": 0.9},
+      "needs_connection": true, "color": "#8d8a82", "priority": 35
+    },
+    {
+      "id": "farm", "name": "农场", "glyph": "农", "category": "raw", "stage": 0,
+      "desc": "种植谷物。建在沃土上产量更高。",
+      "size": [3, 3], "cost": {"money": 40, "wood": 12}, "build_weeks": 2, "upkeep": 1.5, "workers": 12,
+      "outputs": {"grain": 8},
+      "allowed_tiles": ["grass", "fertile"],
+      "site": {"type": "footprint", "tile": "fertile", "base": 0.7, "per_ratio": 0.5},
+      "needs_connection": true, "color": "#d9c25c", "priority": 10
+    },
+    {
+      "id": "food_workshop", "name": "食品工坊", "glyph": "食", "category": "industry", "stage": 1,
+      "desc": "每周把 4 谷物加工为 6 食品。食品是居民与军队的口粮。",
+      "size": [2, 2], "cost": {"money": 50, "wood": 12, "stone": 6}, "build_weeks": 2, "upkeep": 2.5, "workers": 12,
+      "inputs": {"grain": 4}, "outputs": {"food": 6},
+      "allowed_tiles": ["grass", "fertile", "forest", "rock"],
+      "needs_connection": true, "color": "#d38b4a", "priority": 15
+    },
+    {
+      "id": "coal_mine", "name": "煤矿", "glyph": "煤", "category": "raw", "stage": 0,
+      "desc": "开采煤炭。必须覆盖至少一格煤矿床。",
+      "size": [2, 2], "cost": {"money": 60, "wood": 14, "stone": 6}, "build_weeks": 2, "upkeep": 2.5, "workers": 14,
+      "outputs": {"coal": 4},
+      "allowed_tiles": ["grass", "rock", "coal", "iron", "forest"], "require_any_tile": "coal",
+      "site": {"type": "footprint", "tile": "coal", "base": 0.6, "per_ratio": 0.6},
+      "needs_connection": true, "color": "#4b4b55", "priority": 40
+    },
+    {
+      "id": "iron_mine", "name": "铁矿", "glyph": "铁", "category": "raw", "stage": 0,
+      "desc": "开采铁矿石。必须覆盖至少一格铁矿床。",
+      "size": [2, 2], "cost": {"money": 60, "wood": 14, "stone": 6}, "build_weeks": 2, "upkeep": 2.5, "workers": 14,
+      "outputs": {"iron": 4},
+      "allowed_tiles": ["grass", "rock", "coal", "iron", "forest"], "require_any_tile": "iron",
+      "site": {"type": "footprint", "tile": "iron", "base": 0.6, "per_ratio": 0.6},
+      "needs_connection": true, "color": "#9b5b45", "priority": 40
+    },
+    {
+      "id": "steel_mill", "name": "炼钢厂", "glyph": "钢", "category": "industry", "stage": 1,
+      "desc": "每周消耗 2 铁矿与 2 煤炭，产出 2 钢铁。原料不足时按比例减产。",
+      "size": [3, 2], "rotatable": true, "cost": {"money": 120, "wood": 15, "stone": 25}, "build_weeks": 3, "upkeep": 5.0, "workers": 20,
+      "inputs": {"iron": 2, "coal": 2}, "outputs": {"steel": 2},
+      "allowed_tiles": ["grass", "fertile", "forest", "rock", "coal", "iron"],
+      "needs_connection": true, "color": "#5f7f9e", "priority": 50
+    },
+    {
+      "id": "arsenal", "name": "兵工厂", "glyph": "械", "category": "industry", "stage": 2,
+      "desc": "每周消耗 1 钢铁与 1 木材，产出 2 武器。武器用于征兵与前线补给。",
+      "size": [3, 2], "rotatable": true, "cost": {"money": 110, "wood": 15, "stone": 15, "steel": 6}, "build_weeks": 3, "upkeep": 5.0, "workers": 18,
+      "inputs": {"steel": 1, "wood": 1}, "outputs": {"arms": 2},
+      "allowed_tiles": ["grass", "fertile", "forest", "rock", "coal", "iron"],
+      "needs_connection": true, "color": "#a44848", "priority": 60
+    },
+    {
+      "id": "barracks", "name": "兵营", "glyph": "营", "category": "military",
+      "desc": "允许在本省招募步兵与炮兵，新兵初始士气更高。",
+      "size": [3, 2], "rotatable": true, "cost": {"money": 80, "wood": 20, "stone": 15}, "build_weeks": 2, "upkeep": 3.0, "workers": 6,
+      "enables_recruit": ["infantry", "artillery"], "recruit_morale": 0.8,
+      "allowed_tiles": ["grass", "fertile", "forest", "rock"],
+      "needs_connection": true, "color": "#6d5a8a", "priority": 20
+    }
+  ]
+}

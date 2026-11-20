@@ -1,0 +1,132 @@
+{
+  "id": "mvp_two_crowns",
+  "name": "双冠之争",
+  "desc": "阿斯特王国与维尔德公国隔着中央平原和黑石丘陵对峙。谁能率先建立工业霸权，或攻下对方首都？",
+  "map_size": [1600, 1000],
+  "relations": [["aster", "veld", -10]],
+  "nations": [
+    {"id": "aster", "name": "阿斯特王国", "short": "阿斯特", "color": "#3f6fb5", "capital": "p1", "treasury": 500,
+     "personality": "industrialist", "tax_policy": "normal", "research_funding": 1, "playable": true,
+     "desc": "沿海王国，拥有肥沃的平原与港口贸易，但缺少矿产。"},
+    {"id": "veld", "name": "维尔德公国", "short": "维尔德", "color": "#b5473f", "capital": "p7", "treasury": 450,
+     "personality": "expansionist", "tax_policy": "normal", "research_funding": 1, "playable": true,
+     "desc": "内陆丘陵公国，矿藏丰富、军队精干，但粮食紧张且没有出海口。"},
+    {"id": "natives", "name": "自由部落", "short": "部落", "color": "#8f8a72", "capital": "", "treasury": 0,
+     "native": true, "playable": false, "desc": "尚未并入任何国家的中立地区。"}
+  ],
+  "provinces": [
+    {"id": "p1", "name": "银桥", "owner": "aster", "terrain": "coastal", "pop": 400, "development": 4, "fort": 2,
+     "rural_output": {"grain": 3}, "deposits": ["grain"], "city": "city_aster",
+     "stock": {"wood": 60, "stone": 50, "grain": 20, "food": 40, "steel": 10, "arms": 30},
+     "center": [345, 480], "polygon": [[170,280],[300,360],[470,370],[560,450],[540,600],[380,640],[220,600],[130,450]]},
+    {"id": "p2", "name": "南湾", "owner": "aster", "terrain": "coastal", "pop": 600, "development": 3, "fort": 0,
+     "rural_output": {"grain": 5, "food": 2}, "deposits": ["grain", "food"],
+     "stock": {"grain": 10, "food": 10},
+     "center": [410, 760], "polygon": [[220,600],[380,640],[540,600],[640,700],[600,880],[400,920],[250,850],[180,720]]},
+    {"id": "p3", "name": "北林郡", "owner": "aster", "terrain": "forest", "pop": 450, "development": 2, "fort": 0,
+     "rural_output": {"wood": 5, "grain": 1}, "deposits": ["wood"],
+     "stock": {"wood": 10},
+     "center": [390, 230], "polygon": [[200,110],[420,80],[600,130],[610,330],[470,370],[300,360],[170,280]]},
+    {"id": "p4", "name": "中央平原", "owner": "natives", "terrain": "plains", "pop": 500, "development": 2, "fort": 0,
+     "rural_output": {"grain": 7}, "deposits": ["grain"],
+     "stock": {"grain": 10},
+     "center": [780, 480], "polygon": [[610,330],[800,300],[1000,350],[1010,560],[900,640],[640,700],[540,600],[560,450],[470,370]]},
+    {"id": "p5", "name": "黑石丘陵", "owner": "natives", "terrain": "hills", "pop": 350, "development": 2, "fort": 1,
+     "rural_output": {"coal": 4, "iron": 4}, "deposits": ["coal", "iron"],
+     "stock": {"coal": 10, "iron": 10},
+     "center": [850, 770], "polygon": [[640,700],[900,640],[1010,560],[1100,640],[1080,800],[900,900],[700,890],[600,880]]},
+    {"id": "p6", "name": "霜岭", "owner": "veld", "terrain": "mountains", "pop": 350, "development": 2, "fort": 0,
+     "rural_output": {"stone": 3, "iron": 3}, "deposits": ["stone", "iron"],
+     "stock": {"stone": 10, "iron": 5},
+     "center": [920, 210], "polygon": [[600,130],[820,90],[1100,110],[1250,200],[1180,380],[1000,350],[800,300],[610,330]]},
+    {"id": "p7", "name": "赤岩", "owner": "veld", "terrain": "hills", "pop": 400, "development": 4, "fort": 2,
+     "rural_output": {"grain": 2, "coal": 1}, "deposits": ["coal"], "city": "city_veld",
+     "stock": {"wood": 50, "stone": 60, "grain": 10, "food": 30, "coal": 20, "iron": 10, "steel": 15, "arms": 30},
+     "center": [1220, 510], "polygon": [[1000,350],[1180,380],[1400,430],[1450,600],[1300,680],[1100,640],[1010,560]]},
+    {"id": "p8", "name": "东原", "owner": "veld", "terrain": "plains", "pop": 650, "development": 3, "fort": 0,
+     "rural_output": {"grain": 7}, "deposits": ["grain"],
+     "stock": {"grain": 15},
+     "center": [1290, 770], "polygon": [[1100,640],[1300,680],[1450,600],[1500,780],[1380,900],[1080,800]]}
+  ],
+  "edges": [
+    {"a": "p1", "b": "p2", "capacity": 12},
+    {"a": "p1", "b": "p3", "capacity": 10},
+    {"a": "p1", "b": "p4", "capacity": 10},
+    {"a": "p2", "b": "p4", "capacity": 8},
+    {"a": "p2", "b": "p5", "capacity": 8},
+    {"a": "p3", "b": "p4", "capacity": 8},
+    {"a": "p3", "b": "p6", "capacity": 4},
+    {"a": "p4", "b": "p5", "capacity": 8},
+    {"a": "p4", "b": "p6", "capacity": 6},
+    {"a": "p4", "b": "p7", "capacity": 10},
+    {"a": "p5", "b": "p7", "capacity": 8},
+    {"a": "p5", "b": "p8", "capacity": 8},
+    {"a": "p6", "b": "p7", "capacity": 8},
+    {"a": "p7", "b": "p8", "capacity": 12}
+  ],
+  "cities": [
+    {
+      "id": "city_aster", "name": "银桥城", "province": "p1", "size": [24, 24], "pop": 220, "satisfaction": 65,
+      "features": [
+        {"tile": "water", "rect": [0, 0, 2, 24]},
+        {"tile": "water", "circle": [3, 2, 1.5]},
+        {"tile": "mountain", "rect": [21, 0, 3, 3]},
+        {"tile": "forest", "circle": [18, 4, 3]},
+        {"tile": "forest", "circle": [6, 4, 2]},
+        {"tile": "fertile", "rect": [2, 15, 8, 7]},
+        {"tile": "rock", "rect": [15, 15, 3, 2]},
+        {"tile": "rock", "circle": [21, 9, 1.5]},
+        {"tile": "coal", "rect": [19, 13, 2, 2]},
+        {"tile": "iron", "rect": [19, 19, 2, 2]},
+        {"tile": "forest", "rect": [12, 20, 4, 3]}
+      ],
+      "roads": [[2, 11, 20, 11], [10, 3, 10, 22], [2, 12, 2, 21], [11, 8, 17, 8], [11, 14, 18, 14]],
+      "buildings": [
+        {"type": "warehouse", "x": 11, "y": 9},
+        {"type": "residence", "x": 6, "y": 9}, {"type": "residence", "x": 8, "y": 9},
+        {"type": "residence", "x": 13, "y": 9}, {"type": "residence", "x": 15, "y": 9},
+        {"type": "residence", "x": 6, "y": 12}, {"type": "residence", "x": 8, "y": 12},
+        {"type": "farm", "x": 3, "y": 15}, {"type": "farm", "x": 3, "y": 18},
+        {"type": "food_workshop", "x": 11, "y": 12}, {"type": "food_workshop", "x": 13, "y": 12},
+        {"type": "lumber_camp", "x": 14, "y": 6},
+        {"type": "quarry", "x": 15, "y": 15}
+      ]
+    },
+    {
+      "id": "city_veld", "name": "赤岩城", "province": "p7", "size": [24, 24], "pop": 200, "satisfaction": 60,
+      "features": [
+        {"tile": "mountain", "rect": [0, 0, 4, 2]},
+        {"tile": "mountain", "rect": [20, 0, 4, 4]},
+        {"tile": "water", "circle": [4, 20, 2]},
+        {"tile": "forest", "circle": [5, 5, 3]},
+        {"tile": "forest", "rect": [13, 19, 6, 3]},
+        {"tile": "fertile", "rect": [3, 12, 5, 5]},
+        {"tile": "rock", "circle": [17, 16, 2]},
+        {"tile": "rock", "rect": [20, 12, 3, 3]},
+        {"tile": "coal", "rect": [15, 5, 3, 2]},
+        {"tile": "iron", "rect": [18, 9, 2, 1]},
+        {"tile": "iron", "rect": [21, 7, 2, 2]}
+      ],
+      "roads": [[2, 11, 21, 11], [11, 3, 11, 21], [2, 12, 2, 18], [12, 7, 17, 7], [12, 14, 18, 14]],
+      "buildings": [
+        {"type": "warehouse", "x": 12, "y": 9},
+        {"type": "residence", "x": 7, "y": 9}, {"type": "residence", "x": 9, "y": 9},
+        {"type": "residence", "x": 14, "y": 9}, {"type": "residence", "x": 16, "y": 9},
+        {"type": "residence", "x": 7, "y": 12}, {"type": "residence", "x": 9, "y": 12},
+        {"type": "farm", "x": 3, "y": 13},
+        {"type": "food_workshop", "x": 12, "y": 12}, {"type": "food_workshop", "x": 14, "y": 12},
+        {"type": "lumber_camp", "x": 5, "y": 9},
+        {"type": "quarry", "x": 16, "y": 15},
+        {"type": "coal_mine", "x": 15, "y": 5}
+      ]
+    }
+  ],
+  "armies": [
+    {"nation": "aster", "province": "p1", "name": "近卫军", "units": {"militia": 2, "infantry": 3}},
+    {"nation": "aster", "province": "p2", "name": "南湾守备队", "units": {"militia": 2}},
+    {"nation": "veld", "province": "p7", "name": "赤岩军团", "units": {"militia": 2, "infantry": 3, "artillery": 1}},
+    {"nation": "veld", "province": "p8", "name": "东原守备队", "units": {"militia": 2}},
+    {"nation": "natives", "province": "p4", "name": "平原部落武装", "units": {"militia": 3}},
+    {"nation": "natives", "province": "p5", "name": "丘陵部落武装", "units": {"militia": 4}}
+  ]
+}

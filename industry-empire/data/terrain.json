@@ -1,0 +1,19 @@
+{
+  "province_terrain": {
+    "plains":    {"name": "平原", "move_cost": 1.0, "defense_bonus": 0.00, "color": "#a9c27a"},
+    "coastal":   {"name": "沿海", "move_cost": 1.0, "defense_bonus": 0.00, "color": "#9cc4a8", "coastal": true},
+    "forest":    {"name": "森林", "move_cost": 1.5, "defense_bonus": 0.15, "color": "#5f8f55"},
+    "hills":     {"name": "丘陵", "move_cost": 2.0, "defense_bonus": 0.25, "color": "#b49a6a"},
+    "mountains": {"name": "山地", "move_cost": 3.0, "defense_bonus": 0.50, "color": "#8c857c"}
+  },
+  "city_tiles": [
+    {"id": "grass",    "code": 0, "name": "草地",   "buildable": true,  "color": "#8fb36a"},
+    {"id": "fertile",  "code": 1, "name": "沃土",   "buildable": true,  "color": "#b8b05a"},
+    {"id": "forest",   "code": 2, "name": "森林",   "buildable": true,  "color": "#4f7f45"},
+    {"id": "rock",     "code": 3, "name": "岩地",   "buildable": true,  "color": "#a39d90"},
+    {"id": "coal",     "code": 4, "name": "煤矿床", "buildable": true,  "color": "#4a4a50"},
+    {"id": "iron",     "code": 5, "name": "铁矿床", "buildable": true,  "color": "#9a5a44"},
+    {"id": "water",    "code": 6, "name": "水域",   "buildable": false, "color": "#4a7fae"},
+    {"id": "mountain", "code": 7, "name": "高山",   "buildable": false, "color": "#6e6862"}
+  ]
+}
