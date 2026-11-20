@@ -19,6 +19,8 @@
 | 导出包启动 | `--export-pack` 后用 `--main-pack` 在项目目录外启动 | 无脚本错误，主场景加载 |
 | Android 导出 | `--export-debug "Android"`、`--export-release "Android arm64"` | 生成并签名成功：通用调试包 89 MB；arm64 发布模式包 29 MB（调试密钥签名） |
 | APK 检查 | `apksigner verify`、`aapt dump badging` | 签名有效；包名 com.industryempire.game；minSdk 24 / targetSdk 36；**无 uses-permission（无网络权限）** |
+| GitHub Actions | `.github/workflows/industry-empire-tests.yml` | 首次运行通过（单元测试 + UI 冒烟测试，约 50 秒） |
+| 全新克隆复测 | 在干净克隆中运行 `tools/run_tests.sh` 与 UI 冒烟测试 | 全部通过（无编辑器缓存也可运行） |
 | 截图检查 | `tools/screenshots.tscn`（Xvfb + llvmpipe） | 1600×720（手机横屏）与 1280×1024（折叠屏展开）两种布局渲染正常 |
 
 需求第十五节测试对应：
@@ -39,7 +41,6 @@
 - 世界地图在详情面板展开后不会自动重新居中（可点“全图”）。
 - 只有一个场景、两座可建设城市；多国家时胜负判定中的“对手”逻辑需要扩展。
 - `tools/check.sh` 只能编译检查非 UI 脚本（UI 依赖自动加载单例），UI 由 `tests/ui_smoke.tscn` 覆盖。
-- 新增的 GitHub Actions 测试工作流尚未在 GitHub 上实际运行过。
 
 ## 下一阶段任务
 
