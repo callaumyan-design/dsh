@@ -51,4 +51,53 @@ class RelayIntegrationTest {
         assertEquals(sms.body, parts.sortedBy { it.index }.joinToString("") { it.body })
         println("Relay round trip OK: ${parts.size} encrypted parts via ${keys.topic.take(8)}…")
     }
+
+    @Test
+    fun remoteCommandAndResultThroughNtfy() {
+        assumeTrue(System.getProperty("integration") == "true")
+        val code = Pairing.generate()
+        val cmdKeys = E2E.deriveCommand(code)
+        val mainKeys = E2E.derive(code)
+        val cmd = Remote.Command(Sms.newUid(), System.currentTimeMillis(), "+8613800138000", "远程测试 123", 0, "CI")
+
+        // Executor side: listen for commands, validate, reply on the main channel.
+        val executorOpen = CountDownLatch(1)
+        val executed = AtomicReference<Remote.Command>()
+        val c1 = AtomicReference<HttpsURLConnection>()
+        thread(isDaemon = true) {
+            try {
+                Ntfy.subscribe(Ntfy.DEFAULT_SERVER, cmdKeys.topic, null, "all", { c1.set(it) }, { executorOpen.countDown() }, { ev ->
+                    val got = E2E.open(cmdKeys, ev.message)?.let { Remote.decodeCommand(String(it)) }
+                    if (got != null && Remote.validate(got, System.currentTimeMillis()) == null && executed.compareAndSet(null, got)) {
+                        val r = Remote.encodeResult(Remote.Result(got.id, Remote.SENT, "ok", System.currentTimeMillis()))
+                        Ntfy.publish(Ntfy.DEFAULT_SERVER, mainKeys.topic, null, E2E.seal(mainKeys, r.toByteArray()))
+                    }
+                }, { executed.get() != null })
+            } catch (_: Exception) {
+            }
+        }
+        // Controller side: listen for results on the main channel.
+        val controllerOpen = CountDownLatch(1)
+        val result = AtomicReference<Remote.Result>()
+        val done = CountDownLatch(1)
+        val c2 = AtomicReference<HttpsURLConnection>()
+        thread(isDaemon = true) {
+            try {
+                Ntfy.subscribe(Ntfy.DEFAULT_SERVER, mainKeys.topic, null, "all", { c2.set(it) }, { controllerOpen.countDown() }, { ev ->
+                    E2E.open(mainKeys, ev.message)?.let { Remote.decodeResult(String(it)) }?.let { result.set(it); done.countDown() }
+                }, { done.count == 0L })
+            } catch (_: Exception) {
+            }
+        }
+        assertEquals(true, executorOpen.await(20, TimeUnit.SECONDS))
+        assertEquals(true, controllerOpen.await(20, TimeUnit.SECONDS))
+        Ntfy.publish(Ntfy.DEFAULT_SERVER, cmdKeys.topic, null, E2E.seal(cmdKeys, Remote.encodeCommand(cmd).toByteArray()))
+        assertEquals(true, done.await(30, TimeUnit.SECONDS))
+        c1.get()?.disconnect()
+        c2.get()?.disconnect()
+        assertEquals(cmd, executed.get())
+        assertEquals(cmd.id, result.get().id)
+        assertEquals(Remote.SENT, result.get().status)
+        println("Remote command round trip OK via ${cmdKeys.topic.take(8)}… and ${mainKeys.topic.take(8)}…")
+    }
 }

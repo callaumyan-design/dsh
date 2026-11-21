@@ -26,6 +26,7 @@ object Notifier {
     private const val CH_SERVICE = "service"
     private const val CH_SMS = "received_sms"
     private const val CH_ALERT = "alerts"
+    private const val CH_REMOTE = "remote_sms"
 
     fun createChannels(context: Context) {
         val nm = context.getSystemService(NotificationManager::class.java)
@@ -38,6 +39,12 @@ object Notifier {
         nm.createNotificationChannel(
             NotificationChannel(CH_ALERT, "转发失败提醒", NotificationManager.IMPORTANCE_DEFAULT).apply {
                 description = "某个通道多次重试仍然失败时提醒你"
+            },
+        )
+        nm.createNotificationChannel(
+            NotificationChannel(CH_REMOTE, "远程发短信", NotificationManager.IMPORTANCE_DEFAULT).apply {
+                description = "通过另一台手机远程发送短信的结果；发送端每发一条都会提醒"
+                lockscreenVisibility = Notification.VISIBILITY_PRIVATE
             },
         )
         nm.createNotificationChannel(
@@ -62,6 +69,7 @@ object Notifier {
         val parts = buildList {
             if (s.forwardEnabled && s.enabledChannelIds().isNotEmpty()) add("短信转发中")
             if (s.receiverConfigured()) add("正在接收加密短信")
+            if (s.remoteConfigured()) add("可远程发短信")
         }
         return Notification.Builder(context, CH_SERVICE)
             .setSmallIcon(R.drawable.ic_stat)
@@ -118,6 +126,37 @@ object Notifier {
             .setContentIntent(openApp(context, 0))
             .build()
         context.getSystemService(NotificationManager::class.java).notify(("fail$channel").hashCode(), n)
+    }
+
+    /** Sending phone: an SMS was (or was not) sent on remote request. Always shown, so misuse is noticed. */
+    fun remoteExecuted(context: Context, to: String, body: String, fromDevice: String, ok: Boolean, detail: String) {
+        if (!canNotify(context)) return
+        val title = if (ok) "已按远程指令发短信给 $to" else "拒绝/未能远程发短信给 $to"
+        val n = Notification.Builder(context, CH_REMOTE)
+            .setSmallIcon(R.drawable.ic_stat)
+            .setContentTitle(title)
+            .setContentText(body)
+            .setStyle(Notification.BigTextStyle().bigText("$body\n—— 指令来自 $fromDevice" + if (ok) "" else "\n原因：$detail"))
+            .setVisibility(Notification.VISIBILITY_PRIVATE)
+            .setAutoCancel(true)
+            .setContentIntent(openApp(context, 1))
+            .build()
+        context.getSystemService(NotificationManager::class.java).notify(("rx-cmd$to$body").hashCode(), n)
+    }
+
+    /** Receiving phone: outcome of a remote-SMS request. */
+    fun remoteResult(context: Context, to: String, body: String, ok: Boolean, detail: String) {
+        if (!canNotify(context)) return
+        val n = Notification.Builder(context, CH_REMOTE)
+            .setSmallIcon(R.drawable.ic_stat)
+            .setContentTitle(if (ok) "✅ 短信已发给 $to" else "❌ 远程发短信失败：$to")
+            .setContentText(if (ok) body else detail)
+            .setStyle(Notification.BigTextStyle().bigText(if (ok) body else "$detail\n\n$body"))
+            .setVisibility(Notification.VISIBILITY_PRIVATE)
+            .setAutoCancel(true)
+            .setContentIntent(openApp(context, 2))
+            .build()
+        context.getSystemService(NotificationManager::class.java).notify(("tx-cmd$to$body").hashCode(), n)
     }
 
     fun copySensitive(context: Context, label: String, text: String) {

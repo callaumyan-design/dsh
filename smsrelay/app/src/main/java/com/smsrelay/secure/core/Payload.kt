@@ -29,6 +29,7 @@ object Payload {
         return chunks.mapIndexed { i, chunk ->
             JSONObject()
                 .put("v", VERSION)
+                .put("t", "sms")
                 .put("id", sms.uid)
                 .put("from", sms.sender)
                 .put("body", chunk)
@@ -43,7 +44,7 @@ object Payload {
 
     fun decode(json: String): Part? = try {
         val o = JSONObject(json)
-        if (o.optInt("v") != VERSION) {
+        if (o.optInt("v") != VERSION || o.optString("t").ifEmpty { "sms" } != "sms") {
             null
         } else {
             val total = o.getInt("n")

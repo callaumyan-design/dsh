@@ -12,7 +12,9 @@ import com.smsrelay.secure.RelayService
 import com.smsrelay.secure.core.Formatter
 import com.smsrelay.secure.core.Ntfy
 import com.smsrelay.secure.core.Pairing
+import com.smsrelay.secure.core.Remote
 import com.smsrelay.secure.data.Db
+import com.smsrelay.secure.remote.RemoteSms
 import com.smsrelay.secure.receive.RxStatus
 
 /** The "接收" tab: this phone receives SMS forwarded (encrypted) from another phone. */
@@ -97,6 +99,8 @@ class ReceivePage(private val a: MainActivity) {
             ui.statusRow(c, false, "建议允许后台运行，否则可能延迟收到", "去设置") { a.requestIgnoreBatteryOptimizations() }
         }
 
+        val remoteRefresh = if (s.rxEnabled && Pairing.normalize(s.rxCode) != null) remoteCard(root) else null
+
         // ---------- Inbox
         val header = ui.horizontal()
         val t = TextView(a)
@@ -141,7 +145,86 @@ class ReceivePage(private val a: MainActivity) {
         a.startRefresher(1500) {
             updateStatus()
             fill()
+            remoteRefresh?.invoke()
         }
+    }
+
+    /** Draft survives page rebuilds (kept in memory only, never written to disk). */
+    private object Draft {
+        var to = ""
+        var body = ""
+        var sim = 0
+    }
+
+    /** "远程发短信": ask the sending phone to send an SMS through its SIM card. Returns a refresh callback. */
+    private fun remoteCard(root: LinearLayout): () -> Unit {
+        val c = ui.card(root)
+        ui.text(c, "远程发短信", 16.5f, bold = true)
+        ui.note(
+            c,
+            "用发送端手机的 SIM 卡给任意号码发短信。需要先在发送端「发送」页 → 加密推送里开启“允许接收端远程发短信”。",
+            top = 4,
+        )
+        val toInput = ui.input(c, "收件号码", Draft.to, "例如 13800138000", Ui.Kind.PHONE) { Draft.to = it }
+        val bodyInput = ui.input(c, "短信内容", Draft.body, "", Ui.Kind.MULTILINE) { Draft.body = it }
+        ui.picker(c, "用发送端的哪张卡", listOf("默认卡", "卡1", "卡2"), Draft.sim) { Draft.sim = it }
+        ui.button(c, "发送") {
+            val to = toInput.text.toString().trim()
+            val body = bodyInput.text.toString()
+            Draft.to = to
+            Draft.body = body
+            val err = Remote.validateContent(to, body)
+            if (err != null) {
+                a.alert("无法发送", err)
+                return@button
+            }
+            AlertDialog.Builder(a)
+                .setTitle("确认发送")
+                .setMessage("通过发送端手机给 $to 发送：\n\n$body\n\n可能产生短信费用。")
+                .setPositiveButton("发送") { _, _ ->
+                    a.runBackground({ RemoteSms.request(a.applicationContext, to, body, Draft.sim - 1) }) { e ->
+                        if (e == null) {
+                            Draft.body = ""
+                            bodyInput.setText("")
+                            a.toast("指令已加密发出，等待发送端确认")
+                        } else {
+                            a.alert("发送失败", e)
+                        }
+                    }
+                }
+                .setNegativeButton("取消", null)
+                .show()
+        }
+        val list = ui.vertical()
+        c.addView(list)
+        var sig: String? = null
+        fun fill() {
+            a.runBackground({ Db.get(a).recentRemote(Db.ROLE_OUT, 10) }) { items ->
+                val now = System.currentTimeMillis()
+                val newSig = items.joinToString { it.id + it.status + ((now - it.created) / 60_000).coerceAtMost(5) }
+                if (newSig == sig) return@runBackground
+                sig = newSig
+                list.removeAllViews()
+                if (items.isNotEmpty()) ui.text(list, "最近发送", 13f, R.color.sub, top = 14)
+                for (it in items) {
+                    val age = now - it.created
+                    val (text, color) = when (it.status) {
+                        Remote.SENT -> "✅ 已由发送端发出" to R.color.ok
+                        Remote.FAILED -> "❌ ${it.detail ?: "失败"}" to R.color.err
+                        Remote.ACCEPTED -> if (age < 3 * 60_000) "📤 发送端已收到，正在发送…" to R.color.sub
+                        else "⚠️ 发送端没有报告结果，请在发送端查看" to R.color.warn
+                        else -> if (age < 2 * 60_000) "⏳ 等待发送端确认…" to R.color.sub
+                        else "⚠️ 发送端没有响应：请确认它开启了“允许接收端远程发短信”并且联网" to R.color.warn
+                    }
+                    val sim = when (it.sim) { 0 -> " · 卡1"; 1 -> " · 卡2"; else -> "" }
+                    ui.text(list, "→ ${it.to} · ${Formatter.shortTime(it.created)}$sim", 14f, bold = true, top = 10)
+                    ui.text(list, it.body.take(80), 13.5f, top = 2)
+                    ui.text(list, text, 13f, color, top = 2)
+                }
+            }
+        }
+        fill()
+        return ::fill
     }
 
     private fun inboxItem(list: LinearLayout, item: Db.InItem) {

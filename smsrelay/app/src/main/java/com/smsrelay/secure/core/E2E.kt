@@ -26,12 +26,21 @@ object E2E {
     private const val NONCE_LEN = 12
     private const val TAG_BITS = 128
 
+    /** Channel for forwarded SMS and results: sending phone -> receiving phones. */
     fun derive(code: String): E2EKeys {
+        val prk = prk(code)
+        return E2EKeys("sr_" + expand(prk, "relay topic", 16).toHex(), expand(prk, "aes-256-gcm key", 32))
+    }
+
+    /** Separate channel (own topic and key) for remote commands: receiving phones -> sending phone. */
+    fun deriveCommand(code: String): E2EKeys {
+        val prk = prk(code)
+        return E2EKeys("sr_" + expand(prk, "command topic", 16).toHex(), expand(prk, "command aes-256-gcm key", 32))
+    }
+
+    private fun prk(code: String): ByteArray {
         val raw = Pairing.normalize(code) ?: throw IllegalArgumentException("配对码无效")
-        val prk = hmac("smsrelay/v1".toByteArray(), raw.toByteArray(Charsets.US_ASCII))
-        val topic = expand(prk, "relay topic", 16)
-        val key = expand(prk, "aes-256-gcm key", 32)
-        return E2EKeys("sr_" + topic.toHex(), key)
+        return hmac("smsrelay/v1".toByteArray(), raw.toByteArray(Charsets.US_ASCII))
     }
 
     fun seal(keys: E2EKeys, plaintext: ByteArray, random: SecureRandom = SecureRandom()): String {

@@ -64,6 +64,10 @@
             android:name=".CopyCodeReceiver"
             android:exported="false" />
 
+        <receiver
+            android:name=".remote.SmsSentReceiver"
+            android:exported="false" />
+
         <service
             android:name=".RelayService"
             android:exported="false"

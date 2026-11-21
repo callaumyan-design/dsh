@@ -31,6 +31,9 @@ class Settings(context: Context) {
     var e2eCode by secret("e2e_code")
     var e2eServer by string("e2e_server", Ntfy.DEFAULT_SERVER)
     var e2eToken by secret("e2e_token")
+    /** Allow phones that know the pairing code to make this phone send SMS (off by default). */
+    var remoteSmsEnabled by bool("remote_sms_enabled", false)
+    var cmdSince by string("cmd_since", "")
 
     // ---- Channel: email ----
     var emailEnabled by bool("email_enabled", false)
@@ -83,8 +86,10 @@ class Settings(context: Context) {
 
     fun receiverConfigured(): Boolean = rxEnabled && Pairing.normalize(rxCode) != null
 
+    fun remoteConfigured(): Boolean = remoteSmsEnabled && e2eEnabled && Pairing.normalize(e2eCode) != null
+
     fun needsService(): Boolean =
-        receiverConfigured() || (keepAlive && forwardEnabled && enabledChannelIds().isNotEmpty())
+        receiverConfigured() || remoteConfigured() || (keepAlive && forwardEnabled && enabledChannelIds().isNotEmpty())
 
     // ---- Property delegates ----
     private fun bool(key: String, def: Boolean) = object : ReadWriteProperty<Any, Boolean> {

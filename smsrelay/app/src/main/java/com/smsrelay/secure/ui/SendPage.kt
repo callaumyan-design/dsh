@@ -10,6 +10,10 @@ import android.widget.TextView
 import com.smsrelay.secure.R
 import com.smsrelay.secure.RelayService
 import com.smsrelay.secure.core.Bark
+import com.smsrelay.secure.core.Formatter
+import com.smsrelay.secure.core.Remote
+import com.smsrelay.secure.data.Db
+import com.smsrelay.secure.receive.CmdStatus
 import com.smsrelay.secure.core.Filter
 import com.smsrelay.secure.core.Ntfy
 import com.smsrelay.secure.core.Pairing
@@ -149,6 +153,8 @@ class SendPage(private val a: MainActivity) {
                     .setMessage("旧配对码会立即失效，所有接收端都需要重新输入新的配对码。怀疑配对码泄露时使用。")
                     .setPositiveButton("更换") { _, _ ->
                         s.e2eCode = Pairing.generate()
+                        s.cmdSince = ""
+                        RelayService.sync(a, restartReceiver = true)
                         a.refresh()
                     }
                     .setNegativeButton("取消", null)
@@ -160,7 +166,70 @@ class SendPage(private val a: MainActivity) {
             ui.input(c, "访问令牌（使用自建 ntfy 服务器并开启认证时才需要，可留空）", s.e2eToken, "", Ui.Kind.PASSWORD) {
                 s.e2eToken = it.trim()
             }
+            remoteSection(c)
         }
+    }
+
+    /** Sending phone: allow paired phones to send SMS through this phone's SIM card. */
+    private fun remoteSection(c: LinearLayout) {
+        ui.divider(c, 16)
+        ui.toggle(
+            c, "允许接收端远程发短信",
+            "开启后，输入了配对码的手机可以让本机用 SIM 卡发短信（会产生短信费用）",
+            s.remoteSmsEnabled, top = 8,
+        ) { on ->
+            if (on) {
+                AlertDialog.Builder(a)
+                    .setTitle("开启远程发短信？")
+                    .setMessage(
+                        "开启后，任何输入了本机配对码的手机，都能让本机给任意号码发短信。\n\n" +
+                            "安全措施：\n• 指令端到端加密并校验，没有配对码无法伪造\n" +
+                            "• 超过 10 分钟的指令自动作废，同一指令不会执行两次\n" +
+                            "• 每小时最多 ${Remote.MAX_PER_HOUR} 条\n• 每发一条，本机都会弹出通知\n\n" +
+                            "请只把配对码告诉你自己的手机。",
+                    )
+                    .setPositiveButton("开启") { _, _ ->
+                        // Only accept commands issued from now on, never older ones cached on the relay.
+                        s.cmdSince = ""
+                        s.remoteSmsEnabled = true
+                        a.requestPerm(Manifest.permission.SEND_SMS)
+                        RelayService.sync(a, restartReceiver = true)
+                        a.refresh()
+                    }
+                    .setNegativeButton("取消") { _, _ -> a.refresh() }
+                    .setOnCancelListener { a.refresh() }
+                    .show()
+            } else {
+                s.remoteSmsEnabled = false
+                RelayService.sync(a)
+                a.refresh()
+            }
+        }
+        if (!s.remoteSmsEnabled) return
+        val status = ui.text(c, "", 14f, top = 6)
+        val list = ui.vertical()
+        c.addView(list)
+        var sig: String? = null
+        fun update() {
+            status.text = "● 远程指令通道：" + CmdStatus.state
+            status.setTextColor(ui.color(if (CmdStatus.connected) R.color.ok else R.color.warn))
+            a.runBackground({ Db.get(a).recentRemote(Db.ROLE_IN, 5) }) { items ->
+                val newSig = items.joinToString { it.id + it.status }
+                if (newSig == sig) return@runBackground
+                sig = newSig
+                list.removeAllViews()
+                if (items.isNotEmpty()) ui.text(list, "最近远程发送", 13f, R.color.sub, top = 8)
+                for (it in items) {
+                    val ok = it.status == Remote.SENT
+                    val line = (if (ok) "✓ " else if (it.status == Remote.FAILED) "✗ " else "… ") +
+                        "${it.to} · ${Formatter.shortTime(it.created)}\n${it.body.take(40)}" +
+                        (if (it.status == Remote.FAILED) "\n原因：${it.detail ?: ""}" else "")
+                    ui.text(list, line, 13f, if (ok) R.color.text else if (it.status == Remote.FAILED) R.color.err else R.color.sub, top = 6)
+                }
+            }
+        }
+        update()
+        a.startRefresher(2000) { update() }
     }
 
     // ------------------------------------------------------------------ Bark

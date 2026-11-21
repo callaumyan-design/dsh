@@ -7,7 +7,7 @@ import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import com.smsrelay.secure.data.Settings
-import com.smsrelay.secure.receive.ReceiverLoop
+import com.smsrelay.secure.receive.RelayLoop
 
 /**
  * Foreground service that
@@ -15,7 +15,8 @@ import com.smsrelay.secure.receive.ReceiverLoop
  *  - holds the encrypted relay connection open (receiving phone).
  */
 class RelayService : Service() {
-    private var receiver: ReceiverLoop? = null
+    private var receiver: RelayLoop? = null
+    private var commands: RelayLoop? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -29,14 +30,22 @@ class RelayService : Service() {
         val s = Settings(this)
         if (!s.needsService()) {
             stopReceiver()
+            stopCommands()
             stopSelf()
             return START_NOT_STICKY
         }
+        val restart = intent?.getBooleanExtra(EXTRA_RESTART_RX, false) == true
         if (s.receiverConfigured()) {
-            if (intent?.getBooleanExtra(EXTRA_RESTART_RX, false) == true) stopReceiver()
-            if (receiver?.isRunning != true) receiver = ReceiverLoop(applicationContext).also { it.start() }
+            if (restart) stopReceiver()
+            if (receiver?.isRunning != true) receiver = RelayLoop.receiver(applicationContext).also { it.start() }
         } else {
             stopReceiver()
+        }
+        if (s.remoteConfigured()) {
+            if (restart) stopCommands()
+            if (commands?.isRunning != true) commands = RelayLoop.commands(applicationContext).also { it.start() }
+        } else {
+            stopCommands()
         }
         return START_STICKY
     }
@@ -55,8 +64,14 @@ class RelayService : Service() {
         receiver = null
     }
 
+    private fun stopCommands() {
+        commands?.stop()
+        commands = null
+    }
+
     override fun onDestroy() {
         stopReceiver()
+        stopCommands()
         super.onDestroy()
     }
 
