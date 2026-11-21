@@ -116,10 +116,10 @@ smsrelay/
 ./gradlew assembleRelease                      # 需要 signing.properties（不在仓库中）
 ```
 
-`release/SmsRelay-1.0.0.apk` 文件 SHA-256：
+`release/SmsRelay-1.1.0.apk` 文件 SHA-256：
 
 ```
-a249fa370a9d75a6d26e5cb43775c99cf42c7c51f3155d56a0919c3d3241c364
+fe8643c831a3b632a542800468f8437cd542e178ecb2f8abd6874d00c6cace0d
 ```
 
 发布版 APK 签名证书 SHA-256：

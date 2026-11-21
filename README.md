@@ -26,7 +26,7 @@ This repository may initially contain only distribution documentation and Releas
 
 ## Other projects in this repository
 
-- [`smsrelay/`](smsrelay/) — **短信安全转发**: an Android app that securely forwards incoming SMS to your other phones (end-to-end encrypted push, Bark for iPhone, email, SMS, Telegram, WeCom/DingTalk/Feishu bots). Zero third-party dependencies. Download: [`smsrelay/release/SmsRelay-1.0.0.apk`](smsrelay/release/SmsRelay-1.0.0.apk).
+- [`smsrelay/`](smsrelay/) — **短信安全转发**: an Android app that securely forwards incoming SMS to your other phones (end-to-end encrypted push, Bark for iPhone, email, SMS, Telegram, WeCom/DingTalk/Feishu bots). Zero third-party dependencies. Also supports remote SMS sending from a paired phone. Download: [`smsrelay/release/SmsRelay-1.1.0.apk`](smsrelay/release/SmsRelay-1.1.0.apk).
 - [`quadrant/`](quadrant/) — Eisenhower-matrix task planner (PWA).
 
 ## Upstream
