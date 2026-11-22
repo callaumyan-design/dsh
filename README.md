@@ -24,6 +24,10 @@ Some artwork was created with AI assistance and includes the DeepSeek name or lo
 
 This repository may initially contain only distribution documentation and Release downloads; a binary ZIP by itself does not provide the source code for every included component.
 
+## Plugins in this repository
+
+- [`plugins/dsh-model-fingerprint`](plugins/dsh-model-fingerprint/README.md) ([中文](plugins/dsh-model-fingerprint/README.zh.md)) — verifies whether a relay or custom gateway really serves the model it claims (model substitution, injected system prompts, tampered parameters). Install with `dsh plugin --profile web add <path-to-packed-tgz>`.
+
 ## Upstream
 
 - [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)

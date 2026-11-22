@@ -1,0 +1,7 @@
+# Layer contributed by the dsh-model-fingerprint bundle: one plugin row that
+# registers model_fingerprint_verify / model_fingerprint_record /
+# model_fingerprint_list. Override `config` in your profile's cordis.patch.yml
+# (restate every key you need: a patch replaces the whole config value).
+- insert:
+    - id: model-fingerprint
+      name: dsh-model-fingerprint
