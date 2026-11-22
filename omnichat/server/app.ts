@@ -15,9 +15,12 @@ import {
   sha256Hex,
   verifyPassword,
 } from './crypto';
-import { ANTHROPIC_DEFAULT_VERSION, applyAuth, joinUrl } from '../shared/provider-auth';
+import { ANTHROPIC_DEFAULT_VERSION, applyAuth, joinUrl, providerUrl } from '../shared/provider-auth';
 import type { BackupService } from './backup';
 import { registerGeneration, type GenerationEngine } from './generation';
+import { downloadPublic, MAX_MEDIA_BYTES, MEDIA_EXT, MEDIA_ID_RE, MEDIA_TYPES, type MediaBackend } from './media';
+import { bytesToBase64, sniffMime } from '../src/lib/ai/media';
+import type { MediaStore } from '../src/lib/ai/transport';
 import { DEFAULT_WEB_SEARCH, KEYLESS_KINDS, WEB_SEARCH_KINDS, webSearch, type WebSearchConfig } from './websearch';
 import { GO_PREFIX, isOpencodeGo, OPENCODE_GO_USER_AGENT, opencodeGoAuthStyle, opencodeGoRoot } from '../shared/opencode-go';
 import {
@@ -51,6 +54,8 @@ export interface AppOptions {
   backups?: BackupService;
   /** Background generation: replies run on the server and survive closed pages (needs a long-running process). */
   generation?: GenerationEngine;
+  /** Where generated images and videos are stored (self-hosted only); without it they stay inline in messages. */
+  media?: MediaBackend;
 }
 
 export interface SyncLimits {
@@ -128,6 +133,7 @@ const FORWARDED_HEADERS = [
   'http-referer',
   'x-title',
   'x-opencode-session',
+  'x-dashscope-async',
 ];
 
 export function createApp(opts: AppOptions) {
@@ -225,7 +231,7 @@ export function createApp(opts: AppOptions) {
       allowRegister: await allowRegister(c),
       version: APP_VERSION,
       limits: opts.limits(c),
-      features: { backgroundGeneration: !!opts.generation },
+      features: { backgroundGeneration: !!opts.generation, mediaStore: !!opts.media },
     };
     return c.json(status);
   });
@@ -705,7 +711,7 @@ export function createApp(opts: AppOptions) {
     const search = q >= 0 ? o.path.slice(q) : '';
     // OpenCode Go serves several protocols under one root; the client sends the protocol prefix in the path.
     const go = isOpencodeGo(provider);
-    const target = new URL(joinUrl(go ? opencodeGoRoot(provider.baseUrl) : provider.baseUrl, rest || '/') + search);
+    const target = new URL((go ? joinUrl(opencodeGoRoot(provider.baseUrl), rest || '/') : providerUrl(provider.baseUrl, rest || '/')) + search);
     if (target.protocol !== 'http:' && target.protocol !== 'https:') fail(400, 'Unsupported protocol');
     if (!o.allowPrivate && isPrivateHost(target.hostname)) {
       fail(403, 'Private network addresses are not allowed. Use direct (browser) mode for local models.');
@@ -728,8 +734,17 @@ export function createApp(opts: AppOptions) {
     }
     applyAuth(headers, go ? { type: provider.type, authStyle: opencodeGoAuthStyle(rest) } : provider, o.key);
 
+    // Multipart bodies from background generation (image edits, video references): encode them here, because the
+    // upstream fetch (undici on Node) doesn't recognise the runtime's own FormData class.
+    let body = o.body;
+    if (typeof FormData !== 'undefined' && body instanceof FormData) {
+      const encoded = new Response(body);
+      headers.set('content-type', encoded.headers.get('content-type') ?? 'multipart/form-data');
+      body = await encoded.arrayBuffer();
+    }
+
     try {
-      return await upstreamFetch(target.toString(), { method: o.method, headers, body: o.body, signal: o.signal, redirect: 'follow' });
+      return await upstreamFetch(target.toString(), { method: o.method, headers, body, signal: o.signal, redirect: 'follow' });
     } catch (err) {
       if (o.signal?.aborted) throw err;
       const msg = err instanceof Error ? `${err.message}${err.cause ? ` (${String((err.cause as Error).message ?? err.cause)})` : ''}` : String(err);
@@ -777,6 +792,88 @@ export function createApp(opts: AppOptions) {
     out.set('cache-control', 'no-cache, no-transform');
     out.set('x-accel-buffering', 'no');
     return new Response(upstream.body, { status: upstream.status, statusText: upstream.statusText, headers: out });
+  });
+
+  // ---------- Generated media ----------
+
+  async function storeMedia(userId: string, data: Uint8Array, mime: string): Promise<string> {
+    const ext = MEDIA_EXT[mime];
+    if (!opts.media || !ext) throw new Error(`Cannot store ${mime}`);
+    const id = `${randomId()}.${ext}`;
+    await opts.media.put(userId, id, data);
+    return `/api/media/${id}`;
+  }
+
+  /** The media store background generation uses: files go to disk, provider links are downloaded right away. */
+  function mediaStoreFor(userId: string, allowPrivate: boolean): MediaStore {
+    const download = (url: string, signal: AbortSignal) => downloadPublic(url, { fetch: upstreamFetch, allowPrivate, isPrivateHost, signal });
+    return {
+      async save(data, mime) {
+        if (opts.media && MEDIA_EXT[mime]) return { url: await storeMedia(userId, data, mime) };
+        return { dataUrl: `data:${mime};base64,${bytesToBase64(data)}` };
+      },
+      async download(url, signal) {
+        try {
+          return await download(url, signal);
+        } catch (err) {
+          if (signal.aborted) throw err;
+          console.warn(`[omnichat] could not download generated media: ${(err as Error).message}`);
+          return null; // keep the provider's link
+        }
+      },
+      async load(m, signal) {
+        if (m.dataUrl) return m.dataUrl;
+        if (!m.url) return null;
+        const id = m.url.startsWith('/api/media/') ? m.url.slice('/api/media/'.length) : null;
+        let data: Uint8Array | null = null;
+        if (id) data = MEDIA_ID_RE.test(id) && opts.media ? await opts.media.readAll(userId, id) : null;
+        else data = (await download(m.url, signal).catch(() => null))?.data ?? null;
+        return data ? `data:${sniffMime(data) ?? m.mime};base64,${bytesToBase64(data)}` : null;
+      },
+    };
+  }
+
+  // Stores a file the browser generated itself (Workers-style generation, providers in direct mode).
+  app.post('/api/media', bodyLimit({ maxSize: MAX_MEDIA_BYTES, onError: () => fail(413, 'File too large') }), async (c) => {
+    if (!opts.media) return c.json({ error: 'This deployment has no media store' }, 501);
+    const data = new Uint8Array(await c.req.arrayBuffer());
+    if (!data.length) fail(400, 'Empty file');
+    // The type comes from the bytes, never from the request.
+    const mime = sniffMime(data);
+    if (!mime || !MEDIA_EXT[mime]) fail(400, 'Only images and videos can be stored');
+    const url = await storeMedia(c.get('user').id, data, mime);
+    return c.json({ url, mime, size: data.length });
+  });
+
+  // Serves a stored file to its owner, with byte ranges so videos can seek.
+  app.get('/api/media/:id', async (c) => {
+    const id = c.req.param('id');
+    if (!opts.media || !MEDIA_ID_RE.test(id)) fail(404, 'Not found');
+    const userId = c.get('user').id;
+    const st = await opts.media.stat(userId, id);
+    if (!st) fail(404, 'Not found');
+    const headers = new Headers({
+      'content-type': MEDIA_TYPES[id.split('.').pop()!] ?? 'application/octet-stream',
+      'accept-ranges': 'bytes',
+      // The id is random and the file never changes.
+      'cache-control': 'private, max-age=31536000, immutable',
+    });
+    const range = /^bytes=(\d*)-(\d*)$/.exec(c.req.header('range') ?? '');
+    if (range && st.size > 0 && (range[1] || range[2])) {
+      let start = range[1] ? Number(range[1]) : Math.max(0, st.size - Number(range[2]));
+      let end = range[1] && range[2] ? Math.min(Number(range[2]), st.size - 1) : st.size - 1;
+      if (start >= st.size || start > end) {
+        headers.set('content-range', `bytes */${st.size}`);
+        return new Response(null, { status: 416, headers });
+      }
+      start = Math.max(0, start);
+      end = Math.max(start, end);
+      headers.set('content-range', `bytes ${start}-${end}/${st.size}`);
+      headers.set('content-length', String(end - start + 1));
+      return new Response(opts.media.read(userId, id, start, end), { status: 206, headers });
+    }
+    headers.set('content-length', String(st.size));
+    return new Response(opts.media.read(userId, id), { status: 200, headers });
   });
 
   // ---------- Usage statistics ----------
@@ -968,6 +1065,7 @@ export function createApp(opts: AppOptions) {
         const allowPrivate = mayUsePrivateNetwork(c);
         return {
           provider: { ...provider, id: providerId },
+          media: mediaStoreFor(userId, allowPrivate),
           // The adapter's wire provider only shapes the path and headers; the stored config decides where requests go.
           fetch: (_wire, path, init) =>
             providerRequest({

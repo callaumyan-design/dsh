@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ReasoningEffort } from '@/lib/types';
+import type { ReasoningEffort, MediaParams } from '@/lib/types';
 
 export type SettingsTab = 'providers' | 'models' | 'tools' | 'general' | 'prompts' | 'usage' | 'data' | 'account' | 'admin' | 'about';
 
@@ -38,7 +38,16 @@ interface UIState {
   chatSettingsOpen: boolean;
   searchOpen: boolean;
   /** Model chosen on the welcome screen before a conversation exists. */
-  draft: { providerId?: string; model?: string; promptId?: string; systemPrompt?: string; webSearch?: boolean; reasoningEffort?: ReasoningEffort };
+  draft: {
+    providerId?: string;
+    model?: string;
+    promptId?: string;
+    systemPrompt?: string;
+    webSearch?: boolean;
+    reasoningEffort?: ReasoningEffort;
+    /** Image / video options picked before the chat exists. */
+    media?: MediaParams;
+  };
   toasts: Toast[];
   confirm: ConfirmRequest | null;
   prompt: PromptRequest | null;

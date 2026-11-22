@@ -27,7 +27,10 @@ import { deleteMessage, editMessage, forkConversation, regenerate, retryLast, se
 import { useData } from '@/store/data';
 import { confirmDialog, toast } from '@/store/ui';
 import { useT } from '@/i18n';
+import { modelOutput } from '@/lib/ai/media';
+import { useAuth } from '@/store/auth';
 import { Markdown } from './LazyMarkdown';
+import { MediaGallery, MediaProgress } from './MediaView';
 
 function Reasoning({ text, ms, active }: { text: string; ms?: number; active: boolean }) {
   const t = useT();
@@ -281,6 +284,12 @@ function AssistantMessage({ m, streaming, isLast }: { m: Message; streaming: boo
   const modelTabs = versions > 1 && new Set(m.versions!.map((v) => `${v.providerId}:${v.model}`)).size > 1;
   const notice = !streaming ? finishNotice(m.finishReason, t) : null;
   const reasoningActive = streaming && !m.content;
+  // Image and video models: a placeholder card while generating, then the files.
+  const output = m.model ? modelOutput(provider, m.model) : 'text';
+  const mediaKind = output !== 'text' ? output : m.progress ? 'image' : null;
+  const generating = streaming && m.status === 'streaming' && !!mediaKind;
+  const aspect = useData((s) => s.conversations[m.conversationId]?.params?.media?.aspect);
+  const background = useAuth((s) => !!s.status?.features?.backgroundGeneration);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const u = m.usage;
@@ -358,13 +367,19 @@ function AssistantMessage({ m, streaming, isLast }: { m: Message; streaming: boo
           <div className={cn(streaming && 'streaming-tail')}>
             <Markdown content={m.content} streaming={streaming} />
           </div>
-        ) : streaming && !m.reasoning ? (
+        ) : streaming && !m.reasoning && !generating ? (
           <div className="typing-dots py-2 text-fg-subtle">
             <span />
             <span />
             <span />
           </div>
         ) : null}
+        {!!m.media?.length && <MediaGallery media={m.media} />}
+        {generating && mediaKind && (
+          <div className={cn(m.media?.length && 'mt-2')}>
+            <MediaProgress kind={mediaKind} progress={m.progress} since={m.createdAt} aspect={aspect} background={background} />
+          </div>
+        )}
         {!!m.sources?.length && <Sources sources={m.sources} />}
         {m.status === 'error' && (
           <div className="mt-2 flex items-start gap-2 rounded-xl border border-danger/30 bg-danger/5 px-3 py-2.5 text-sm text-danger">
@@ -402,7 +417,7 @@ function AssistantMessage({ m, streaming, isLast }: { m: Message; streaming: boo
                 </IconButton>
               </div>
             )}
-            <CopyAction text={m.content} />
+            {(m.content || !m.media?.length) && <CopyAction text={m.content} />}
             <ActionButton title={t('msg.regenerate')} onClick={() => regenerate(m)}>
               <RefreshCw />
             </ActionButton>
@@ -437,15 +452,17 @@ function AssistantMessage({ m, streaming, isLast }: { m: Message; streaming: boo
                   >
                     {t('msg.fork')}
                   </MenuItem>
-                  <MenuItem
-                    icon={<Volume2 />}
-                    onClick={() => {
-                      close();
-                      speak(m.content);
-                    }}
-                  >
-                    {t('msg.readAloud')}
-                  </MenuItem>
+                  {!!m.content && (
+                    <MenuItem
+                      icon={<Volume2 />}
+                      onClick={() => {
+                        close();
+                        speak(m.content);
+                      }}
+                    >
+                      {t('msg.readAloud')}
+                    </MenuItem>
+                  )}
                   <MenuDivider />
                   <MenuItem
                     danger

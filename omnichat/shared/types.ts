@@ -15,6 +15,9 @@ export type AuthStyle = 'bearer' | 'x-api-key' | 'api-key' | 'x-goog-api-key' | 
 /** proxy: the server attaches the key and forwards the call. direct: the browser calls the API itself. */
 export type RequestMode = 'proxy' | 'direct';
 
+/** What a model produces: chat text, images (image generation models) or videos (video generation models). */
+export type ModelOutput = 'text' | 'image' | 'video';
+
 export interface ModelInfo {
   id: string;
   name?: string;
@@ -22,6 +25,8 @@ export interface ModelInfo {
   hidden?: boolean;
   vision?: boolean;
   reasoning?: boolean;
+  /** Set by the user when the guess from the model id (see src/lib/ai/media.ts) is wrong. */
+  output?: ModelOutput;
 }
 
 export interface ProviderData {
@@ -93,6 +98,8 @@ export interface AuthStatus {
   features?: {
     /** Replies are generated on the server and finish even when the page is closed. */
     backgroundGeneration?: boolean;
+    /** Generated images and videos are stored on the server (/api/media) instead of inside messages. */
+    mediaStore?: boolean;
   };
 }
 

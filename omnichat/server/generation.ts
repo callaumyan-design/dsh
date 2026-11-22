@@ -10,7 +10,7 @@ import { now } from './clock';
 import type { GenerateRequest, JobEvents, JobSnapshot } from '../src/lib/ai/background';
 import type { RunReplyOptions } from '../src/lib/ai/reply';
 import type { SearchFn } from '../src/lib/ai/tool-loop';
-import type { ChatRequest, ChatResult, ProviderFetcher } from '../src/lib/ai/transport';
+import type { ChatRequest, ChatResult, MediaStore, ProviderFetcher } from '../src/lib/ai/transport';
 import type { Message, MessageVersion, Provider } from '../src/lib/types';
 
 /** The protocol code shared with the browser (src/lib/ai), injected so deployments without background jobs skip it. */
@@ -20,12 +20,14 @@ export interface GenerationEngine {
   composeMessage(job: JobSnapshot, versionIndex?: number): Message;
   titlePrompt(user: string, reply: string): string;
   cleanTitle(s: string): string;
+  /** Image and video models can't write titles. */
+  isMediaModel(p: Provider, model: string): boolean;
 }
 
 export interface GenerationDeps {
   engine: GenerationEngine;
   /** A provider of the signed-in user with a transport that sends its requests (key attached) upstream. */
-  providerFor(c: Context<AppEnv>, providerId: string): Promise<{ provider: Provider; fetch: ProviderFetcher }>;
+  providerFor(c: Context<AppEnv>, providerId: string): Promise<{ provider: Provider; fetch: ProviderFetcher; media: MediaStore }>;
   /** Searches through the account's search service; throws when none is usable. */
   searchFor(c: Context<AppEnv>): Promise<SearchFn>;
 }
@@ -245,7 +247,7 @@ export function registerGeneration(app: Hono<AppEnv>, deps: GenerationDeps) {
     db: DB,
     job: Job,
     req: GenerateRequest,
-    targets: { provider: Provider; fetch: ProviderFetcher; search?: SearchFn }[],
+    targets: { provider: Provider; fetch: ProviderFetcher; media: MediaStore; search?: SearchFn }[],
     titleModel: { provider: Provider; fetch: ProviderFetcher; model: string } | null,
   ) {
     const { userId } = job;
@@ -282,7 +284,14 @@ export function registerGeneration(app: Hono<AppEnv>, deps: GenerationDeps) {
           engine
             .runReply({
               target: { provider: t.provider, model: req.targets[i].model },
-              request: { system: req.targets[i].system, messages: req.messages, params: { ...req.params }, sessionId: req.conversationId, fetch: t.fetch },
+              request: {
+                system: req.targets[i].system,
+                messages: req.messages,
+                params: { ...req.params },
+                sessionId: req.conversationId,
+                fetch: t.fetch,
+                media: t.media,
+              },
               signal: job.controller.signal,
               search: t.search,
               emptyText: req.emptyText,
@@ -316,8 +325,9 @@ export function registerGeneration(app: Hono<AppEnv>, deps: GenerationDeps) {
     }
     emit(job, 'done', { message, updatedAt });
 
-    const reply = message && job.snapshot.live.find((v) => v.status === 'done')?.content;
-    if (titleModel && reply) {
+    const done = message ? job.snapshot.live.find((v) => v.status === 'done') : undefined;
+    const reply = done ? done.content || (done.media?.length ? `[${done.media.map((m) => m.kind).join(', ')}]` : '') : '';
+    if (titleModel && reply && !engine.isMediaModel(titleModel.provider, titleModel.model)) {
       const title = await nameChat(db, userId, req, reply, titleModel).catch(() => null);
       if (title) emit(job, 'title', { title });
     }
@@ -338,7 +348,7 @@ export function registerGeneration(app: Hono<AppEnv>, deps: GenerationDeps) {
     if (conv?.deleted) fail(404, 'Conversation not found');
 
     let search: SearchFn | undefined;
-    const targets: { provider: Provider; fetch: ProviderFetcher; search?: SearchFn }[] = [];
+    const targets: { provider: Provider; fetch: ProviderFetcher; media: MediaStore; search?: SearchFn }[] = [];
     for (const t of req.targets) {
       const p = await deps.providerFor(c, t.providerId);
       if (t.searchTool) search ??= await deps.searchFor(c).catch((err: Error) => async () => Promise.reject(err));

@@ -12,6 +12,7 @@ import { toast, useUI } from '@/store/ui';
 import { browserSpeechSupported, recordingSupported, startBrowserSpeech, startRecording, type VoiceSession } from '@/lib/voice';
 import { CompareButton, CompareChips } from './CompareButton';
 import { ModelPicker, useActiveModel } from './ModelPicker';
+import { MediaOptionsButton, useActiveMedia } from './MediaOptions';
 import { useLang, useT } from '@/i18n';
 
 /** Thinking effort of the open chat (or the new-chat draft); shown for reasoning models or once an effort is set. */
@@ -184,6 +185,7 @@ export function Composer({ compact }: { compact?: boolean }) {
   const attachments = draft?.attachments ?? [];
   const compare = draft?.compare ?? [];
   const [model, setModel] = useActiveModel();
+  const mediaKind = useActiveMedia().kind;
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const composing = useRef(false);
@@ -282,7 +284,15 @@ export function Composer({ compact }: { compact?: boolean }) {
           ref={taRef}
           value={text}
           rows={1}
-          placeholder={projectName ? t('project.placeholder', { name: projectName }) : t('composer.placeholder')}
+          placeholder={
+            mediaKind === 'image'
+              ? t('composer.placeholderImage')
+              : mediaKind === 'video'
+                ? t('composer.placeholderVideo')
+                : projectName
+                  ? t('project.placeholder', { name: projectName })
+                  : t('composer.placeholder')
+          }
           onChange={(e) => setDraft(key, { text: e.target.value })}
           onKeyDown={onKeyDown}
           onPaste={onPaste}
@@ -322,6 +332,7 @@ export function Composer({ compact }: { compact?: boolean }) {
             <ImageIcon />
           </IconButton>
           <VoiceButton draftKey={key} />
+          <MediaOptionsButton />
           <ReasoningPicker />
           <CompareButton value={compare} onChange={(v) => setDraft(key, { compare: v })} />
           <WebSearchToggle />

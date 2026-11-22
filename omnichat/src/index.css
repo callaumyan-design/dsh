@@ -377,3 +377,26 @@ button:disabled {
 .safe-top {
   padding-top: env(safe-area-inset-top);
 }
+
+/* Placeholder of an image or video being generated. */
+.media-shimmer::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 30%, color-mix(in oklab, var(--accent) 12%, transparent) 50%, transparent 70%);
+  background-size: 250% 100%;
+  animation: media-shimmer 2.2s linear infinite;
+}
+@keyframes media-shimmer {
+  from {
+    background-position: 120% 0;
+  }
+  to {
+    background-position: -120% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .media-shimmer::before {
+    animation: none;
+  }
+}

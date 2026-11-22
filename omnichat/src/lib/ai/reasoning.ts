@@ -2,6 +2,7 @@
 import { goProtocol, isOpencodeGo } from '../../../shared/opencode-go';
 import { claudeInfo, geminiThinkingStyle, guessReasoning } from './capabilities';
 import { getQuirks } from './presets';
+import { isMediaModel } from './media';
 import type { Provider, ReasoningEffort } from '../types';
 
 export interface ReasoningOptions {
@@ -44,6 +45,8 @@ function openaiOptions(model: string, responses: boolean): ReasoningOptions | nu
 }
 
 export function reasoningOptions(p: Provider, model: string): ReasoningOptions | null {
+  // Image and video generation models take no thinking setting.
+  if (isMediaModel(p, model)) return null;
   if (isOpencodeGo(p)) {
     switch (goProtocol(model)) {
       case 'anthropic':

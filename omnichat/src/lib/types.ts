@@ -1,6 +1,6 @@
-import type { ModelInfo, ProviderData } from '../../shared/types';
+import type { ModelInfo, ModelOutput, ProviderData } from '../../shared/types';
 
-export type { ModelInfo, ProviderData };
+export type { ModelInfo, ModelOutput, ProviderData };
 
 /** A configured AI provider (synced entity). */
 export interface Provider extends ProviderData {
@@ -22,6 +22,22 @@ export interface ChatParams {
   /** Use the provider's native web search when it has one. */
   webSearch?: boolean;
   extraBody?: Record<string, unknown>;
+  /** Options of image and video generation models. */
+  media?: MediaParams;
+}
+
+/** Image / video generation options; each adapter maps them onto its API (unset: the API's default). */
+export interface MediaParams {
+  /** e.g. '1:1', '16:9', '9:16', '4:3', '3:4'. */
+  aspect?: string;
+  /** Images per request. */
+  count?: number;
+  quality?: 'low' | 'medium' | 'high';
+  /** Video length in seconds. */
+  seconds?: number;
+  resolution?: '480p' | '720p' | '1080p';
+  /** What to keep out of the picture (APIs that take a negative prompt). */
+  negativePrompt?: string;
 }
 
 export interface Source {
@@ -39,6 +55,29 @@ export interface Attachment {
   dataUrl?: string;
   /** Decoded text for text-like files. */
   text?: string;
+}
+
+/** An image or video a model generated. */
+export interface GeneratedMedia {
+  id: string;
+  kind: 'image' | 'video';
+  mime: string;
+  /** Stored by this server (/api/media/<id>), or a provider URL that was kept because it could not be downloaded (may expire). */
+  url?: string;
+  /** Inline copy, when the server has no media store (Cloudflare Workers). */
+  dataUrl?: string;
+  size?: number;
+  /** The prompt as the model rewrote it (DALL·E 3 and others return it). */
+  revisedPrompt?: string;
+  /** Gemini's thought signature for the image, sent back with it when the chat continues. */
+  signature?: string;
+}
+
+/** How far a long-running generation (mostly video) has got. */
+export interface GenProgress {
+  stage: 'queued' | 'running' | 'saving';
+  /** 0-100 when the API reports it. */
+  percent?: number;
 }
 
 export interface Usage {
@@ -69,6 +108,10 @@ export interface MessageVersion {
   sources?: Source[];
   /** Transient while streaming: the query being searched. */
   searching?: string;
+  /** Images and videos the model generated. */
+  media?: GeneratedMedia[];
+  /** Transient while generating media. */
+  progress?: GenProgress;
   createdAt?: number;
 }
 

@@ -13,6 +13,7 @@ import { ensureSchema } from './db';
 import { createBackupService } from './backup';
 import { engine } from './engine';
 import { recoverInterruptedReplies } from './generation';
+import { fileMediaStore } from './media-fs';
 import { APP_VERSION } from '../shared/types';
 
 const env = process.env;
@@ -62,6 +63,8 @@ const upstreamFetch = ((input: string | URL, init?: RequestInit) =>
   undiciFetch(input, { ...(init as object), dispatcher } as Parameters<typeof undiciFetch>[1])) as unknown as typeof fetch;
 
 const trustProxy = bool(env.TRUST_PROXY);
+// Generated images and videos: <data>/media/<user>/<id>.<ext>.
+const media = fileMediaStore(path.join(dataDir, 'media'));
 const app = createApp({
   getDb: () => db,
   getSecret: () => secret,
@@ -83,6 +86,7 @@ const app = createApp({
   limits: () => ({ maxOps: 500, maxRecordBytes: 48 * 1024 * 1024 }),
   // Replies run on the server, so they finish (and are saved) even if the page is closed mid-answer.
   generation: bool(env.BACKGROUND_GENERATION, true) ? engine : undefined,
+  media,
   // Daily snapshots in <data>/backups; BACKUP_AZURE_URL (or the Azure VM tag "backup") adds an off-site copy.
   backups: bool(env.BACKUP_DISABLED)
     ? undefined
@@ -121,6 +125,23 @@ if (fs.existsSync(path.join(staticDir, 'index.html'))) {
 
 await ensureSchema(db);
 await recoverInterruptedReplies(db);
+
+// Media files of deleted messages and chats: removed a few days later, once no message refers to them.
+const MEDIA_GRACE_MS = 3 * 86_400_000;
+async function sweepMedia() {
+  try {
+    const removed = await media.sweep(
+      async (userId, url) =>
+        !!(await db.first('SELECT 1 FROM messages WHERE user_id = ? AND deleted = 0 AND instr(data, ?) > 0 LIMIT 1', [userId, url])),
+      MEDIA_GRACE_MS,
+    );
+    if (removed) console.log(`[omnichat] removed ${removed} unused media file${removed === 1 ? '' : 's'}`);
+  } catch (err) {
+    console.error('[omnichat] media cleanup failed', err);
+  }
+}
+setTimeout(() => void sweepMedia(), 5 * 60_000).unref();
+setInterval(() => void sweepMedia(), 86_400_000).unref();
 
 const port = Number(env.PORT) || (env.NODE_ENV === 'production' ? 3000 : 8787);
 const hostname = env.HOST || '0.0.0.0';

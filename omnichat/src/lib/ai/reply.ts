@@ -4,7 +4,7 @@ import { mergeSources } from './search';
 import { streamChat } from './core';
 import { streamChatWithTools, type SearchFn } from './tool-loop';
 import type { ChatRequest, Delta } from './transport';
-import type { MessageVersion, Provider, Source } from '../types';
+import type { GeneratedMedia, GenProgress, MessageVersion, Provider, Source } from '../types';
 
 /** Accumulates deltas; `snapshot()` is the version as it stands. */
 export function replyAccumulator(head: Pick<MessageVersion, 'model' | 'providerId' | 'providerName'>) {
@@ -15,7 +15,9 @@ export function replyAccumulator(head: Pick<MessageVersion, 'model' | 'providerI
   let reasoningStart = 0;
   let reasoningEnd = 0;
   const sources: Source[] = [];
+  const media: GeneratedMedia[] = [];
   let searching: string | undefined;
+  let progress: GenProgress | undefined;
   let final: Partial<MessageVersion> | null = null;
 
   const snapshot = (): MessageVersion => ({
@@ -23,8 +25,10 @@ export function replyAccumulator(head: Pick<MessageVersion, 'model' | 'providerI
     content,
     reasoning: reasoning || undefined,
     sources: sources.length ? [...sources] : undefined,
+    media: media.length ? [...media] : undefined,
     status: 'streaming',
     searching,
+    progress,
     ...final,
   });
 
@@ -33,6 +37,8 @@ export function replyAccumulator(head: Pick<MessageVersion, 'model' | 'providerI
       const now = performance.now();
       if (d.sources) mergeSources(sources, d.sources);
       if (d.searching) searching = d.searching;
+      if (d.progress) progress = d.progress;
+      if (d.media) media.push(...d.media);
       if (!firstAt && (d.content || d.reasoning)) firstAt = now;
       if (d.reasoning) {
         if (!reasoningStart) reasoningStart = now;
@@ -50,11 +56,12 @@ export function replyAccumulator(head: Pick<MessageVersion, 'model' | 'providerI
       final = {
         ...end,
         searching: undefined,
+        progress: undefined,
         durationMs: Math.round(t - started),
         firstTokenMs: firstAt ? Math.round(firstAt - started) : undefined,
         reasoningMs: reasoningStart ? Math.round((reasoningEnd || t) - reasoningStart) : undefined,
       };
-      if (end.status === 'done' && !content.trim() && !reasoning.trim()) final = { ...final, status: 'error', error: emptyText };
+      if (end.status === 'done' && !content.trim() && !reasoning.trim() && !media.length) final = { ...final, status: 'error', error: emptyText };
       return snapshot();
     },
   };

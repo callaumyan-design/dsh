@@ -1,10 +1,12 @@
 import './browser-transport';
+import './browser-media';
 import { anthropicModels } from './anthropic';
 import { geminiModels } from './gemini';
 import { openaiModels } from './openai';
 import { opencodeGoModels } from './opencode-go';
 import { isOpencodeGo } from '../../../shared/opencode-go';
 import { streamChat } from './core';
+import { isMediaModel } from './media';
 import type { ModelInfo, Provider } from '../types';
 
 export type { ChatRequest, ChatResult, ChatTurn, Delta } from './transport';
@@ -22,8 +24,16 @@ export async function listModels(p: Provider): Promise<ModelInfo[]> {
     .sort((a, b) => a.id.localeCompare(b.id));
 }
 
-/** Sends a tiny request and stops at the first token. Resolves with latency in ms. */
-export async function testProvider(p: Provider, model: string): Promise<{ ms: number; sample: string }> {
+/**
+ * Sends a tiny request and stops at the first token. Resolves with latency in ms. Image and video models would
+ * generate (and bill) a real file, so for them only the key is checked, by listing models.
+ */
+export async function testProvider(p: Provider, model: string): Promise<{ ms: number; sample: string; media?: boolean }> {
+  if (isMediaModel(p, model)) {
+    const started = performance.now();
+    await listModels(p);
+    return { ms: Math.round(performance.now() - started), sample: '', media: true };
+  }
   const controller = new AbortController();
   const started = performance.now();
   let sample = '';

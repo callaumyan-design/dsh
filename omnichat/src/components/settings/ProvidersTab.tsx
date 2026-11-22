@@ -18,6 +18,7 @@ import { Badge, Button, Field, IconButton, Input, Modal, Segmented, Select, Swit
 import { ProviderAvatar } from '@/components/ui/ProviderAvatar';
 import { forgetProviderKey, listModels, testProvider } from '@/lib/ai';
 import { guessReasoning, guessVision } from '@/lib/ai/capabilities';
+import { guessOutput } from '@/lib/ai/media';
 import { PRESETS, getPreset, presetName, type ProviderPreset } from '@/lib/ai/presets';
 import { isOpencodeGo } from '../../../shared/opencode-go';
 import { joinUrl } from '../../../shared/provider-auth';
@@ -84,10 +85,11 @@ function parseJsonObject(s: string): Record<string, unknown> | undefined | null 
   }
 }
 
-type TestState = { status: 'idle' } | { status: 'running' } | { status: 'ok'; ms: number; sample: string } | { status: 'fail'; error: string };
+type TestState = { status: 'idle' } | { status: 'running' } | { status: 'ok'; ms: number; sample: string; media?: boolean } | { status: 'fail'; error: string };
 
 function ProviderEditor({ provider, onDeleted, onBack }: { provider: Provider; onDeleted(): void; onBack?(): void }) {
   const t = useT();
+  const outputLabel = (o: string) => t(o === 'image' ? 'model.outputImage' : o === 'video' ? 'model.outputVideo' : 'model.outputText');
   const preset = getPreset(provider.presetId);
   const [name, setName] = useState(provider.name);
   const [baseUrl, setBaseUrl] = useState(provider.baseUrl);
@@ -185,7 +187,12 @@ function ProviderEditor({ provider, onDeleted, onBack }: { provider: Provider; o
   const runTest = async () => {
     const p = dirty ? save(true) : provider;
     if (!p) return;
-    const model = testModel || models.find((m) => !m.hidden)?.id || models[0]?.id;
+    // Prefer a chat model: image and video models are only checked by listing models.
+    const model =
+      testModel ||
+      models.find((m) => !m.hidden && (m.output ?? guessOutput(m.id)) === 'text')?.id ||
+      models.find((m) => !m.hidden)?.id ||
+      models[0]?.id;
     if (!model) return toast(t('provider.needModel'), 'error');
     setTest({ status: 'running' });
     try {
@@ -360,8 +367,37 @@ function ProviderEditor({ provider, onDeleted, onBack }: { provider: Provider; o
                   {m.id}
                   {m.name && <span className="ml-2 font-sans text-xs text-fg-subtle">{m.name}</span>}
                 </span>
-                {guessVision(m.id) && <Badge>{t('model.vision')}</Badge>}
-                {guessReasoning(m.id) && <Badge>{t('model.reasoning')}</Badge>}
+                {(m.output ?? guessOutput(m.id)) === 'text' ? (
+                  <>
+                    {guessVision(m.id) && <Badge>{t('model.vision')}</Badge>}
+                    {guessReasoning(m.id) && <Badge>{t('model.reasoning')}</Badge>}
+                  </>
+                ) : null}
+                <select
+                  value={m.output ?? ''}
+                  title={t('model.output')}
+                  aria-label={t('model.output')}
+                  data-model-output={m.id}
+                  onChange={(e) =>
+                    setModels(
+                      models.map((x) => {
+                        if (x.id !== m.id) return x;
+                        const next = { ...x, output: (e.target.value || undefined) as ModelInfo['output'] };
+                        if (!next.output) delete next.output;
+                        return next;
+                      }),
+                    )
+                  }
+                  className={cn(
+                    'h-6 max-w-[7.5rem] shrink-0 cursor-pointer rounded-md border-0 bg-muted px-1 text-[11px] font-medium outline-none',
+                    (m.output ?? guessOutput(m.id)) === 'text' ? 'text-fg-subtle' : 'text-accent',
+                  )}
+                >
+                  <option value="">{t('model.outputAuto', { type: outputLabel(guessOutput(m.id)) })}</option>
+                  <option value="text">{t('model.outputText')}</option>
+                  <option value="image">{t('model.outputImage')}</option>
+                  <option value="video">{t('model.outputVideo')}</option>
+                </select>
                 <button
                   type="button"
                   className="text-fg-subtle opacity-100 hover:text-danger md:opacity-0 md:group-hover:opacity-100"
@@ -410,7 +446,7 @@ function ProviderEditor({ provider, onDeleted, onBack }: { provider: Provider; o
             <div className="flex items-start gap-2 text-sm text-success">
               <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
               <span>
-                {t('provider.testOk', { ms: test.ms })}
+                {test.media ? t('provider.testMedia', { ms: test.ms }) : t('provider.testOk', { ms: test.ms })}
                 {test.sample && <span className="text-fg-muted"> · “{test.sample.slice(0, 40)}”</span>}
               </span>
             </div>

@@ -9,6 +9,7 @@ import { effectiveSearchMode, searchViaServer } from '@/lib/ai/tools';
 import type { ChatTurn } from '@/lib/ai';
 import { attachmentsAsText } from '@/lib/ai/transport';
 import { runReply } from '@/lib/ai/reply';
+import { isMediaModel } from '@/lib/ai/media';
 import { readSSE } from '@/lib/ai/sse';
 import { cleanTitle, titlePrompt } from '@/lib/ai/title';
 import { applyDelta, composeMessage, type GenerateRequest, type JobEvents, type JobSnapshot } from '@/lib/ai/background';
@@ -83,6 +84,7 @@ function snapshot(m: Message): MessageVersion {
     reasoningMs: m.reasoningMs,
     finishReason: m.finishReason,
     sources: m.sources,
+    media: m.media,
   };
 }
 
@@ -98,11 +100,12 @@ export function newConversation(opts: Partial<Conversation> = {}): Conversation 
     systemPrompt: draft.systemPrompt ?? settings.defaultSystemPrompt,
     promptId: draft.promptId,
     params:
-      settings.defaultParams || draft.webSearch || draft.reasoningEffort
+      settings.defaultParams || draft.webSearch || draft.reasoningEffort || draft.media
         ? {
             ...settings.defaultParams,
             ...(draft.webSearch ? { webSearch: true } : {}),
             ...(draft.reasoningEffort ? { reasoningEffort: draft.reasoningEffort } : {}),
+            ...(draft.media ? { media: { ...settings.defaultParams?.media, ...draft.media } } : {}),
           }
         : undefined,
     createdAt: Date.now(),
@@ -243,12 +246,31 @@ function buildSystem(conv: Conversation, target: Target): string | undefined {
   return parts.join('\n\n') || undefined;
 }
 
+/** What a text model is told about images or videos an earlier reply generated. */
+export function mediaPlaceholder(m: Pick<Message, 'media'>): string {
+  const media = m.media ?? [];
+  if (!media.length) return '';
+  const images = media.filter((x) => x.kind === 'image').length;
+  const videos = media.length - images;
+  const what = [images && `${images} image${images > 1 ? 's' : ''}`, videos && `${videos} video${videos > 1 ? 's' : ''}`].filter(Boolean).join(' and ');
+  const revised = media.find((x) => x.revisedPrompt)?.revisedPrompt;
+  return `[Generated ${what}${revised ? `: ${revised}` : ''}]`;
+}
+
 function buildContext(conv: Conversation, history: Message[]): ChatTurn[] {
-  let context = history.filter((m) => m.status !== 'error' && m.status !== 'streaming' && (m.content.trim() || m.attachments?.length));
+  let context = history.filter(
+    (m) => m.status !== 'error' && m.status !== 'streaming' && (m.content.trim() || m.attachments?.length || m.media?.length),
+  );
   const count = conv.params?.contextCount;
   if (count && count > 0) context = context.slice(-count);
   while (context.length && context[0].role === 'assistant') context = context.slice(1);
-  const turns: ChatTurn[] = context.map((m) => ({ role: m.role, content: m.content, attachments: m.attachments }));
+  const turns: ChatTurn[] = context.map((m) => ({
+    role: m.role,
+    // Replies that are only images or videos still tell text models what happened.
+    content: m.content || mediaPlaceholder(m),
+    attachments: m.attachments,
+    ...(m.media?.length ? { media: m.media } : {}),
+  }));
   // Project images and PDFs ride along with the first turn that is sent, so they stay in view however long the chat gets.
   const media = projectOf(conv)?.files?.filter((f) => f.kind !== 'text') ?? [];
   if (media.length && turns[0]) turns[0] = { ...turns[0], attachments: [...media, ...(turns[0].attachments ?? [])] };
@@ -265,9 +287,25 @@ function usesSearchTool(conv: Conversation, target: Target): boolean {
   return !!conv.params?.webSearch && effectiveSearchMode(target.provider, target.model) === 'tool';
 }
 
+/** A model that writes text: the given one, else the default model, else the first text model configured. */
+function textTarget(preferred: Target | null): Target | null {
+  if (preferred && !isMediaModel(preferred.provider, preferred.model)) return preferred;
+  const fallback = resolveTarget();
+  if (fallback && !isMediaModel(fallback.provider, fallback.model)) return fallback;
+  for (const p of sortedProviders()) {
+    if (p.enabled === false) continue;
+    const m = p.models.find((x) => !x.hidden && !isMediaModel(p, x.id));
+    if (m) return { provider: p, model: m.id };
+  }
+  return null;
+}
+
+/** The model that names chats; image and video models can't, so a text model stands in for them. */
 function titleTarget(conv: Conversation): Target | null {
   const { settings } = useData.getState();
-  return settings.titleModel ? resolveTarget(settings.titleProviderId, settings.titleModel) : resolveTarget(conv.providerId, conv.model);
+  return textTarget(
+    settings.titleModel ? resolveTarget(settings.titleProviderId, settings.titleModel) : resolveTarget(conv.providerId, conv.model),
+  );
 }
 
 interface Follower {
@@ -683,11 +721,11 @@ export async function autoTitle(conversationId: string, force = false) {
   if (!conv || (!force && (!settings.autoTitle || conv.titleGenerated))) return;
   const msgs = getMessages(conversationId);
   const user = msgs.find((m) => m.role === 'user');
-  const reply = msgs.find((m) => m.role === 'assistant' && m.content);
+  const reply = msgs.find((m) => m.role === 'assistant' && (m.content || m.media?.length));
   if (!user || !reply) return;
   const target = titleTarget(conv);
   if (!target) return;
-  const prompt = titlePrompt(user.content || user.attachments?.map((a) => a.name).join(', ') || '', reply.content);
+  const prompt = titlePrompt(user.content || user.attachments?.map((a) => a.name).join(', ') || '', reply.content || mediaPlaceholder(reply));
   let out = '';
   try {
     await streamChat({

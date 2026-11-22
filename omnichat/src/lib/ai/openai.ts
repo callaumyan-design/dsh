@@ -2,6 +2,7 @@
 import { getQuirks, type ReasoningStyle } from './presets';
 import { createThinkParser, readSSE } from './sse';
 import { applyOpenAISearch, openAISources, searchMode } from './search';
+import { closestAspect, mediaVendor, modelOutput, saveOutput, type MediaOutput } from './media';
 import {
   embeddedError,
   JSON_HEADERS,
@@ -91,17 +92,23 @@ export async function openaiChat(req: ChatRequest): Promise<ChatResult> {
   const { provider: p, params } = req;
   const quirks = getQuirks(p);
   const stream = params.stream !== false;
+  const imageOut = modelOutput(p, req.model) === 'image';
   const body: Record<string, unknown> = {
     model: req.model,
     messages: buildMessages(req, !!quirks.pdf),
     stream,
   };
+  if (imageOut && mediaVendor(p) === 'openrouter') {
+    // OpenRouter image models answer in Chat Completions when asked for image output.
+    body.modalities = ['image', 'text'];
+    if (params.media?.aspect) body.image_config = { aspect_ratio: closestAspect(params.media.aspect, ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9']) };
+  }
   if (stream && quirks.streamUsage !== false) body.stream_options = { include_usage: true };
   if (params.temperature !== undefined) body.temperature = params.temperature;
   if (params.topP !== undefined) body.top_p = params.topP;
   if (params.maxTokens) body[quirks.maxTokensField ?? 'max_tokens'] = params.maxTokens;
-  applyReasoning(body, params.reasoningEffort, quirks.reasoning ?? 'openai');
-  if (params.webSearch) {
+  if (!imageOut) applyReasoning(body, params.reasoningEffort, quirks.reasoning ?? 'openai');
+  if (params.webSearch && !imageOut) {
     const mode = searchMode(p, req.model);
     if (mode) applyOpenAISearch(body, mode);
   }
@@ -123,6 +130,19 @@ export async function openaiChat(req: ChatRequest): Promise<ChatResult> {
   if (!res.ok) throw await readError(res);
 
   const think = createThinkParser(req.onDelta);
+  // Images in the answer (OpenRouter's `images`, or image parts in `content`), stored once the response is complete.
+  const images: MediaOutput[] = [];
+  const addImages = (list: unknown) => {
+    if (!Array.isArray(list)) return;
+    for (const x of list as any[]) {
+      const url = typeof x === 'string' ? x : (x?.image_url?.url ?? x?.image_url ?? x?.url);
+      if (typeof url === 'string' && url) images.push({ kind: 'image', url });
+      else if (x?.b64_json) images.push({ kind: 'image', b64: x.b64_json });
+    }
+  };
+  const saveImages = async () => {
+    for (const img of images) await saveOutput(req, img);
+  };
   // This turn's raw text, reasoning and tool calls, replayed to the model if it called tools.
   let roundText = '';
   let roundReasoning = '';
@@ -156,7 +176,8 @@ export async function openaiChat(req: ChatRequest): Promise<ChatResult> {
     } else if (Array.isArray(content)) {
       // e.g. Mistral Magistral: [{type:'thinking', thinking:[{text}]}, {type:'text', text}]
       for (const part of content) {
-        if (part?.type === 'text' && part.text) think.push(part.text);
+        if (part?.type === 'image_url' || part?.type === 'output_image') addImages([part]);
+        else if (part?.type === 'text' && part.text) think.push(part.text);
         else if (part?.type === 'thinking') {
           const t = Array.isArray(part.thinking) ? part.thinking.map((x: any) => x?.text ?? '').join('') : String(part.thinking ?? '');
           if (t) req.onDelta({ reasoning: t });
@@ -179,8 +200,10 @@ export async function openaiChat(req: ChatRequest): Promise<ChatResult> {
       req.onDelta({ reasoning: r });
     }
     handleContent(msg.content);
+    addImages(msg.images);
     addCalls(msg.tool_calls);
     think.end();
+    await saveImages();
     return { usage: mapUsage(j.usage), finishReason: j.choices?.[0]?.finish_reason, ...toolResult() };
   }
 
@@ -209,12 +232,14 @@ export async function openaiChat(req: ChatRequest): Promise<ChatResult> {
         req.onDelta({ reasoning: r });
       }
       handleContent(delta.content);
+      addImages(delta.images);
       addCalls(delta.tool_calls);
     }
     if (choice?.finish_reason) finishReason = choice.finish_reason;
     if (j.usage) usage = mapUsage(j.usage);
   }
   think.end();
+  await saveImages();
   return { usage, finishReason, ...toolResult() };
 }
 

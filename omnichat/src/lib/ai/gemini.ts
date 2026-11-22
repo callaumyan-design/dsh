@@ -1,5 +1,6 @@
 // Google Gemini (Generative Language API, v1beta).
 import { geminiThinkingStyle } from './capabilities';
+import { closestAspect, modelOutput, saveOutput, type MediaOutput } from './media';
 import { searchMode } from './search';
 import { readSSE } from './sse';
 import {
@@ -43,8 +44,10 @@ function thinkingConfig(model: string, effort: ReasoningEffort): Record<string, 
   }
 }
 
-function buildContents(req: ChatRequest) {
+function buildContents(req: ChatRequest, imageOut: boolean) {
   const out: { role: 'user' | 'model'; parts: Record<string, unknown>[] }[] = [];
+  // Gemini 3 checks thought signatures on images it made; replies from elsewhere carry a documented placeholder.
+  const signed = /gemini-[3-9]/i.test(req.model);
   for (const m of req.messages) {
     const parts: Record<string, unknown>[] = [];
     if (m.role === 'user') {
@@ -55,8 +58,17 @@ function buildContents(req: ChatRequest) {
       }
       const text = userText(m);
       if (text) parts.push({ text });
-    } else if (m.content) {
-      parts.push({ text: m.content });
+    } else {
+      // Image models see the images they made earlier (loaded inline by ./media.ts), so they can keep editing them.
+      const images = imageOut ? (m.media ?? []).filter((x) => x.kind === 'image' && x.dataUrl) : [];
+      if (m.content && !(images.length && /^\[Generated /.test(m.content))) parts.push({ text: m.content });
+      for (const img of images) {
+        const { mime, data } = splitDataUrl(img.dataUrl!);
+        parts.push({
+          inlineData: { mimeType: mime, data },
+          ...(signed ? { thoughtSignature: img.signature || 'skip_thought_signature_validator' } : {}),
+        });
+      }
     }
     if (!parts.length) continue;
     const role = m.role === 'assistant' ? 'model' : 'user';
@@ -82,14 +94,22 @@ const modelPath = (model: string) => `/models/${model.replace(/^models\//, '')}`
 export async function geminiChat(req: ChatRequest): Promise<ChatResult> {
   const { provider: p, params } = req;
   const stream = params.stream !== false;
+  const imageOut = modelOutput(p, req.model) === 'image';
   const generationConfig: Record<string, unknown> = {};
   if (params.temperature !== undefined) generationConfig.temperature = params.temperature;
   if (params.topP !== undefined) generationConfig.topP = params.topP;
   if (params.maxTokens) generationConfig.maxOutputTokens = params.maxTokens;
-  const tc = thinkingConfig(req.model, params.reasoningEffort ?? 'default');
-  if (tc) generationConfig.thinkingConfig = tc;
+  if (imageOut) {
+    // Image models: ask for images, and leave thinking to the model (several of them reject thinkingConfig).
+    generationConfig.responseModalities = ['TEXT', 'IMAGE'];
+    const aspect = params.media?.aspect;
+    if (aspect) generationConfig.imageConfig = { aspectRatio: closestAspect(aspect, ['1:1', '16:9', '9:16', '4:3', '3:4', '3:2', '2:3', '21:9']) };
+  } else {
+    const tc = thinkingConfig(req.model, params.reasoningEffort ?? 'default');
+    if (tc) generationConfig.thinkingConfig = tc;
+  }
 
-  const contents: Record<string, unknown>[] = buildContents(req);
+  const contents: Record<string, unknown>[] = buildContents(req, imageOut);
   for (const r of req.toolRounds ?? []) {
     contents.push({ role: 'model', parts: r.assistant });
     contents.push({
@@ -101,7 +121,7 @@ export async function geminiChat(req: ChatRequest): Promise<ChatResult> {
     });
   }
   const body: Record<string, unknown> = { contents };
-  if (params.webSearch && searchMode(p, req.model) === 'gemini') body.tools = [{ google_search: {} }];
+  if (params.webSearch && !imageOut && searchMode(p, req.model) === 'gemini') body.tools = [{ google_search: {} }];
   if (req.tools?.length) {
     body.tools = [...((body.tools as unknown[]) ?? []), { functionDeclarations: req.tools.map((t) => ({ name: t.name, description: t.description, parameters: t.parameters })) }];
     if (req.toolChoice === 'none') body.toolConfig = { functionCallingConfig: { mode: 'NONE' } };
@@ -118,12 +138,20 @@ export async function geminiChat(req: ChatRequest): Promise<ChatResult> {
   let finishReason: string | undefined;
   // This turn's parts as received (Gemini 3 needs their thought signatures back with function calls).
   const parts: any[] = [];
+  // Generated images, stored once the response is complete.
+  const images: MediaOutput[] = [];
   const handle = (j: any) => {
     const err = embeddedError(j);
     if (err) throw err;
     if (j.promptFeedback?.blockReason) throw new ProviderError(`Blocked by Gemini: ${j.promptFeedback.blockReason}`);
     const cand = j.candidates?.[0];
     for (const part of cand?.content?.parts ?? []) {
+      const inline = part.inlineData ?? part.inline_data;
+      if (inline?.data) {
+        // Gemini 3 image models also stream draft images while thinking; keep the final ones.
+        if (!part.thought) images.push({ kind: 'image', b64: inline.data, mime: inline.mimeType ?? inline.mime_type, signature: part.thoughtSignature });
+        continue;
+      }
       parts.push(part);
       if (typeof part.text !== 'string' || !part.text) continue;
       if (part.thought) req.onDelta({ reasoning: part.text });
@@ -158,6 +186,7 @@ export async function geminiChat(req: ChatRequest): Promise<ChatResult> {
       handle(j);
     }
   }
+  for (const img of images) await saveOutput(req, img);
   const mapped: Record<string, string> = { STOP: 'stop', MAX_TOKENS: 'length', FINISH_REASON_UNSPECIFIED: 'stop' };
   const toolCalls: ToolCall[] = parts
     .filter((x) => x.functionCall?.name)
@@ -174,6 +203,7 @@ export async function geminiModels(p: Provider): Promise<ModelInfo[]> {
   if (!res.ok) throw await readError(res);
   const j: any = await res.json();
   return (j.models ?? [])
-    .filter((m: any) => !m.supportedGenerationMethods || m.supportedGenerationMethods.includes('generateContent'))
+    // Chat models, plus Imagen (predict) and Veo (predictLongRunning).
+    .filter((m: any) => !m.supportedGenerationMethods || ['generateContent', 'predict', 'predictLongRunning'].some((x) => m.supportedGenerationMethods.includes(x)))
     .map((m: any) => ({ id: String(m.name).replace(/^models\//, ''), name: m.displayName || undefined }));
 }

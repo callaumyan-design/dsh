@@ -2,6 +2,7 @@
 import { create } from 'zustand';
 import { api } from '../api';
 import { searchMode } from './search';
+import { isMediaModel } from './media';
 import type { SearchFn, WebResult } from './tool-loop';
 import type { Provider } from '../types';
 
@@ -38,6 +39,7 @@ export function webSearchReady(s: WebSearchStatus = useWebSearch.getState()): bo
 
 /** How web search runs for a model: the provider's own search, the search tool, or not at all. */
 export function effectiveSearchMode(p: Provider, model: string): ReturnType<typeof searchMode> | 'tool' {
+  if (isMediaModel(p, model)) return null;
   return searchMode(p, model) ?? (webSearchReady() ? 'tool' : null);
 }
 

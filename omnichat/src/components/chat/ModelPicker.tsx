@@ -1,8 +1,9 @@
 import { useMemo, useRef, useState } from 'react';
-import { Brain, Check, ChevronDown, Eye, Search, Settings2, Star } from 'lucide-react';
+import { Brain, Check, ChevronDown, Clapperboard, Eye, ImageIcon, Search, Settings2, Star } from 'lucide-react';
 import { Popover } from '@/components/ui/primitives';
 import { ProviderAvatar } from '@/components/ui/ProviderAvatar';
 import { guessReasoning, guessVision } from '@/lib/ai/capabilities';
+import { modelOutput } from '@/lib/ai/media';
 import { cn } from '@/lib/utils';
 import { modelKey, type Provider } from '@/lib/types';
 import { updateConversation, updateSettings, useData } from '@/store/data';
@@ -36,7 +37,11 @@ export function useActiveModel(): [ModelValue, (v: ModelValue) => void] {
   return [value, set];
 }
 
-function ModelBadges({ id }: { id: string }) {
+function ModelBadges({ p, id }: { p: Provider; id: string }) {
+  const t = useT();
+  const output = modelOutput(p, id);
+  if (output === 'image') return <ImageIcon className="size-3.5 text-accent" aria-label={t('model.image')} />;
+  if (output === 'video') return <Clapperboard className="size-3.5 text-accent" aria-label={t('model.video')} />;
   return (
     <span className="flex items-center gap-1 text-fg-subtle">
       {guessVision(id) && <Eye className="size-3.5" />}
@@ -108,7 +113,7 @@ export function ModelPicker({
           {name || id}
           {showProvider && <span className="ml-1.5 text-xs text-fg-subtle">{p.name}</span>}
         </span>
-        <ModelBadges id={id} />
+        <ModelBadges p={p} id={id} />
         <button
           type="button"
           onClick={(e) => {

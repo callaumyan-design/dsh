@@ -244,6 +244,111 @@ check('no replies in a deleted chat', r.status === 404, r.status);
 r = await call('/api/generate', { body: { ...genBody('c-bg', 'a-x'), targets: [{ providerId: 'missing', model: 'm' }] } });
 check('unknown providers are rejected', r.status === 404, r.status);
 
+console.log('▶ image and video generation');
+r = await call('/api/auth/status', { auth: false });
+check('status announces the media store', r.json?.features?.mediaStore === true, r.json?.features);
+const mediaLog = async () => (await (await fetch(`${MOCK}/__log`)).json()).filter((x) => /images|videos|video-relay|predict|gemini/.test(x.api));
+const lastLog = async (api) => (await mediaLog()).filter((x) => x.api === api).pop();
+const mediaFetch = (url, headers = {}) => fetch(BASE + url, { headers: { authorization: `Bearer ${token}`, ...headers } });
+const done = (conversationId, id, ms = 20_000) =>
+  waitFor(async () => {
+    const m = await message(conversationId, id);
+    return m && m.data.status !== 'streaming' ? m : null;
+  }, ms);
+const ask = (text, extra = {}) => ({ messages: [{ role: 'user', content: text }], ...extra });
+
+await push([{ kind: 'conversation', id: 'c-img', data: { title: 'img', createdAt: Date.now() } }]);
+await startAndLeave(genBody('c-img', 'a-img', 'gpt-image-1', ask('a red fox', { params: { media: { aspect: '16:9', count: 2, quality: 'low' } } })));
+msg = await done('c-img', 'a-img');
+const imgs = msg?.data.media ?? [];
+check('gpt-image-1 replies with two stored images', msg?.data.status === 'done' && imgs.length === 2 && imgs.every((m) => /^\/api\/media\/[\w-]+\.png$/.test(m.url) && m.kind === 'image'), msg?.data);
+check('the revised prompt and usage are kept', imgs[0]?.revisedPrompt === 'A refined prompt: a red fox' && msg?.data.usage?.output === 544, { media: imgs[0], usage: msg?.data.usage });
+let lg = await lastLog('images');
+check('aspect, count and quality map onto the Images API', lg?.size === '1536x1024' && lg.n === 2 && lg.quality === 'low' && lg.path === '/v1/images/generations', lg);
+let fr = await mediaFetch(imgs[0]?.url ?? '/api/media/x');
+let bytes = new Uint8Array(await fr.arrayBuffer());
+check('stored images are served to their owner', fr.status === 200 && fr.headers.get('content-type') === 'image/png' && bytes[0] === 0x89 && bytes[1] === 0x50, fr.status);
+fr = await fetch(BASE + (imgs[0]?.url ?? '/api/media/x'));
+check('media needs a session', fr.status === 401, fr.status);
+fr = await mediaFetch(imgs[0]?.url ?? '/api/media/x', { range: 'bytes=0-7' });
+check('byte ranges are served', fr.status === 206 && (await fr.arrayBuffer()).byteLength === 8 && /^bytes 0-7\//.test(fr.headers.get('content-range') ?? ''), fr.status);
+fr = await mediaFetch('/api/media/..%2F..%2Fomnichat.db');
+check('media ids cannot escape the store', fr.status === 404, fr.status);
+
+const RED_DOT = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==';
+await startAndLeave(
+  genBody('c-img', 'a-edit', 'gpt-image-1', {
+    messages: [{ role: 'user', content: 'make it blue', attachments: [{ id: 'att1', kind: 'image', name: 'fox.png', mime: 'image/png', size: 68, dataUrl: RED_DOT }] }],
+  }),
+);
+msg = await done('c-img', 'a-edit');
+lg = await lastLog('images');
+check('an attached image turns the request into an edit', msg?.data.status === 'done' && lg?.path === '/v1/images/edits' && lg.files === 1 && lg.prompt === 'make it blue', { lg, status: msg?.data.status });
+
+await startAndLeave(genBody('c-img', 'a-url', 'url-image-model', ask('a lighthouse', { params: { media: { aspect: '1:1' } } })));
+msg = await done('c-img', 'a-url');
+check('image links (Ark, Zhipu, SiliconFlow style) are downloaded into the store', msg?.data.status === 'done' && /^\/api\/media\/.+\.png$/.test(msg.data.media?.[0]?.url ?? ''), msg?.data);
+
+await startAndLeave(genBody('c-img', 'a-fail', 'gpt-image-1', ask('please fail')));
+msg = await done('c-img', 'a-fail');
+check('a refused prompt shows the provider error', msg?.data.status === 'error' && /safety system/.test(msg.data.error ?? ''), msg?.data);
+
+await startAndLeave(genBody('c-img', 'a-sora', 'sora-2', ask('a paper boat', { params: { media: { aspect: '9:16', seconds: 7 } } })));
+msg = await waitFor(async () => {
+  const m = await message('c-img', 'a-sora');
+  return m?.data.progress ? m : null;
+});
+check('video progress is saved while the job runs', !!msg?.data.progress?.stage && msg.data.status === 'streaming', msg?.data);
+msg = await done('c-img', 'a-sora', 60_000);
+const vid = msg?.data.media?.[0];
+check('sora-2 replies with a stored mp4', msg?.data.status === 'done' && vid?.kind === 'video' && vid.mime === 'video/mp4' && /\.mp4$/.test(vid.url) && !msg.data.progress, msg?.data);
+lg = await lastLog('videos');
+check('duration and aspect map onto /videos', lg?.seconds === '8' && lg.size === '720x1280', lg);
+fr = await mediaFetch(vid?.url ?? '/api/media/x');
+check('the video is served', fr.status === 200 && fr.headers.get('content-type') === 'video/mp4', fr.status);
+
+await startAndLeave(genBody('c-img', 'a-relay', 'relay-kling-v2', ask('a city at night', { params: { media: { seconds: 5, aspect: '16:9' } } })));
+msg = await done('c-img', 'a-relay', 60_000);
+lg = await lastLog('video-relay');
+check('relays without /videos fall back to /video/generations', msg?.data.status === 'done' && msg.data.media?.[0]?.kind === 'video' && lg?.duration === 5 && lg.aspect === '16:9', { data: msg?.data, lg });
+
+await push([{ kind: 'provider', id: 'p-gm', data: { name: 'Gemini', type: 'gemini', baseUrl: `${MOCK}/gemini/v1beta`, models: [], apiKey: 'gm-mock' } }]);
+const gmBody = (id, model, extra) => ({ ...genBody('c-img', id, model, extra), targets: [{ providerId: 'p-gm', model }] });
+await startAndLeave(gmBody('a-nano', 'gemini-2.5-flash-image', ask('a cat', { params: { media: { aspect: '4:3' }, reasoningEffort: 'high' } })));
+msg = await done('c-img', 'a-nano');
+lg = (await mediaLog()).filter((x) => x.api === 'gemini').pop();
+check('Gemini image models return text and an image', msg?.data.content === 'Here is your picture.' && msg.data.media?.length === 1, msg?.data);
+check('they are asked for images, without thinking settings', lg?.modalities?.includes('IMAGE') && lg.aspect === '4:3' && !lg.body?.generationConfig?.thinkingConfig, lg);
+await startAndLeave(
+  gmBody('a-nano2', 'gemini-2.5-flash-image', {
+    messages: [
+      { role: 'user', content: 'a cat' },
+      { role: 'assistant', content: 'Here is your picture.', media: msg?.data.media },
+      { role: 'user', content: 'give it a hat' },
+    ],
+  }),
+);
+msg = await done('c-img', 'a-nano2');
+lg = (await mediaLog()).filter((x) => x.api === 'gemini').pop();
+check('the next turn sends the earlier image back so it can be edited', msg?.data.status === 'done' && lg?.priorImages === 1, lg);
+
+await startAndLeave(gmBody('a-imagen', 'imagen-4.0-generate-001', ask('a mountain', { params: { media: { count: 3, aspect: '16:9' } } })));
+msg = await done('c-img', 'a-imagen');
+lg = await lastLog('predict');
+check('Imagen returns the requested number of images', msg?.data.media?.length === 3 && lg?.parameters?.sampleCount === 3 && lg.parameters.aspectRatio === '16:9', { media: msg?.data.media?.length, lg });
+
+await startAndLeave(gmBody('a-veo', 'veo-3.0-generate-001', ask('waves on a beach', { params: { media: { aspect: '9:16', seconds: 5 } } })));
+msg = await done('c-img', 'a-veo', 60_000);
+lg = await lastLog('predictLongRunning');
+check('Veo: the operation is polled and the file downloaded with the key', msg?.data.status === 'done' && msg.data.media?.[0]?.mime === 'video/mp4', msg?.data);
+check('Veo parameters', lg?.parameters?.aspectRatio === '9:16' && lg.parameters.durationSeconds === 4, lg);
+
+const up = await fetch(`${BASE}/api/media`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'image/png' }, body: Buffer.from(RED_DOT.split(',')[1], 'base64') });
+const upJson = await up.json().catch(() => null);
+check('the browser can upload media it generated', up.status === 200 && /^\/api\/media\/.+\.png$/.test(upJson?.url ?? ''), upJson);
+const bad = await fetch(`${BASE}/api/media`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'image/png' }, body: '<html>not an image</html>' });
+check('only images and videos are stored', bad.status === 400, bad.status);
+
 console.log('▶ search and export');
 r = await call('/api/search?q=y');
 check('search endpoint responds', Array.isArray(r.json?.results), r.json);

@@ -19,6 +19,7 @@
 - **多模型同时回答**：一个问题同时发给最多 6 个模型（可跨服务商）并行生成，用标签页切换对比，选中的回答作为后续上下文。
 - **联网搜索**：一键开启服务商自带的搜索能力（Claude `web_search`、Gemini Google 搜索、通义 `enable_search`、智谱 `web_search`、OpenRouter web 插件、文心 / 混元搜索、OpenAI Responses `web_search`），回答下方列出参考来源。没有自带搜索的模型（DeepSeek、Kimi、OpenCode Go 等）通过**工具调用**联网：默认使用免费的 Exa 托管搜索（和 OpenCode 自带搜索同一个服务，无需 Key），也可以在「设置 → 联网与语音」换成 DeepSeek 搜索（可直接复用已添加的 DeepSeek Key）/ Tavily / 博查 / Brave / Exa / SearXNG，密钥只保存在服务器上。
 - OpenAI 可切换到 **Responses API**，获得推理摘要、内置联网搜索以及仅在该接口提供的模型。
+- **生图、生视频模型**：在模型列表里加入生图 / 生视频模型后，像聊天一样发一句描述即可生成，图片和视频直接显示在对话里，可查看大图、下载，或「用作参考图」继续修改。附上图片发送：生图模型按要求修改它，生视频模型把它作为首帧。输入框里的「生成选项」可选画面比例、张数、画质、时长、分辨率。详见下方「生图与生视频」。
 
 **多设备同步与数据保存**
 - 账户体系：首个注册用户为管理员，可开放/关闭注册、管理用户；每个账户数据隔离。
@@ -159,6 +160,26 @@ docker exec omnichat node dist/server/index.mjs reset-password admin 新密码
 - 输入框下方的「多模型」按钮可勾选额外的模型，之后每条消息都会由当前模型和这些模型同时回答；点击回答上方的模型标签切换查看。
 - 「联网」按钮只在当前服务商支持原生搜索时出现，开启后由服务商自行搜索并在回答下方给出来源链接。
 
+### 生图与生视频
+
+在「设置 → 模型服务」里给服务商加上生图 / 生视频模型（「获取模型」或手动填写模型 ID）即可使用。模型类型按 ID 自动识别（如 `gpt-image-1`、`dall-e-3`、`imagen-4.0-…`、`gemini-2.5-flash-image`、`doubao-seedream-…`、`cogview-4`、`wan2.2-t2i-…`、`qwen-image`、`FLUX…` 识别为生图；`sora-2`、`veo-3.0-…`、`doubao-seedance-…`、`cogvideox-3`、`MiniMax-Hailuo-02`、`wan2.5-t2v-…`、`kling…` 识别为生视频），识别不对时可在模型列表右侧的下拉框里改成「文本 / 图片 / 视频」。
+
+| 服务商 | 生图 | 生视频 |
+| --- | --- | --- |
+| OpenAI / Azure OpenAI | Images API（`gpt-image-1`、DALL·E；附图时走 `/images/edits`） | Sora（`/videos`） |
+| Google Gemini | Gemini 图片模型（可多轮修改）、Imagen | Veo |
+| 火山方舟 · 豆包 | Seedream（含参考图） | Seedance |
+| 智谱 | CogView | CogVideoX |
+| 阿里云百炼 | 通义万相、Qwen-Image（原生接口，自动从兼容模式地址推出） | 通义万相 |
+| 硅基流动 | Kolors、Qwen-Image、FLUX 等 | Wan 等 |
+| MiniMax | image-01 | 海螺 Hailuo |
+| OpenRouter | 图片输出模型（Chat Completions） | – |
+| xAI、Together 及其他 OpenAI 兼容接口 / 中转站 | `/images/generations` | `/videos`，不支持时改用中转站常见的 `/video/generations` |
+
+- 生成的文件下载后保存在服务器的 `数据目录/media/` 下（服务商返回的链接一般几小时就会过期），消息里只记录地址，所以同步和数据库备份都很小。注意：**自动备份只包含数据库，不包含 `media/` 目录**，需要的话请自行备份该目录。删除消息或对话 3 天后，不再被引用的文件会被自动清理。
+- Docker / Node 部署时生成在服务器上进行：视频要排队 1～5 分钟，期间可以关掉页面，完成后自动保存；Cloudflare Workers 部署时在浏览器里生成，图片直接存在消息里，视频若服务商链接不允许跨域下载则保留原链接（可能过期）。
+- 生图、生视频按次计费且价格较高。「测试连接」对这类模型只检查密钥（获取模型列表），不会实际生成。
+
 ### 思考强度
 
 「对话设置 → 思考强度」对不同服务商自动转换参数。「默认」表示不发送该参数，由模型自行决定。部分模型不支持关闭思考或特定级别，若报错请改回「默认」。
@@ -174,6 +195,7 @@ docker exec omnichat node dist/server/index.mjs reset-password admin 新密码
    │  ① /api/sync、/api/messages  增量同步（每 20 秒 / 切回页面时）
    │  ② /api/generate             后台生成：服务器调用模型并保存回复，浏览器通过 SSE 实时跟随（可随时断开、重连）
    │  ③ /api/proxy/<服务商>/…     流式转发，服务器附加密钥（Workers 部署时的对话，以及获取模型、测试连接等）
+   │  ④ /api/media/<id>            生成的图片和视频（保存在数据目录的 media/ 下）
    ▼
 OmniChat 服务端（Hono；Node + SQLite 或 Cloudflare Workers + D1）
    │
@@ -206,7 +228,7 @@ node scripts/e2e.cjs http://localhost:3100 http://127.0.0.1:3199 ./screenshots
 ```
 server/          服务端（Hono）：app.ts 路由、generation.ts 后台生成、db-*.ts 存储适配、node.ts / worker.ts 两种入口
 shared/          前后端共享的类型与鉴权工具
-src/lib/ai/      各协议适配器（openai / anthropic / gemini）与服务商预设，浏览器和服务器共用
+src/lib/ai/      各协议适配器（openai / anthropic / gemini）、生图（image.ts）与生视频（video.ts）接口、服务商预设，浏览器和服务器共用
 src/lib/sync.ts  同步引擎（离线队列 + 增量拉取）
 src/store/       状态管理（zustand）
 src/components/  界面组件

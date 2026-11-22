@@ -67,5 +67,7 @@ export function applyDelta(v: MessageVersion, d: Delta): MessageVersion {
   if (d.reasoning) next.reasoning = (v.reasoning ?? '') + d.reasoning;
   if (d.sources) next.sources = mergeSources([...(v.sources ?? [])], d.sources);
   if (d.searching) next.searching = d.searching;
+  if (d.progress) next.progress = d.progress;
+  if (d.media) next.media = [...(v.media ?? []), ...d.media];
   return next;
 }

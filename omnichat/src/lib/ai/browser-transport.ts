@@ -1,5 +1,5 @@
 // How the browser reaches providers: through the server proxy, or straight to the API in "direct" mode.
-import { ANTHROPIC_DEFAULT_VERSION, applyAuth, joinUrl } from '../../../shared/provider-auth';
+import { ANTHROPIC_DEFAULT_VERSION, applyAuth, providerUrl } from '../../../shared/provider-auth';
 import { api, proxyFetch } from '../api';
 import { flushNow, hasPending } from '../sync';
 import { ProviderError, setProviderFetcher, type ProviderFetcher } from './transport';
@@ -34,7 +34,7 @@ export const browserFetch: ProviderFetcher = async (p, path, init) => {
     }
     applyAuth(headers, p, await getKey(p));
     try {
-      return await fetch(joinUrl(p.baseUrl, path), { ...init, headers });
+      return await fetch(providerUrl(p.baseUrl, path), { ...init, headers });
     } catch (err) {
       if ((err as Error).name === 'AbortError') throw err;
       throw new ProviderError(

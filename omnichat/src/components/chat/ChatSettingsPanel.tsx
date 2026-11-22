@@ -5,6 +5,8 @@ import { toast, useUI } from '@/store/ui';
 import { useT } from '@/i18n';
 import { ParamsEditor } from './ParamsEditor';
 import { reasoningOptions } from '@/lib/ai/reasoning';
+import { modelOutput } from '@/lib/ai/media';
+import { MediaParamsEditor } from './MediaOptions';
 import { resolveTarget } from '@/store/chat';
 
 export function ChatSettingsPanel({ conversationId }: { conversationId: string }) {
@@ -14,6 +16,7 @@ export function ChatSettingsPanel({ conversationId }: { conversationId: string }
   const project = useData((s) => (conv?.projectId ? s.projects[conv.projectId] : undefined));
   if (!conv) return null;
   const target = resolveTarget(conv.providerId, conv.model);
+  const output = target ? modelOutput(target.provider, target.model) : 'text';
   const close = () => useUI.setState({ chatSettingsOpen: false });
   const list = Object.values(prompts).sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.createdAt - b.createdAt);
 
@@ -68,6 +71,17 @@ export function ChatSettingsPanel({ conversationId }: { conversationId: string }
               onChange={(e) => updateConversation(conv.id, { systemPrompt: e.target.value })}
             />
           </Field>
+          {output !== 'text' && (
+            <div className="space-y-3 rounded-xl border border-line p-3">
+              <div className="text-sm font-medium">{t('chatSettings.media')}</div>
+              <MediaParamsEditor
+                kind={output}
+                full
+                value={conv.params?.media ?? {}}
+                onChange={(media) => updateConversation(conv.id, { params: { ...conv.params, media } })}
+              />
+            </div>
+          )}
           <ParamsEditor
             value={conv.params ?? {}}
             onChange={(params) => updateConversation(conv.id, { params })}
