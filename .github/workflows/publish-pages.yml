@@ -1,0 +1,88 @@
+name: 发布到网站
+
+# 所有项目共用的发布步骤（被各项目的工作流调用，不单独运行）。
+#
+# 站点内容保存在 gh-pages 分支，每个项目一个子目录：
+#   /            项目目录页（由 pages/projects.json 生成）
+#   /quadrant/   四象限任务计划
+#   /weekly/     GitHub 热榜周刊
+# 每次发布只替换调用方自己的子目录，其他项目原样保留，再把整个分支部署到 GitHub Pages。
+on:
+  workflow_call:
+    inputs:
+      project:
+        description: '项目路径名（pages/projects.json 里的 path）。留空表示只更新首页'
+        type: string
+        default: ''
+      artifact:
+        description: '构建产物的 artifact 名称'
+        type: string
+        default: ''
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    # 各项目排队发布，避免同时改 gh-pages 分支
+    concurrency:
+      group: pages-publish
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: src
+
+      - if: inputs.artifact != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.artifact }}
+          path: build
+
+      - name: 取出 gh-pages 分支
+        working-directory: src
+        run: |
+          if git fetch --depth=1 origin gh-pages:refs/remotes/origin/gh-pages; then
+            git worktree add -B gh-pages ../site origin/gh-pages
+          else
+            echo "第一次发布，新建 gh-pages 分支"
+            git worktree add --orphan -b gh-pages ../site
+          fi
+
+      - name: 放入本项目
+        env:
+          PROJECT: ${{ inputs.project }}
+        run: bash src/pages/publish.sh "$PROJECT" build site
+
+      - name: 提交到 gh-pages
+        working-directory: site
+        env:
+          PROJECT: ${{ inputs.project }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "内容没有变化"
+            exit 0
+          fi
+          git commit -q -m "发布 ${PROJECT:-首页}（${GITHUB_SHA::7}）"
+          for i in 1 2 3; do
+            git push origin gh-pages && exit 0
+            # 期间别的项目先发布了：取回最新的 gh-pages，把这次的提交接在后面再推
+            git fetch --depth=20 origin gh-pages
+            git rebase FETCH_HEAD
+          done
+          exit 1
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v4

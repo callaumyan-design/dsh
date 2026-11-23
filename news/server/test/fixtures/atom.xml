@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-US">
+  <title>The Example</title>
+  <entry>
+    <published>2026-11-20T10:00:00-05:00</published>
+    <updated>2026-11-20T11:00:00-05:00</updated>
+    <title type="html">Samsung’s tri-fold phone gets a US release date</title>
+    <content type="html">&lt;figure&gt;&lt;img alt="" src="https://cdn.example.com/fold.jpg" /&gt;&lt;/figure&gt;&lt;p&gt;The Galaxy Z TriFold arrives next month.&lt;/p&gt;</content>
+    <link rel="alternate" type="text/html" href="https://www.example.com/news/1/samsung-trifold" />
+    <link rel="replies" type="text/html" href="https://www.example.com/news/1/samsung-trifold#comments" />
+    <id>https://www.example.com/news/1</id>
+  </entry>
+</feed>

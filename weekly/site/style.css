@@ -1,0 +1,136 @@
+/* GitHub 热榜周刊
+   版式：窄栏单列，像一份周报。每个项目左侧是榜单名次，右上角是本周新增 star（按本期最大值等比画条）。
+   中文标题用宋体（报纸标题的传统），正文无衬线，仓库名和数字用等宽。 */
+:root {
+  --paper: #f5f6fa;
+  --surface: #ffffff;
+  --ink: #161b2e;
+  --muted: #5b6275;
+  --rule: #dfe2ec;
+  --accent: #2b45e0;
+  --star: #c98a07;
+  --star-track: #f1e6c8;
+  --chip: #eceefa;
+
+  --font-display: "Noto Serif SC", "Songti SC", "STSong", "SimSun", serif;
+  --font-body: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+
+  --step--1: 0.8125rem;
+  --step-0: 1rem;
+  --step-1: 1.1875rem;
+  --step-2: 1.5rem;
+  --step-3: clamp(1.75rem, 1.2rem + 2.6vw, 2.75rem);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0f1322; --surface: #161b2e; --ink: #e7e9f3; --muted: #9aa1b8; --rule: #2a3049;
+    --accent: #8d9cff; --star: #f2b33d; --star-track: #3a321d; --chip: #222943;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0f1322; --surface: #161b2e; --ink: #e7e9f3; --muted: #9aa1b8; --rule: #2a3049;
+  --accent: #8d9cff; --star: #f2b33d; --star-track: #3a321d; --chip: #222943;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 var(--step-0)/1.75 var(--font-body);
+}
+a { color: var(--accent); text-underline-offset: 3px; }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+
+.wrap {
+  max-width: 46rem;
+  margin: 0 auto;
+  padding-block: 2.5rem 4rem;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+
+/* 刊头 */
+.masthead { display: grid; gap: 0.75rem; padding-bottom: 1.75rem; border-bottom: 1px solid var(--rule); }
+.nameplate {
+  display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.25rem 1rem;
+  font-size: var(--step--1); color: var(--muted);
+}
+.nameplate a.brand {
+  font-family: var(--font-display); font-weight: 700; font-size: var(--step-1);
+  color: var(--ink); text-decoration: none; letter-spacing: 0.04em;
+}
+.issue-no { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.headline {
+  margin: 0.5rem 0 0;
+  font-family: var(--font-display); font-weight: 900; font-size: var(--step-3);
+  line-height: 1.3; letter-spacing: 0.01em; text-wrap: balance;
+}
+.intro { margin: 0; font-size: var(--step-1); line-height: 1.8; color: var(--ink); max-width: 38em; }
+.dateline { font-size: var(--step--1); color: var(--muted); }
+
+/* 榜单 */
+.list { list-style: none; margin: 0; padding: 0; }
+.entry {
+  display: grid; grid-template-columns: 3.25rem minmax(0, 1fr); gap: 0 1rem;
+  padding-block: 1.75rem; border-bottom: 1px solid var(--rule);
+}
+.rank {
+  font-family: var(--font-display); font-weight: 900; font-size: 2.5rem; line-height: 1;
+  color: var(--accent); font-variant-numeric: tabular-nums; text-align: right; padding-top: 0.2rem;
+}
+.entry-body { display: grid; gap: 0.6rem; min-width: 0; }
+.entry-top { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.25rem 1rem; }
+.repo { font-family: var(--font-mono); font-size: var(--step-0); font-weight: 600; text-decoration: none; overflow-wrap: anywhere; }
+.repo .owner { color: var(--muted); font-weight: 400; }
+.repo:hover .name { text-decoration: underline; }
+.weekly { display: grid; justify-items: end; gap: 0.2rem; min-width: 7.5rem; }
+.weekly-num { font-family: var(--font-mono); font-weight: 600; color: var(--star); font-variant-numeric: tabular-nums; font-size: var(--step-0); white-space: nowrap; }
+.weekly-num small { font-family: var(--font-body); font-weight: 400; color: var(--muted); font-size: var(--step--1); margin-left: 0.25rem; }
+.bar { width: 7.5rem; height: 4px; background: var(--star-track); border-radius: 2px; overflow: hidden; }
+.bar > span { display: block; height: 100%; background: var(--star); }
+.tagline { margin: 0; font-family: var(--font-display); font-weight: 700; font-size: var(--step-2); line-height: 1.4; text-wrap: balance; }
+.commentary { margin: 0; }
+.audience { margin: 0; font-size: var(--step--1); color: var(--muted); }
+.audience b { color: var(--ink); font-weight: 600; margin-right: 0.35rem; }
+.original { margin: 0; font-size: var(--step--1); color: var(--muted); font-style: italic; overflow-wrap: anywhere; }
+.original.plain { font-style: normal; font-size: var(--step-0); color: var(--ink); }
+.meta {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 1rem;
+  font-size: var(--step--1); color: var(--muted); font-variant-numeric: tabular-nums;
+}
+.meta .lang { display: inline-flex; align-items: center; gap: 0.35rem; }
+.meta .dot { width: 0.6rem; height: 0.6rem; border-radius: 50%; background: var(--muted); display: inline-block; }
+.topics { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.topic { font-family: var(--font-mono); font-size: 0.75rem; padding: 0.05rem 0.5rem; border-radius: 999px; background: var(--chip); color: var(--muted); }
+
+/* 往期与页脚 */
+.section-title {
+  margin: 3rem 0 0.75rem; font-size: var(--step--1); font-weight: 600; color: var(--muted);
+  letter-spacing: 0.12em;
+}
+.archive { list-style: none; margin: 0; padding: 0; display: grid; }
+.archive li { display: grid; grid-template-columns: 5.5rem minmax(0, 1fr); gap: 1rem; padding-block: 0.6rem; border-top: 1px solid var(--rule); }
+.archive .no { font-family: var(--font-mono); color: var(--muted); font-variant-numeric: tabular-nums; font-size: var(--step--1); padding-top: 0.2rem; }
+.archive a { text-decoration: none; color: var(--ink); font-weight: 600; }
+.archive a:hover { color: var(--accent); }
+.archive .range { display: block; font-size: var(--step--1); color: var(--muted); font-weight: 400; }
+.empty { padding-block: 3rem; color: var(--muted); }
+.footer { margin-top: 3rem; font-size: var(--step--1); color: var(--muted); display: grid; gap: 0.4rem; }
+.footer p { margin: 0; }
+.pager { display: flex; justify-content: space-between; gap: 1rem; margin-top: 2rem; font-size: var(--step--1); }
+
+@media (max-width: 520px) {
+  .entry { grid-template-columns: 2.25rem minmax(0, 1fr); gap: 0 0.75rem; }
+  .rank { font-size: 1.75rem; }
+  .weekly { justify-items: start; }
+  .tagline { font-size: var(--step-1); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .bar > span { transition: width 0.4s ease-out; }
+}

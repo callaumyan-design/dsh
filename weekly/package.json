@@ -1,0 +1,20 @@
+{
+  "name": "github-weekly",
+  "private": true,
+  "version": "1.0.0",
+  "description": "GitHub 热榜周刊：每周 GitHub Trending 前十名，附中文点评",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "issue": "node scripts/new-issue.mjs",
+    "build": "node scripts/build-site.mjs",
+    "preview": "node scripts/build-site.mjs --sample && node scripts/serve.mjs",
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.11.0",
+    "node-html-parser": "^9.0.7"
+  }
+}

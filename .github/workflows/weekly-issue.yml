@@ -1,0 +1,66 @@
+name: 热榜周刊出刊
+
+# 每周一 09:17（北京时间）抓取 GitHub Trending 周榜，生成一期并提交到 main，然后发布到网站。
+# 也可以在 Actions 页面手动运行。
+on:
+  schedule:
+    - cron: '17 1 * * 1'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: '本期已存在时重新生成（覆盖）'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: weekly-issue
+  cancel-in-progress: false
+
+jobs:
+  issue:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: weekly/package-lock.json
+      - working-directory: weekly
+        run: npm ci
+
+      - name: 生成本期
+        id: gen
+        working-directory: weekly
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/new-issue.mjs ${{ inputs.force && '--force' || '' }}
+
+      - name: 提交
+        id: commit
+        run: |
+          git add weekly/data/issues
+          if git diff --cached --quiet; then
+            echo "没有新内容"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git commit -m "热榜周刊：${{ steps.gen.outputs.issue }}"
+          git push
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      # 用 GITHUB_TOKEN 推送的提交不会触发其他工作流，所以这里显式触发部署。
+      - name: 部署网站
+        if: steps.commit.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run weekly.yml --ref main

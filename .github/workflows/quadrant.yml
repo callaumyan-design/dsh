@@ -1,25 +1,23 @@
-name: 部署四象限任务计划
+name: 四象限任务计划
 
 on:
   push:
     branches: [main]
     paths:
       - 'quadrant/**'
-      - '.github/workflows/quadrant-pages.yml'
+      - '.github/workflows/quadrant.yml'
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
-
-concurrency:
-  group: quadrant-pages
-  cancel-in-progress: true
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     defaults:
       run:
         working-directory: quadrant
@@ -33,16 +31,14 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
+          name: quadrant-site
           path: quadrant/dist
 
-  deploy:
+  publish:
     needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+    uses: ./.github/workflows/publish-pages.yml
+    with:
+      project: quadrant
+      artifact: quadrant-site

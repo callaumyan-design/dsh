@@ -1,0 +1,56 @@
+name: 科技晨读（App）
+
+# 构建新闻 App 并发布到 /news/。
+# 后端地址写在 news/app/.env.production 的 VITE_API_BASE 里；还没配置时只测试构建，不发布。
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'news/app/**'
+      - '.github/workflows/news-app.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      configured: ${{ steps.check.outputs.configured }}
+    defaults:
+      run:
+        working-directory: news/app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: news/app/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - id: check
+        run: |
+          if grep -qE '^VITE_API_BASE=https://' .env.production 2>/dev/null; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::还没有配置后端地址（news/app/.env.production），这次不发布"
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: news-app
+          path: news/app/dist
+
+  publish:
+    needs: build
+    if: needs.build.outputs.configured == 'true'
+    uses: ./.github/workflows/publish-pages.yml
+    with:
+      project: news
+      artifact: news-app
