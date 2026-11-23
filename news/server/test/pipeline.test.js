@@ -48,7 +48,7 @@ test('AI 挑选、合并、摘要', async () => {
   assert.equal(s1.title, '苹果发布 M6');
   assert.deepEqual(s1.sources.map((s) => s.name), ['verge', 'ithome']); // 越界编号被忽略
   assert.equal(s1.image, 'https://img/a.jpg');
-  assert.equal(s2.category, null); // 不在分类表里
+  assert.equal(s2.category, '数码'); // AI 给的门类不在分类表里：按关键词（iPhone）归类
   assert.equal(s2.importance, 5); // 限制在 1–5
   assert.deepEqual(s2.sources.map((s) => s.name), ['9to5']); // 编号 1 已被第一件事用掉
   assert.equal(ed.products[0].tagline, '笔记应用');
@@ -68,6 +68,7 @@ test('AI 失败时退回原标题，并记录原因', async () => {
   assert.equal(ed.headline, null);
   assert.equal(ed.stories.length, 4);
   assert.equal(ed.stories[0].title, 'Apple launches M6');
+  assert.ok(ed.stories.every((s) => s.category), '没有 AI 时也要有门类');
   assert.equal(ed.products[0].tagline, null);
   assert.deepEqual(ed.aiErrors.map((e) => e.step), ['news', 'briefs']);
 });

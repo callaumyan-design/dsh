@@ -4,16 +4,7 @@ import { useStore } from '../lib/store';
 import { sync } from '../lib/sync';
 import type { Brief, Edition, Story } from '../lib/types';
 import { formatDay, timeAgo } from '../lib/format';
-
-const CATEGORY_CLASS: Record<string, string> = {
-  数码: 'c-gadget',
-  AI: 'c-ai',
-  互联网: 'c-web',
-  芯片与硬件: 'c-chip',
-  开发者: 'c-dev',
-  科学与前沿: 'c-sci',
-  商业与政策: 'c-biz',
-};
+import { categoryOf, filterStories, follows, SECTIONS, TOPIC_CLASS } from '../lib/topics';
 
 export function useEdition(date: string | null) {
   const [edition, setEdition] = useState<Edition | null>(null);
@@ -36,20 +27,20 @@ export function useEdition(date: string | null) {
 
 export function EditionView({ date }: { date: string | null }) {
   const { edition, error, loading } = useEdition(date);
-  const categories = useStore((s) => s.categories);
-  const [filter, setFilter] = useState<string | null>(null);
+  const followed = useStore((st) => st.categories);
+  const [active, setActive] = useState<string | null>(null);
 
-  const present = useMemo(() => [...new Set((edition?.stories ?? []).map((s) => s.category).filter(Boolean))] as string[], [edition]);
-  const stories = useMemo(() => {
-    let list = edition?.stories ?? [];
-    if (categories?.length) list = list.filter((s) => !s.category || categories.includes(s.category));
-    if (filter) list = list.filter((s) => s.category === filter);
-    return list;
-  }, [edition, categories, filter]);
+  const { visible, counts, hidden, total } = useMemo(() => filterStories(edition?.stories ?? [], followed, active), [edition, followed, active]);
 
   if (loading && !edition) return <div className="state">正在加载…</div>;
   if (error && !edition) return <div className="state">{error}</div>;
   if (!edition) return null;
+
+  const showProducts = edition.products.length > 0 && follows(followed, '今日新品');
+  const showGithub = edition.github.length > 0 && follows(followed, 'GitHub 热榜');
+  const isSection = (SECTIONS as readonly string[]).includes(active ?? '');
+  const showStories = !isSection;
+  const sectionChips = [showProducts && ['今日新品', edition.products.length], showGithub && ['GitHub 热榜', edition.github.length]].filter(Boolean) as [string, number][];
 
   return (
     <article className="edition">
@@ -57,41 +48,56 @@ export function EditionView({ date }: { date: string | null }) {
         <p className="dateline">{formatDay(edition.date)}</p>
         <h1 className="headline">{edition.headline ?? '今日科技要闻'}</h1>
         <p className="tally">
-          {edition.stories.length} 件大事 · {edition.products.length} 个新品 · {edition.github.length} 个热门仓库
+          {edition.stories.length} 条新闻 · {edition.products.length} 个新品 · {edition.github.length} 个热门仓库
         </p>
       </header>
 
-      {present.length > 1 && (
-        <nav className="chips" aria-label="按分类筛选">
-          <button className={`chip${filter === null ? ' on' : ''}`} onClick={() => setFilter(null)} aria-pressed={filter === null}>
-            全部
+      <nav className="chips" aria-label="按门类筛选">
+        <button className={`chip${active === null ? ' on' : ''}`} onClick={() => setActive(null)} aria-pressed={active === null}>
+          全部<span className="n">{total}</span>
+        </button>
+        {[...counts].map(([c, n]) => (
+          <button key={c} className={`chip ${TOPIC_CLASS[c] ?? ''}${active === c ? ' on' : ''}`} onClick={() => setActive(active === c ? null : c)} aria-pressed={active === c}>
+            {c}
+            <span className="n">{n}</span>
           </button>
-          {present.map((c) => (
-            <button key={c} className={`chip ${CATEGORY_CLASS[c] ?? ''}${filter === c ? ' on' : ''}`} onClick={() => setFilter(filter === c ? null : c)} aria-pressed={filter === c}>
-              {c}
-            </button>
+        ))}
+        {sectionChips.map(([c, n]) => (
+          <button key={c} className={`chip section${active === c ? ' on' : ''}`} onClick={() => setActive(active === c ? null : c)} aria-pressed={active === c}>
+            {c}
+            <span className="n">{n}</span>
+          </button>
+        ))}
+      </nav>
+
+      {showStories && (
+        <ol className="stories">
+          {visible.map((s) => (
+            <StoryCard key={s.id} story={s} date={edition.date} />
           ))}
-        </nav>
+        </ol>
+      )}
+      {showStories && !visible.length && (
+        <p className="state small">{total ? '这个门类今天没有新闻。' : '你关注的门类今天没有新闻。'}</p>
       )}
 
-      <ol className="stories">
-        {stories.map((s) => (
-          <StoryCard key={s.id} story={s} date={edition.date} />
-        ))}
-      </ol>
-      {!stories.length && <p className="state small">这个分类今天没有新闻。</p>}
+      {showProducts && (active === null || active === '今日新品') && <BriefList title="今日新品" note="来自 Product Hunt" items={edition.products} />}
+      {showGithub && (active === null || active === 'GitHub 热榜') && <BriefList title="GitHub 热榜" note="今日新增 star 最多的仓库" items={edition.github} github />}
 
-      {edition.products.length > 0 && <BriefList title="今日新品" note="来自 Product Hunt" items={edition.products} />}
-      {edition.github.length > 0 && <BriefList title="GitHub 热榜" note="今日新增 star 最多的仓库" items={edition.github} github />}
+      {hidden > 0 && (
+        <p className="hidden-note">
+          还有 {hidden} 条新闻属于你没关注的门类，没有显示。<a href="#/me">管理关注的门类</a>
+        </p>
+      )}
 
       <footer className="colophon">
         <p>
           生成于 {new Date(edition.generatedAt).toLocaleString('zh-CN', { hour12: false })}，共 {edition.sourceStatus.filter((s) => s.ok).length}/{edition.sourceStatus.length} 个来源可用。
         </p>
         {edition.ai ? (
-          <p>标题与摘要由 AI（{edition.ai.model}）根据各媒体的报道生成，可能有疏漏，以原文为准。</p>
+          <p>标题、摘要和门类由 AI（{edition.ai.model}）根据各媒体的报道生成，可能有疏漏，以原文为准。</p>
         ) : (
-          <p>今天没有使用 AI，显示的是各媒体的原标题。</p>
+          <p>今天没有使用 AI：显示的是各媒体的原标题，门类按关键词自动归类。</p>
         )}
       </footer>
     </article>
@@ -120,7 +126,7 @@ function StoryCard({ story, date }: { story: Story; date: string }) {
     <li className={`story${read ? ' read' : ''}`}>
       <div className="story-main">
         <div className="story-tags">
-          {story.category && <span className={`tag ${CATEGORY_CLASS[story.category] ?? ''}`}>{story.category}</span>}
+          <span className={`tag ${TOPIC_CLASS[categoryOf(story)] ?? ''}`}>{categoryOf(story)}</span>
           {(story.importance ?? 0) >= 4 && <span className="tag hot">要闻</span>}
         </div>
         <h2 className="story-title">

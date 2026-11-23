@@ -3,6 +3,7 @@
 import { createHash } from 'node:crypto';
 import { collect } from './sources/index.js';
 import { CATEGORIES } from './sources/config.js';
+import { classify } from './classify.js';
 
 export const MAX_CANDIDATES = 250;
 export const MAX_STORIES = 30;
@@ -118,7 +119,7 @@ function rawStory(it) {
     id: storyId([it.url]),
     title: it.title,
     summary: it.summary || null,
-    category: null,
+    category: classify(it),
     importance: null,
     image: it.image ?? null,
     publishedAt: it.publishedAt,
@@ -213,7 +214,8 @@ export async function buildEdition({ ai, now = new Date(), collectImpl = collect
           id: storyId(s.members.map((m) => m.url)),
           title: t?.title || lead.title,
           summary: t?.summary || lead.summary || null,
-          category: s.category,
+          // AI 给的门类无效时，按标题和简介里的关键词归类
+          category: s.category ?? classify({ title: s.members.map((m) => m.title).join(' / '), summary: s.members.map((m) => m.summary).join(' '), sourceCategory: lead.sourceCategory }),
           importance: s.importance,
           image: s.members.find((m) => m.image)?.image ?? null,
           publishedAt: s.members.map((m) => m.publishedAt).filter(Boolean).sort()[0] ?? null,

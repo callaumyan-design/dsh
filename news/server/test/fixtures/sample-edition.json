@@ -174,6 +174,31 @@
           "publishedAt": null
         }
       ]
+    },
+    {
+      "id": "s08",
+      "title": "示例：一条归不进任何门类的新闻",
+      "summary": "示例摘要，展示“其他”。",
+      "category": null,
+      "importance": 1,
+      "image": null,
+      "publishedAt": "2026-11-20T04:47:00.000Z",
+      "sources": [
+        {
+          "name": "虎嗅",
+          "url": "https://example.com/s07/%E8%99%8E%E5%97%85",
+          "title": "（示例）示例：监管机构发布应用商店新规",
+          "lang": "zh",
+          "publishedAt": null
+        },
+        {
+          "name": "9to5Mac",
+          "url": "https://example.com/s07/9to5Mac",
+          "title": "（示例）示例：监管机构发布应用商店新规",
+          "lang": "en",
+          "publishedAt": null
+        }
+      ]
     }
   ],
   "products": [
