@@ -1,0 +1,81 @@
+name: 科技晨读（设置 AI）
+
+# 在 Actions 页面手动运行，改服务器用哪家 AI，改完立即生成一期。
+# 密钥放在仓库的 Secrets → Actions 里，名字叫 NEWS_AI_API_KEY；它只会被写进 Azure 的应用设置，不会出现在日志里。
+# 默认值是 DeepSeek。换别家时按 news/README.md 的“换用任何 AI”填。
+on:
+  workflow_dispatch:
+    inputs:
+      provider:
+        description: 'AI_PROVIDER：anthropic / openai / custom / none'
+        default: openai
+      base_url:
+        description: 'AI_BASE_URL（anthropic 可留空）'
+        default: https://api.deepseek.com/v1
+        required: false
+      model:
+        description: 'AI_MODEL'
+        default: deepseek-chat
+        required: false
+      max_tokens:
+        description: 'AI_MAX_TOKENS（DeepSeek 填 8192；不限制就留空）'
+        default: '8192'
+        required: false
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AZURE_CLIENT_ID: 06dd2226-3553-45bd-ac80-e3718156c761
+  AZURE_TENANT_ID: cde716e5-a8b0-48e3-bd3e-931a8e2b984f
+  AZURE_SUBSCRIPTION_ID: ed4212a2-13ac-43a4-aa1f-d748cc68919f
+  APP_NAME: dsh-news
+  RESOURCE_GROUP: dsh-news
+
+jobs:
+  configure:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: news-server-deploy
+      cancel-in-progress: false
+    steps:
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+      - name: 写入 AI 设置
+        env:
+          PROVIDER: ${{ inputs.provider }}
+          BASE_URL: ${{ inputs.base_url }}
+          MODEL: ${{ inputs.model }}
+          MAX_TOKENS: ${{ inputs.max_tokens }}
+          KEY: ${{ secrets.NEWS_AI_API_KEY }}
+        run: |
+          case "$PROVIDER" in anthropic|openai|custom|none) ;; *) echo "::error::provider 只能是 anthropic、openai、custom、none"; exit 1;; esac
+          settings=("AI_PROVIDER=$PROVIDER" "AI_BASE_URL=$BASE_URL" "AI_MODEL=$MODEL" "AI_MAX_TOKENS=$MAX_TOKENS")
+          if [ -n "$KEY" ]; then
+            settings+=("AI_API_KEY=$KEY")
+            echo "密钥：已从 NEWS_AI_API_KEY 写入"
+          elif [ "$PROVIDER" != "none" ]; then
+            echo "::warning::仓库 Secrets 里没有 NEWS_AI_API_KEY，服务器上原有的 AI_API_KEY 保持不变"
+          fi
+          # 输出里会带着所有设置的值，所以不打印
+          az functionapp config appsettings set -g "$RESOURCE_GROUP" -n "$APP_NAME" --settings "${settings[@]}" > /dev/null
+          echo "已设置：AI_PROVIDER=$PROVIDER AI_BASE_URL=$BASE_URL AI_MODEL=$MODEL AI_MAX_TOKENS=$MAX_TOKENS"
+      - name: 生成一期
+        run: |
+          base="https://${APP_NAME}.azurewebsites.net/api"
+          # 改设置会让函数重启，等接口恢复
+          for i in $(seq 1 20); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$base/v1/editions")
+            [ "$code" = "200" ] && break
+            echo "等待函数重启（HTTP $code）"; sleep 15
+          done
+          key=$(az functionapp keys list -g "$RESOURCE_GROUP" -n "$APP_NAME" --query functionKeys.default -o tsv)
+          echo "::add-mask::$key"
+          status=$(curl -s -o /tmp/run.json -w '%{http_code}' -X POST "$base/jobs/run-edition?code=$key")
+          cat /tmp/run.json; echo
+          [ "$status" = "202" ] || { echo "::error::触发生成失败（HTTP $status）"; exit 1; }
+          echo "已开始生成，约 2–5 分钟后打开 https://news.callaum.com/ 查看"
