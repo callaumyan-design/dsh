@@ -142,15 +142,17 @@ export function render() {
 }
 
 /**
- * 应用栏每行放几个：一行放得下就一行；放不下就平均分（8 个放不下时排成 4 + 4，而不是 5 + 3）。
+ * 应用栏每行放几个：一行最多 7 个，再多就平均分成几行（电脑上 13 个排成 7 + 6）；
+ * 屏幕窄、一行放不下 7 个时按放得下的个数平均分（手机上 13 个排成 5 + 5 + 3，8 个排成 4 + 4 而不是 5 + 3）。
  * 每个格子至少 62 像素宽（图标 46 + 两边留白），格子之间 2 像素。
  */
 const CELL = 62;
 const GAP = 2;
+const MAX_PER_ROW = 7;
 function fitRows() {
   const width = $("#nav")?.clientWidth || 0;
   if (!width) return;
-  const fit = Math.max(1, Math.floor((width + GAP) / (CELL + GAP)));
+  const fit = Math.min(MAX_PER_ROW, Math.max(1, Math.floor((width + GAP) / (CELL + GAP))));
   for (const grid of document.querySelectorAll("#nav .app-grid")) {
     const n = grid.children.length;
     const rows = Math.ceil(n / fit);

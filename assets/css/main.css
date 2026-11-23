@@ -791,7 +791,7 @@ main {
   color: var(--wall-text);
   text-shadow: var(--wall-shadow);
 }
-/* 一行放得下就排成一行；放不下就平均分成几行（比如手机上 8 个排成 4 + 4），每行多少个由 nav.js 算好写进 --per-row */
+/* 一行最多 7 个，多了或者放不下就平均分成几行（电脑上 13 个排成 7 + 6，手机上 5 + 5 + 3），每行多少个由 nav.js 算好写进 --per-row */
 .app-grid {
   display: grid;
   grid-template-columns: repeat(var(--per-row, 5), minmax(0, 76px));
