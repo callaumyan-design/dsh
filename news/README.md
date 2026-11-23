@@ -64,7 +64,8 @@ AI_PROVIDER=openai  AI_BASE_URL=http://localhost:11434/v1  AI_MODEL=qwen2.5:14b
 | `APP_ORIGINS` | 允许访问的网页来源，逗号分隔，如 `https://callaumyan-design.github.io` |
 | `RP_ID` | 通行密钥绑定的域名，即网页所在域名，如 `callaumyan-design.github.io` |
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` | 推送通知的密钥对（`npx web-push generate-vapid-keys` 生成） |
-| `ADMIN_KEY` | 手动触发生成用：`POST /api/admin/run`，请求头 `x-admin-key` |
+
+手动生成一期：`POST /api/admin/run?code=<函数密钥>`。函数密钥在 Azure 门户 → 函数应用 `dsh-news` → 应用密钥，或运行 `az functionapp keys list -g dsh-news -n dsh-news --query functionKeys.default -o tsv`。
 
 > 通行密钥绑定在网页所在的域名上。以后把网页换到别的域名，已有的通行密钥会失效，需要重新注册。
 
