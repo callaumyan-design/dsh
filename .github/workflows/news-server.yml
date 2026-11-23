@@ -84,5 +84,7 @@ jobs:
           [ "$code" = "200" ] || { echo "::error::接口没有响应（HTTP $code）"; exit 1; }
           key=$(az functionapp keys list -g "$RESOURCE_GROUP" -n "$APP_NAME" --query functionKeys.default -o tsv)
           echo "::add-mask::$key"
-          curl -sf -X POST "$base/admin/run?code=$key" && echo
+          status=$(curl -s -o /tmp/run.json -w '%{http_code}' -X POST "$base/jobs/run-edition?code=$key")
+          cat /tmp/run.json; echo
+          [ "$status" = "202" ] || { echo "::error::触发生成失败（HTTP $status）"; exit 1; }
           echo "已开始生成，几分钟后打开 https://callaumyan-design.github.io/dsh/news/ 查看"
