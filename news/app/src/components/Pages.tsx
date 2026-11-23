@@ -252,7 +252,7 @@ export function Me() {
       <Categories />
       <section className="panel about">
         <h2>关于</h2>
-        <p>每天北京时间早上 7 点前，从 IT之家、36氪、少数派、爱范儿、极客公园、虎嗅、The Verge、TechCrunch、Ars Technica、Engadget、9to5Mac、GSMArena、MIT Technology Review、Product Hunt 和 GitHub 抓取过去一天的报道，由 AI 挑出大事、合并重复报道并写中文摘要。</p>
+        <p>每天北京时间早上 7 点前，从 IT之家、36氪、少数派、爱范儿、极客公园、钛媒体、虎嗅、The Verge、TechCrunch、Ars Technica、Engadget、9to5Mac、GSMArena、MIT Technology Review、Product Hunt 和 GitHub 抓取过去一天的报道，由 AI 挑出大事、合并重复报道并写中文摘要。</p>
         {!API_BASE && <p className="msg error">这个版本没有配置服务器地址。</p>}
       </section>
     </section>

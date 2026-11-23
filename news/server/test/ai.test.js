@@ -51,7 +51,13 @@ test('OpenAI 兼容接口：地址、密钥、JSON 模式', async () => {
   assert.equal(calls[0].url, 'https://api.deepseek.com/v1/chat/completions');
   assert.equal(calls[0].init.headers.Authorization, 'Bearer sk-1');
   assert.deepEqual(calls[0].body.response_format, { type: 'json_object' });
+  assert.equal(calls[0].body.max_tokens, 16000);
   assert.match(calls[0].body.messages[0].content, /JSON Schema/);
+
+  const capped = openaiProvider({ AI_MODEL: 'deepseek-chat', AI_MAX_TOKENS: '8192' }, { fetchImpl });
+  await capped.generateJson({ system: 's', prompt: 'p', schema });
+  assert.equal(calls.at(-1).body.max_tokens, 8192);
+  calls.length = 1;
 
   const az = openaiProvider({ AI_MODEL: 'gpt', AI_API_KEY: 'az', AI_AUTH_HEADER: 'api-key', AI_JSON_MODE: 'none', AI_BASE_URL: 'https://x.openai.azure.com/openai/deployments/gpt/chat/completions?api-version=2024-10-21' }, { fetchImpl });
   await az.generateJson({ system: 's', prompt: 'p', schema });

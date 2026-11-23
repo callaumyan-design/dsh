@@ -14,6 +14,8 @@ export function openaiProvider(env, { fetchImpl = fetch } = {}) {
   const model = env.AI_MODEL;
   if (!model) throw new Error('AI_PROVIDER=openai 时必须设置 AI_MODEL');
   const mode = (env.AI_JSON_MODE || 'json_object').toLowerCase();
+  // 各家的输出上限不同（DeepSeek 是 8192），超过会直接报错，所以允许用 AI_MAX_TOKENS 压低
+  const cap = Number(env.AI_MAX_TOKENS) || Infinity;
 
   return {
     name: 'openai',
@@ -21,7 +23,7 @@ export function openaiProvider(env, { fetchImpl = fetch } = {}) {
     async generateJson({ system, prompt, schema, maxTokens = 16000 }) {
       const body = {
         model,
-        max_tokens: maxTokens,
+        max_tokens: Math.min(maxTokens, cap),
         messages: [
           { role: 'system', content: `${system}\n\n只输出一个 JSON 对象，符合这个 JSON Schema：\n${JSON.stringify(schema)}` },
           { role: 'user', content: prompt },

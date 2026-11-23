@@ -1,0 +1,29 @@
+name: 科技晨读（检查新闻来源）
+
+# 逐个抓取新闻来源，在日志里报告每个来源的情况。手动运行，或者改了来源配置时自动运行。
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'news/server/src/lib/sources/**'
+      - 'news/server/scripts/probe-sources.js'
+      - '.github/workflows/news-probe.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: news/server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: news/server/package-lock.json
+      - run: npm ci
+      - run: node scripts/probe-sources.js

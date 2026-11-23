@@ -31,6 +31,7 @@ AI 只通过一个接口调用，用哪家由服务器的环境变量决定，�
 | `AI_BASE_URL` | 接口地址：`openai` 填兼容接口根地址；`custom` 填你自己服务的完整地址；`anthropic` 可选（走代理时用） |
 | `AI_AUTH_HEADER` | 放密钥的请求头，默认 `Authorization: Bearer`；Azure OpenAI 填 `api-key` |
 | `AI_JSON_MODE` | `openai` 的 JSON 输出方式：`json_object`（默认）、`json_schema`、`none`（接口不支持时） |
+| `AI_MAX_TOKENS` | `openai` 每次最多输出多少 token。DeepSeek 的上限是 8192，要填 |
 
 常见配置：
 
@@ -39,7 +40,7 @@ AI 只通过一个接口调用，用哪家由服务器的环境变量决定，�
 AI_PROVIDER=anthropic  AI_API_KEY=sk-ant-...
 
 # DeepSeek
-AI_PROVIDER=openai  AI_BASE_URL=https://api.deepseek.com/v1  AI_MODEL=deepseek-chat  AI_API_KEY=sk-...
+AI_PROVIDER=openai  AI_BASE_URL=https://api.deepseek.com/v1  AI_MODEL=deepseek-chat  AI_MAX_TOKENS=8192  AI_API_KEY=sk-...
 
 # 通义千问
 AI_PROVIDER=openai  AI_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1  AI_MODEL=qwen-plus  AI_API_KEY=sk-...

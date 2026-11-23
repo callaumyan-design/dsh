@@ -8,14 +8,17 @@
 // category 是这家媒体最常写的门类：没有 AI、关键词也判断不出来时，归到这一类（见 lib/classify.js）。
 //
 // 单个来源抓取失败不影响其他来源，失败情况会记在当天这一期的 sourceStatus 里。
+// 改了地址先用 scripts/probe-sources.js 检查（我们的开发环境连不上这些网站时，推送后看“检查新闻来源”工作流的日志）。
+// 36氪不带 www 的 /feed 会返回防爬网页；虎嗅的 www.huxiu.com/rss 在海外连不上，用 rss.huxiu.com。
 export const SOURCES = [
   // 中文
   { id: 'ithome', name: 'IT之家', url: 'https://www.ithome.com/rss/', lang: 'zh', section: 'news', category: '数码' },
-  { id: '36kr', name: '36氪', url: 'https://36kr.com/feed', lang: 'zh', section: 'news', category: '商业与政策' },
+  { id: '36kr', name: '36氪', url: 'https://www.36kr.com/feed', lang: 'zh', section: 'news', category: '商业与政策' },
   { id: 'sspai', name: '少数派', url: 'https://sspai.com/feed', lang: 'zh', section: 'news', category: '数码' },
   { id: 'ifanr', name: '爱范儿', url: 'https://www.ifanr.com/feed', lang: 'zh', section: 'news', category: '数码' },
   { id: 'geekpark', name: '极客公园', url: 'https://www.geekpark.net/rss', lang: 'zh', section: 'news' },
-  { id: 'huxiu', name: '虎嗅', url: 'https://www.huxiu.com/rss/0.xml', lang: 'zh', section: 'news', category: '商业与政策' },
+  { id: 'tmtpost', name: '钛媒体', url: 'https://www.tmtpost.com/rss.xml', lang: 'zh', section: 'news', category: '商业与政策' },
+  { id: 'huxiu', name: '虎嗅', url: 'https://rss.huxiu.com/', lang: 'zh', section: 'news', category: '商业与政策' },
   // 英文
   { id: 'theverge', name: 'The Verge', url: 'https://www.theverge.com/rss/index.xml', lang: 'en', section: 'news' },
   { id: 'techcrunch', name: 'TechCrunch', url: 'https://techcrunch.com/feed/', lang: 'en', section: 'news', category: '商业与政策' },

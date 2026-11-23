@@ -6,6 +6,7 @@
 //   AI_BASE_URL   接口地址（anthropic 可选，用于代理；openai 填兼容接口的根地址；custom 填完整地址）
 //   AI_AUTH_HEADER  openai/custom 放密钥的请求头，默认 Authorization: Bearer <key>；Azure OpenAI 填 api-key
 //   AI_JSON_MODE  openai 的 JSON 输出方式：json_object（默认）| json_schema | none
+//   AI_MAX_TOKENS openai 每次最多输出多少 token（DeepSeek 填 8192；不填就用程序里的默认值）
 //
 // openai 适用于所有 OpenAI 兼容接口：OpenAI、DeepSeek、通义千问、Kimi、智谱、Ollama、Azure OpenAI 等。
 // custom 把 { system, prompt, schema } 原样 POST 到你自己的地址，返回 JSON 即可，可以接任何东西。
