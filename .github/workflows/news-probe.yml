@@ -26,6 +26,4 @@ jobs:
           cache: npm
           cache-dependency-path: news/server/package-lock.json
       - run: npm ci
-      - run: node scripts/probe-sources.js $PROBE_URLS
-        env:
-          PROBE_URLS: 36kr huxiu geekpark https://36kr.com/feed-article https://36kr.com/feed-newsflash https://www.36kr.com/feed https://rss.huxiu.com/ https://www.huxiu.com/rss/1.xml https://www.tmtpost.com/rss.xml https://www.cnbeta.com.tw/backend.php https://www.producthunt.com/feed?category=undefined
+      - run: node scripts/probe-sources.js
