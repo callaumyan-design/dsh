@@ -14,7 +14,7 @@ self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
 
 // 新闻数据：优先联网，断网时用最近一次的缓存
 registerRoute(
-  ({ url, request }) => request.method === 'GET' && /\/api\/editions(\/|$)/.test(url.pathname),
+  ({ url, request }) => request.method === 'GET' && /\/api\/v1\/editions(\/|$)/.test(url.pathname),
   new NetworkFirst({ cacheName: 'editions', networkTimeoutSeconds: 6, plugins: [new ExpirationPlugin({ maxEntries: 40, maxAgeSeconds: 30 * 86400 })] }),
 );
 // 新闻配图

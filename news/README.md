@@ -6,7 +6,7 @@
 
 ```
 news/
-  app/       网页应用（PWA），发布到 GitHub Pages 的 /news/
+  app/       网页应用（PWA），发布在 https://news.callaum.com/（Cloudflare Worker）
   server/    后端（Azure Functions）：每日抓取与 AI 摘要、登录、同步、推送
 ```
 
@@ -72,16 +72,29 @@ AI_PROVIDER=openai  AI_BASE_URL=http://localhost:11434/v1  AI_MODEL=qwen2.5:14b
 App 的后端地址写在 `app/.env.production`：
 
 ```
-VITE_API_BASE=https://<应用名>.azurewebsites.net/api
+VITE_API_BASE=https://<应用名>.azurewebsites.net/api/v1
 ```
 
-没有这个文件时，GitHub Actions 只测试构建，不发布。
+发布 App：在 `news/app` 运行 `npm run build && node deploy-cloudflare.mjs`，会上传名为 `news` 的 Worker 并绑定 `news.callaum.com`。
+仓库的 Actions Secrets 里有 `CLOUDFLARE_API_TOKEN`（权限：Workers Scripts 编辑、Workers Routes 编辑）时，推到 main 会自动发布；没有时只测试构建。
+
+## 线上部署
+
+| 部分 | 位置 |
+| --- | --- |
+| App | Cloudflare Worker `news`，域名 `news.callaum.com`，起始页（callaum.com）底部有入口 |
+| 服务器 | Azure 资源组 `dsh-news`（东亚）：函数应用 `dsh-news`（Flex Consumption）、存储账户、Application Insights |
+| 自动部署 | `.github/workflows/news-server.yml` 用托管身份 `dsh-news-deploy` 通过 OIDC 登录 Azure，不保存密钥 |
+
+换 AI：Azure 门户 → 函数应用 `dsh-news` → 设置 → 环境变量，按上面“换用任何 AI”的表格改，保存后立即生效（下次生成时用）。
 
 ## 接口一览
 
-公开：`GET /api/editions/latest`、`GET /api/editions`、`GET /api/editions/{日期}`、`GET /api/push/key`、`POST /api/push/subscribe`、`POST /api/push/unsubscribe`
-登录：`POST /api/auth/register/options|verify`、`POST /api/auth/login/options|verify`、`POST /api/auth/logout`
-需登录：`GET /api/me`、`PUT /api/me/prefs`、`POST /api/me/read`、`GET|PUT|DELETE /api/me/bookmarks[/{id}]`
+以下路径都在 `/api/v1` 下。
+
+公开：`GET /editions/latest`、`GET /editions`、`GET /editions/{日期}`、`GET /push/key`、`POST /push/subscribe`、`POST /push/unsubscribe`
+登录：`POST /auth/register/options|verify`、`POST /auth/login/options|verify`、`POST /auth/logout`
+需登录：`GET /me`、`PUT /me/prefs`、`POST /me/read`、`GET|PUT|DELETE /me/bookmarks[/{id}]`
 
 ## 本地开发
 
@@ -89,9 +102,9 @@ VITE_API_BASE=https://<应用名>.azurewebsites.net/api
 cd news/server && npm install
 npm test                                  # 单元测试
 AZURITE=1 npm test                        # 另开终端先运行 npx azurite --inMemoryPersistence
-node scripts/dev-server.js                # 本地接口（内存存储 + 示例数据），http://localhost:7071/api
+node scripts/dev-server.js                # 本地接口（内存存储 + 示例数据），http://localhost:7071/api/v1
 AI_PROVIDER=... node scripts/run-once.js  # 抓一次真实新闻，结果写到 edition-<日期>.json
 
 cd news/app && npm install
-VITE_API_BASE=http://localhost:7071/api npm run dev
+VITE_API_BASE=http://localhost:7071/api/v1 npm run dev
 ```

@@ -77,7 +77,7 @@ jobs:
         run: |
           base="https://${APP_NAME}.azurewebsites.net/api"
           for i in $(seq 1 20); do
-            code=$(curl -s -o /dev/null -w '%{http_code}' "$base/editions")
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$base/v1/editions")
             [ "$code" = "200" ] && break
             echo "等待函数启动（HTTP $code）"; sleep 15
           done

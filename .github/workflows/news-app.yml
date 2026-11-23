@@ -1,27 +1,24 @@
 name: 科技晨读（App）
 
-# 构建新闻 App 并发布到 /news/。
-# 后端地址写在 news/app/.env.production 的 VITE_API_BASE 里；还没配置时只测试构建，不发布。
+# 构建新闻 App。仓库 Secrets 里有 CLOUDFLARE_API_TOKEN 时，推到 main 会发布到 https://news.callaum.com/（Cloudflare Worker `news`）；
+# 没有时只测试构建。也可以在本地运行 news/app/deploy-cloudflare.mjs 发布。
 on:
   push:
     branches: [main]
     paths:
       - 'news/app/**'
       - '.github/workflows/news-app.yml'
+  pull_request:
+    paths:
+      - 'news/app/**'
   workflow_dispatch:
 
 permissions:
-  contents: write
-  pages: write
-  id-token: write
+  contents: read
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    outputs:
-      configured: ${{ steps.check.outputs.configured }}
     defaults:
       run:
         working-directory: news/app
@@ -34,23 +31,13 @@ jobs:
           cache-dependency-path: news/app/package-lock.json
       - run: npm ci
       - run: npm run build
-      - id: check
+      - name: 发布到 Cloudflare
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
-          if grep -qE '^VITE_API_BASE=https://' .env.production 2>/dev/null; then
-            echo "configured=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "::notice::还没有配置后端地址（news/app/.env.production），这次不发布"
-            echo "configured=false" >> "$GITHUB_OUTPUT"
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::notice::没有配置 CLOUDFLARE_API_TOKEN，这次只测试构建，不发布"
+            exit 0
           fi
-      - uses: actions/upload-artifact@v4
-        with:
-          name: news-app
-          path: news/app/dist
-
-  publish:
-    needs: build
-    if: needs.build.outputs.configured == 'true'
-    uses: ./.github/workflows/publish-pages.yml
-    with:
-      project: news
-      artifact: news-app
+          node deploy-cloudflare.mjs
