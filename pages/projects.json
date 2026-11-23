@@ -1,10 +1,5 @@
 [
   {
-    "path": "news",
-    "title": "科技晨读",
-    "description": "每天早上一份数码与科技要闻，AI 中文摘要"
-  },
-  {
     "path": "quadrant",
     "title": "四象限任务计划",
     "description": "按重要程度和紧急程度管理任务，可安装、可离线使用"

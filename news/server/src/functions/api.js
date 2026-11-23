@@ -1,4 +1,5 @@
-// 所有 HTTP 接口：https://<应用名>.azurewebsites.net/api/...
+// 所有 HTTP 接口：https://<应用名>.azurewebsites.net/api/v1/...
+// 不用 {*path} 接住全部路径：在 Azure 上它会抢走其他函数的路由（如 jobs/run-edition）
 import { app } from '@azure/functions';
 import { createApi } from '../lib/api.js';
 import { getStore } from '../lib/runtime.js';
@@ -7,7 +8,7 @@ let handlerPromise;
 const getHandler = () => (handlerPromise ??= getStore().then((store) => createApi({ store })).catch((e) => { handlerPromise = undefined; throw e; }));
 
 app.http('api', {
-  route: '{*path}',
+  route: 'v1/{*path}',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   authLevel: 'anonymous',
   handler: async (request, context) => {
