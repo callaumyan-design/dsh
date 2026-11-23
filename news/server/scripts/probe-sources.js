@@ -2,18 +2,22 @@
 // 逐个抓取新闻来源，报告每个来源返回了什么，用来排查“抓不到”“条数太少”。
 //   node scripts/probe-sources.js            全部来源
 //   node scripts/probe-sources.js 36kr huxiu 只看这几个
+//   node scripts/probe-sources.js https://example.com/feed   试一个新地址（可以和来源 id 混着写）
 import { SOURCES } from '../src/lib/sources/config.js';
 import { parseFeed } from '../src/lib/sources/feed.js';
 import { parseTrending } from '../src/lib/sources/github.js';
 
-const only = process.argv.slice(2);
+const args = process.argv.slice(2);
+const only = args.filter((a) => !/^https?:/.test(a));
+const extra = args.filter((a) => /^https?:/.test(a)).map((url) => ({ id: url, name: url, url, lang: 'zh', section: 'news' }));
 const now = Date.now();
-for (const s of SOURCES.filter((x) => !only.length || only.includes(x.id))) {
+const list = [...SOURCES.filter((x) => (!only.length && !extra.length) || only.includes(x.id)), ...extra];
+for (const s of list) {
   const t0 = Date.now();
   try {
     const res = await fetch(s.url, {
       headers: { 'User-Agent': 'Mozilla/5.0 (compatible; tech-news-reader/1.0)', Accept: 'application/rss+xml, application/atom+xml, application/xml, text/xml, text/html;q=0.8' },
-      signal: AbortSignal.timeout(20000),
+      signal: AbortSignal.timeout(30000),
       redirect: 'follow',
     });
     const body = await res.text();
