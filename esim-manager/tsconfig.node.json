@@ -6,7 +6,9 @@
     "moduleResolution": "bundler",
     "strict": true,
     "skipLibCheck": true,
-    "types": ["node"]
+    "types": ["node", "web-bluetooth"],
+    "baseUrl": ".",
+    "paths": { "@/*": ["src/*"] }
   },
   "include": ["vite.config.ts", "playwright.config.ts", "e2e"]
 }

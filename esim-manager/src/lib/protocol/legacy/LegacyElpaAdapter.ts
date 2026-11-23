@@ -136,7 +136,7 @@ export class LegacyElpaAdapter {
             }
             const expected = spec.errorMessages ?? [];
             if (expected.length === 0 || expected.includes(m.message)) {
-              finish(new LpacError(m.message, typeof m.data === 'string' ? m.data : '', spec.id));
+              finish(new LpacError(m.message, typeof m.data === 'string' ? m.data : '', spec.id, warnings.length > 0));
             } else {
               this.events.onStray?.(incoming, `等待 ${spec.id} 时收到不相关的错误 ${m.message}`);
             }

@@ -63,6 +63,8 @@ describe('LegacyElpaAdapter', () => {
     const err = await a.requestCli(LEGACY_COMMANDS.chipInfo, commandBuilders.chipInfo()).catch((e) => e);
     expect(err).toBeInstanceOf(LpacError);
     expect((err as LpacError).functionName).toBe('es10c_get_eid');
+    expect((err as LpacError).euiccInitFailed).toBe(true);
+    expect((err as Error).message).toContain('未插卡');
   });
 
   it('lpac 错误带原因', async () => {

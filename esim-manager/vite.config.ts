@@ -11,6 +11,19 @@ export default defineConfig({
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined;
+          if (/node_modules\/(react|react-dom|scheduler)\//.test(id)) return 'react';
+          if (id.includes('@radix-ui') || id.includes('@floating-ui')) return 'radix';
+          if (id.includes('lucide-react')) return 'icons';
+          return 'vendor';
+        },
+      },
+    },
+  },
   server: {
     // 只监听 localhost：Web Bluetooth 只在 https 或 localhost 这类安全上下文中可用
     host: 'localhost',

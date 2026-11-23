@@ -13,8 +13,13 @@ export class LpacError extends ProtocolError {
     readonly functionName: string,
     readonly detail: string,
     readonly commandId: string,
+    /** 之前是否已经报告过 euicc_init 失败（V2.1.0 等没有 cardStatus 的固件在未插卡时会这样）。 */
+    readonly euiccInitFailed = false,
   ) {
-    super(describeLpacError(functionName, detail));
+    super(
+      describeLpacError(functionName, detail) +
+        (euiccInitFailed ? ' 在此之前 euicc_init 也失败了：很可能未插卡、卡片接触不良，或插入的不是 eUICC。' : ''),
+    );
     this.name = 'LpacError';
   }
 }
