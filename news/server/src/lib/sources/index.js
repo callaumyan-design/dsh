@@ -8,7 +8,8 @@ const UA = 'Mozilla/5.0 (compatible; tech-news-reader/1.0)';
 async function fetchSource(source, fetchImpl) {
   const res = await fetchImpl(source.url, {
     headers: { 'User-Agent': UA, Accept: 'application/rss+xml, application/atom+xml, application/xml, text/xml, text/html;q=0.8' },
-    signal: AbortSignal.timeout(20000),
+    // 有的来源很慢（极客公园实测 16 秒），给 30 秒
+    signal: AbortSignal.timeout(30000),
     redirect: 'follow',
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -33,9 +34,10 @@ export async function collect({ sources = SOURCES, fetchImpl = fetch, now = new 
     }
   });
 
-  // 只要最近的；没有发布时间的（如 GitHub 榜单）保留。
+  // 新闻只要最近的。新品和 GitHub 榜单不按时间过滤：Product Hunt 订阅源里的时间是产品最早发布的日子，
+  // 不是上榜的日子（实测 50 条里只有 1 条在 36 小时内），所以按订阅源自己的顺序取前几个。
   const cutoff = now.getTime() - maxAgeHours * 3600_000;
-  const fresh = all.filter((it) => !it.publishedAt || new Date(it.publishedAt).getTime() >= cutoff);
+  const fresh = all.filter((it) => it.section !== 'news' || !it.publishedAt || new Date(it.publishedAt).getTime() >= cutoff);
 
   // 同一链接只保留一次
   const seen = new Set();

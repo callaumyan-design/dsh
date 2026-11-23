@@ -66,3 +66,9 @@ test('collect：单个来源失败不影响其他、过滤旧闻、合并重复�
   // a、b 内容相同：重复链接只留一份；10 月的旧闻被过滤
   assert.deepEqual(items.map((i) => i.title), ['Apple announces M6 chips & new MacBook Pro', '小米发布新款手机']);
 });
+
+test('collect：新品栏目不按时间过滤', async () => {
+  const sources = [{ id: 'ph', name: 'PH', url: 'https://ph/feed', lang: 'en', section: 'products' }];
+  const { items } = await collect({ sources, fetchImpl: async () => new Response(fx('wordpress.xml')), now: new Date('2026-11-20T12:00:00Z') });
+  assert.equal(items.length, 3); // 包括 10 月的那条
+});
