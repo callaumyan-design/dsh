@@ -8,7 +8,7 @@ interface State {
   user: User | null;
   bookmarks: Bookmark[];
   read: string[];
-  /** 只看这些分类；null = 全部 */
+  /** 关注的门类和栏目（见 topics.ts）；null = 全部关注 */
   categories: string[] | null;
   /** 登录状态下还没同步到服务器的改动 */
   pending: { put: string[]; del: string[]; read: string[]; prefs: boolean };
@@ -81,6 +81,14 @@ export const useStore = create<State>()(
         set({ categories, pending: token ? { ...pending, prefs: true } : pending });
       },
     }),
-    { name: 'tech-morning', version: 1 },
+    {
+      name: 'tech-morning',
+      version: 2,
+      migrate: (persisted, version) => {
+        const s = persisted as Partial<State>;
+        if (version < 2 && Array.isArray(s.categories)) s.categories = [...s.categories, '其他', '今日新品', 'GitHub 热榜'];
+        return s as State;
+      },
+    },
   ),
 );

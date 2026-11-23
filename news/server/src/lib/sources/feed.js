@@ -119,6 +119,7 @@ export function parseFeed(xml, source) {
         sourceName: source.name,
         lang: source.lang,
         section: source.section,
+        sourceCategory: source.category ?? null,
         title,
         url: url.trim(),
         summary: clip(stripHtml(shortHtml)),

@@ -120,6 +120,9 @@ button { font: inherit; color: inherit; }
   background: var(--surface); border: 1px solid var(--line); color: var(--muted); font-size: 0.875rem;
 }
 .chip.on { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+.chip .n { margin-left: 0.35rem; font-size: 0.75rem; opacity: 0.7; font-variant-numeric: tabular-nums; }
+.chip.section { border-style: dashed; }
+.chip.section.on { border-style: solid; }
 .c-gadget { --cat: var(--c-gadget); } .c-ai { --cat: var(--c-ai); } .c-web { --cat: var(--c-web); } .c-chip { --cat: var(--c-chip); }
 .c-dev { --cat: var(--c-dev); } .c-sci { --cat: var(--c-sci); } .c-biz { --cat: var(--c-biz); }
 .chip[class*="c-"]:not(.on) { color: var(--cat); }
@@ -171,6 +174,10 @@ button { font: inherit; color: inherit; }
 .colophon { margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.8125rem; display: grid; gap: 0.25rem; }
 .colophon p { margin: 0; }
 
+/* 隐藏提示 */
+.hidden-note { margin: 1.5rem 0 0; padding: 0.75rem 1rem; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); color: var(--muted); font-size: 0.875rem; }
+.hidden-note a { margin-left: 0.25rem; }
+
 /* 其他页面 */
 .page { display: grid; gap: 1rem; }
 .page-title { margin: 0.25rem 0 0; font-family: var(--font-display); font-size: 1.75rem; }
@@ -195,6 +202,20 @@ button { font: inherit; color: inherit; }
 .btn:disabled { opacity: 0.55; cursor: default; }
 .input { flex: 1 1 10rem; min-width: 0; padding: 0.5rem 0.75rem; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font: inherit; }
 .msg { font-size: 0.875rem; }
+
+/* 关注的门类 */
+.topic-group { display: grid; gap: 0.4rem; }
+.topic-group h3 { margin: 0.4rem 0 0; font-size: 0.8125rem; font-weight: 600; color: var(--muted); letter-spacing: 0.08em; }
+.topics { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr)); gap: 0.5rem; }
+.topic {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 0.6rem; align-items: center;
+  padding: 0.6rem 0.75rem; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); cursor: pointer;
+}
+.topic input { grid-row: span 2; width: 1.1rem; height: 1.1rem; accent-color: var(--accent); margin: 0; }
+.topic-name { font-weight: 600; color: var(--cat, var(--ink)); }
+.topic-hint { font-size: 0.8125rem; color: var(--muted); }
+.topic:not(.on) { opacity: 0.6; }
+.topic:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
 .panel .msg.ok, .msg.ok { color: var(--ok); }
 .panel .msg.error, .msg.error { color: var(--error); }
 

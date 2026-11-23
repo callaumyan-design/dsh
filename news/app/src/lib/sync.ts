@@ -55,6 +55,7 @@ async function doSync() {
         bookmarks: merged,
         read: [...new Set([...s.read, ...me.read])].slice(-2000),
         categories: s.pending.prefs ? s.categories : me.prefs.categories?.length ? me.prefs.categories : null,
+        // 服务器上的设置是完整的关注列表（含栏目），空列表表示全部关注
       };
     });
   } catch (err) {

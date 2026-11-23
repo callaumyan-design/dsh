@@ -6,8 +6,8 @@ import { loginWithPasskey, logout, passkeySupported, registerPasskey } from '../
 import { disablePush, enablePush, pushStatus, type PushStatus } from '../lib/push';
 import type { EditionIndexEntry } from '../lib/types';
 import { formatDay } from '../lib/format';
+import { ALL_TOPICS, CATEGORIES, SECTIONS, TOPIC_CLASS, follows, toggleFollow } from '../lib/topics';
 
-const CATEGORIES = ['数码', 'AI', '互联网', '芯片与硬件', '开发者', '科学与前沿', '商业与政策'];
 
 export function Archive() {
   const [list, setList] = useState<EditionIndexEntry[] | null>(null);
@@ -102,7 +102,7 @@ function Account() {
       <section className="panel">
         <h2>账号</h2>
         <p>
-          已登录：<b>{user.name}</b>。收藏、已读和分类设置会在登录了这个账号的设备之间同步。
+          已登录：<b>{user.name}</b>。收藏、已读和关注的门类会在登录了这个账号的设备之间同步。
         </p>
         <div className="row">
           <button className="btn" disabled={busy} onClick={() => run(() => registerPasskey(user.name), '已在这台设备上添加通行密钥')}>
@@ -185,26 +185,60 @@ function Push() {
   );
 }
 
+const TOPIC_HINT: Record<string, string> = {
+  数码: '手机、电脑、平板、耳机、相机、游戏机',
+  AI: '大模型、AI 产品与公司',
+  互联网: '平台与应用、社交、电商、网络安全',
+  芯片与硬件: '芯片、半导体、数据中心',
+  开发者: '开源、编程语言、开发工具',
+  科学与前沿: '航天、量子、生物医学、机器人',
+  商业与政策: '融资并购、财报、监管与诉讼',
+  其他: '归不进以上门类的新闻',
+  今日新品: 'Product Hunt 当天的新产品',
+  'GitHub 热榜': '当天新增 star 最多的仓库',
+};
+
 function Categories() {
-  const categories = useStore((s) => s.categories);
+  const followed = useStore((s) => s.categories);
   const setCategories = useStore((s) => s.setCategories);
-  const active = categories ?? CATEGORIES;
-  const toggle = (c: string) => {
-    const next = active.includes(c) ? active.filter((x) => x !== c) : [...active, c];
-    setCategories(next.length === CATEGORIES.length || next.length === 0 ? null : next);
+  const count = followed?.length ?? ALL_TOPICS.length;
+  const set = (next: string[] | null) => {
+    setCategories(next);
     void sync().catch(() => {});
   };
+  const group = (title: string, topics: readonly string[]) => (
+    <div className="topic-group">
+      <h3>{title}</h3>
+      <ul className="topics">
+        {topics.map((t) => {
+          const on = follows(followed, t);
+          const last = on && count === 1;
+          return (
+            <li key={t}>
+              <label className={`topic ${TOPIC_CLASS[t] ?? ''}${on ? ' on' : ''}`}>
+                <input type="checkbox" checked={on} disabled={last} onChange={() => set(toggleFollow(followed, t))} />
+                <span className="topic-name">{t}</span>
+                <span className="topic-hint">{TOPIC_HINT[t]}</span>
+              </label>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
   return (
-    <section className="panel">
-      <h2>关注的分类</h2>
-      <p>关掉的分类不会出现在“今天”里。</p>
-      <div className="chips wrap">
-        {CATEGORIES.map((c) => (
-          <button key={c} className={`chip${active.includes(c) ? ' on' : ''}`} aria-pressed={active.includes(c)} onClick={() => toggle(c)}>
-            {c}
+    <section className="panel" id="topics">
+      <h2>关注的门类</h2>
+      <p>只看勾选的门类。没勾选的不会出现在“今天”和往期里；至少要留一个。{followed === null ? '现在是全部关注。' : `已关注 ${count} 个。`}</p>
+      {group('新闻', CATEGORIES)}
+      {group('栏目', SECTIONS)}
+      {followed !== null && (
+        <div className="row">
+          <button className="btn quiet" onClick={() => set(null)}>
+            全部关注
           </button>
-        ))}
-      </div>
+        </div>
+      )}
     </section>
   );
 }
