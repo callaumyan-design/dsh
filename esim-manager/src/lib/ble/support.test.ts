@@ -32,6 +32,17 @@ describe('evaluateSupport', () => {
     expect(evaluateSupport({ nav: { userAgent: FIREFOX }, secureContext: true, protocol: 'https:', hostname: 'x' }).problems.join()).toContain('Firefox');
   });
 
+  it('跨源 iframe 中不可用（Chrome 禁止）', () => {
+    const s = evaluateSupport({ nav: { userAgent: CHROME_WIN, bluetooth: bt }, secureContext: true, protocol: 'https:', hostname: 'x', frame: 'cross-origin-frame' });
+    expect(s.usable).toBe(false);
+    expect(s.problems.join()).toContain('iframe');
+  });
+
+  it('file:// 在 Chrome 中是安全上下文', () => {
+    const s = evaluateSupport({ nav: { userAgent: CHROME_WIN, bluetooth: bt }, secureContext: true, protocol: 'file:', hostname: '' });
+    expect(s.usable).toBe(true);
+  });
+
   it('没有蓝牙适配器', () => {
     const s = evaluateSupport({ nav: { userAgent: CHROME_WIN, bluetooth: bt }, secureContext: true, protocol: 'https:', hostname: 'x', availability: 'unavailable' });
     expect(s.usable).toBe(true);

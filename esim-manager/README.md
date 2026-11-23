@@ -11,18 +11,22 @@ eUICC / eSIM 卡，不再依赖微信小程序。所有通信都在浏览器和�
 
 > 截图中的数据来自自动化测试用的固件模拟器，不是真实设备。
 
-## 快速开始
+## 使用入口
 
-```bash
-cd esim-manager
-npm install
-npm run dev
-```
+三种方式任选其一，功能完全相同：
 
-用 **Chrome 或 Edge** 打开 http://localhost:5173 ，点击“连接读卡器”，在弹窗中选择 `eSIM_Writer`。
+| 方式 | 地址 / 操作 | 说明 |
+| --- | --- | --- |
+| **单文件（最简单）** | 下载 [`standalone/9eSIM-Web-Manager.html`](standalone/9eSIM-Web-Manager.html)，双击用 Chrome / Edge 打开 | 不需要安装任何东西。Chrome 把 `file://` 视为安全上下文。适合 Windows / macOS / Linux 桌面；Android 请用网页地址 |
+| **网页地址** | https://callaumyan-design.github.io/dsh/esim-manager/ | 需要仓库开启 GitHub Pages（Settings → Pages → Source 选 *GitHub Actions*），并合并到 `main` 后自动部署。手机（Android Chrome）用这个 |
+| **本地开发服务器** | `cd esim-manager && npm install && npm run dev`，打开 http://localhost:5173 | 需要 Node.js 20+ |
+
+打开后点击“连接读卡器”，在弹窗中选择 `eSIM_Writer`。
 
 连接成功后，应用只会自动发送三条 **只读** 命令：`{"cmd":"getElpaInfo"}`、`lpac chip info`、`lpac profile list`
 （可以在“设备设置”中关闭）。任何写操作都需要你点击并二次确认。
+
+> 不能嵌入到别的网页里使用：Chrome 禁止跨源 iframe 调用 Web Bluetooth，应用检测到时会提示在新标签页打开。
 
 ## 浏览器支持
 
@@ -115,10 +119,12 @@ npm run typecheck  # TypeScript 类型检查
 npm test           # 单元测试 + Mock BLE 集成测试（Vitest）
 npm run e2e        # 界面端到端测试（Playwright + 注入的 Mock BLE）
 npm run build      # 类型检查 + 生产构建，输出到 dist/
+npm run build:single  # 单文件构建，输出到 standalone/9eSIM-Web-Manager.html
 npm run check      # typecheck + test + build
 ```
 
 生产部署：把 `dist/` 放到任意 **HTTPS** 静态主机即可（使用相对路径，可部署在子目录）。
+本仓库的 `.github/workflows/quadrant-pages.yml` 会在 `main` 更新时把它和四象限一起发布到 GitHub Pages 的 `/esim-manager/`。
 
 ## 致谢与许可
 

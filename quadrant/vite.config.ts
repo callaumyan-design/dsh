@@ -42,6 +42,8 @@ export default defineConfig(({ mode }) => {
             workbox: {
               globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
               navigateFallback: 'index.html',
+              // 同一个 Pages 站点下还部署了 /esim-manager/，不能被本应用的离线回退接管
+              navigateFallbackDenylist: [/\/esim-manager\//],
               runtimeCaching: [
                 {
                   urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/i,

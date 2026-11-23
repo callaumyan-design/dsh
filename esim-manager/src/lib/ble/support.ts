@@ -21,8 +21,14 @@ export interface PlatformInfo {
   isBrave: boolean;
 }
 
+export type FrameContext = 'top' | 'same-origin-frame' | 'cross-origin-frame';
+
 export interface BluetoothSupport {
   apiPresent: boolean;
+  /** 页面是否被嵌入 iframe。Chrome 禁止跨源 iframe 调用 requestDevice。 */
+  frame: FrameContext;
+  /** 权限策略是否允许 bluetooth（null 表示浏览器不支持查询）。 */
+  policyAllows: boolean | null;
   secureContext: boolean;
   protocol: string;
   hostname: string;
@@ -73,8 +79,12 @@ export function evaluateSupport(input: {
   protocol: string;
   hostname: string;
   availability?: Availability;
+  frame?: FrameContext;
+  policyAllows?: boolean | null;
 }): BluetoothSupport {
   const { nav, secureContext, protocol, hostname } = input;
+  const frame = input.frame ?? 'top';
+  const policyAllows = input.policyAllows ?? null;
   const platform = detectPlatform(nav);
   const apiPresent = typeof nav.bluetooth === 'object' && nav.bluetooth !== null && typeof nav.bluetooth.requestDevice === 'function';
   const availability = input.availability ?? 'unknown';
@@ -108,6 +118,14 @@ export function evaluateSupport(input: {
     }
   }
 
+  if (apiPresent && frame === 'cross-origin-frame') {
+    problems.push('本页面被嵌入在其他网站的 iframe 中。Chrome 不允许跨源 iframe 使用 Web Bluetooth。');
+    hints.push('请在浏览器新标签页中直接打开本页面。');
+  } else if (apiPresent && policyAllows === false) {
+    problems.push('页面的权限策略（Permissions-Policy）禁止使用蓝牙。');
+    hints.push('请在浏览器新标签页中直接打开本页面，或检查托管服务器的 Permissions-Policy 响应头。');
+  }
+
   if (apiPresent && availability === 'unavailable') {
     problems.push('浏览器报告当前没有可用的蓝牙适配器（navigator.bluetooth.getAvailability() = false）。');
     hints.push('请确认电脑蓝牙已打开、系统已允许浏览器使用蓝牙。');
@@ -115,15 +133,42 @@ export function evaluateSupport(input: {
 
   return {
     apiPresent,
+    frame,
+    policyAllows,
     secureContext,
     protocol,
     hostname,
     availability,
     platform,
-    usable: apiPresent && secureContext,
+    usable: apiPresent && secureContext && frame !== 'cross-origin-frame' && policyAllows !== false,
     problems,
     hints,
   };
+}
+
+export function detectFrame(): FrameContext {
+  if (typeof window === 'undefined' || window.top === window.self) return 'top';
+  try {
+    // 跨源时访问 top.location.href 会抛异常
+    void window.top!.location.href;
+    return 'same-origin-frame';
+  } catch {
+    return 'cross-origin-frame';
+  }
+}
+
+export function detectPolicy(): boolean | null {
+  type Policy = { allowsFeature(f: string): boolean; features?: () => string[] };
+  const doc = typeof document !== 'undefined' ? (document as unknown as { permissionsPolicy?: Policy; featurePolicy?: Policy }) : null;
+  const policy = doc?.permissionsPolicy ?? doc?.featurePolicy;
+  if (!policy) return null;
+  try {
+    // 浏览器不认识 bluetooth 特性时 allowsFeature 也返回 false，这种情况视为“未知”
+    if (typeof policy.features === 'function' && !policy.features().includes('bluetooth')) return null;
+    return policy.allowsFeature('bluetooth');
+  } catch {
+    return null;
+  }
 }
 
 /** 读取当前浏览器环境。getAvailability 失败不视为致命错误。 */
@@ -143,6 +188,8 @@ export async function detectBluetoothSupport(): Promise<BluetoothSupport> {
     protocol: location.protocol,
     hostname: location.hostname,
     availability,
+    frame: detectFrame(),
+    policyAllows: detectPolicy(),
   });
 }
 
@@ -152,5 +199,7 @@ export function detectBluetoothSupportSync(): BluetoothSupport {
     secureContext: typeof window !== 'undefined' ? window.isSecureContext : false,
     protocol: typeof location !== 'undefined' ? location.protocol : '',
     hostname: typeof location !== 'undefined' ? location.hostname : '',
+    frame: detectFrame(),
+    policyAllows: detectPolicy(),
   });
 }

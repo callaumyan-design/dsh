@@ -1,10 +1,15 @@
-name: 部署四象限任务计划
+name: 部署 GitHub Pages（四象限 + 9eSIM Web Manager）
+
+# 一个仓库只有一个 Pages 站点，所以两个前端在同一个工作流里构建、一起发布：
+#   /                 四象限任务计划（quadrant/）
+#   /esim-manager/    9eSIM Web Manager（esim-manager/，Web Bluetooth 需要 HTTPS，Pages 正好满足）
 
 on:
   push:
     branches: [main]
     paths:
       - 'quadrant/**'
+      - 'esim-manager/**'
       - '.github/workflows/quadrant-pages.yml'
   workflow_dispatch:
 
@@ -20,29 +25,47 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: quadrant
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: quadrant/package-lock.json
-      - run: npm ci
-      - run: npm test
-      - run: npm run build
+          cache-dependency-path: |
+            quadrant/package-lock.json
+            esim-manager/package-lock.json
+
+      - name: 构建四象限
+        working-directory: quadrant
+        run: |
+          npm ci
+          npm test
+          npm run build
+
+      - name: 构建 9eSIM Web Manager
+        working-directory: esim-manager
+        run: |
+          npm ci
+          npm test
+          npm run build
+
+      - name: 合并站点
+        run: |
+          mkdir -p site
+          cp -r quadrant/dist/. site/
+          mkdir -p site/esim-manager
+          cp -r esim-manager/dist/. site/esim-manager/
+
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: quadrant/dist
+          path: site
 
   deploy:
     needs: build
     runs-on: ubuntu-latest
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deployment.outputs.page_url }}esim-manager/
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
