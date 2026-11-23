@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react';
-import { CircleCheck, CircleX, Download, KeyRound, LoaderCircle, QrCode, RefreshCw, Search, Server, ShieldCheck, Wifi, WifiOff } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Camera, CircleCheck, CircleX, Download, ImageUp, KeyRound, LoaderCircle, QrCode, RefreshCw, Search, Server, ShieldCheck, Wifi, WifiOff } from 'lucide-react';
+import { toast } from 'sonner';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -11,12 +12,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { ConfirmDialog } from '@/components/app/ConfirmDialog';
 import { RequireReady } from '@/components/app/NotConnected';
 import { PageHeader } from '@/components/app/PageHeader';
+import { QrScanDialog } from '@/components/app/QrScanDialog';
 import { useAction } from '@/components/app/useAction';
 import { useSession, useSessionController } from '@/hooks/session';
 import type { Route } from '@/hooks/useRoute';
 import { ActivationCodeError, DOWNLOAD_STAGES, DOWNLOAD_TOTAL_STEPS, parseActivationCode, validateConfirmationCode, type ParsedActivationCode } from '@/lib/euicc/activationCode';
 import { maskId } from '@/lib/protocol/redact';
-import { errorMessage } from '@/lib/utils';
+import { decodeQrFromBlob, extractActivationCode } from '@/lib/qr/qr';
+import { cn, errorMessage } from '@/lib/utils';
 import { rssiLabel } from './DashboardPage';
 
 const STEP_ORDER = [
@@ -44,6 +47,77 @@ export function InstallPage({ navigate }: { navigate: (r: Route) => void }) {
   const [showConfirm, setShowConfirm] = useState(false);
   const [outcome, setOutcome] = useState<Outcome>(null);
   const [stagesSeen, setStagesSeen] = useState<string[]>([]);
+  const [scanOpen, setScanOpen] = useState(false);
+  const [decoding, setDecoding] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const [fromQr, setFromQr] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const dragDepth = useRef(0);
+  const locked = op?.key === 'profile.download';
+
+  /** 识别成功：填入激活码。激活码不写日志、不保存。 */
+  const applyCode = useCallback((ac: string) => {
+    setCode(ac);
+    setFromQr(true);
+    setOutcome(null);
+    toast.success('已从二维码读取激活码，请核对 SM-DP+ 地址');
+  }, []);
+
+  const decodeImage = useCallback(
+    async (file: Blob) => {
+      if (locked) return;
+      setDecoding(true);
+      try {
+        applyCode(extractActivationCode(await decodeQrFromBlob(file)));
+      } catch (e) {
+        toast.error(errorMessage(e), { duration: 8000 });
+      } finally {
+        setDecoding(false);
+      }
+    },
+    [applyCode, locked],
+  );
+
+  // 整个页面都可以拖入图片；按 Ctrl+V / ⌘V 粘贴截图
+  useEffect(() => {
+    const hasFiles = (e: DragEvent) => Array.from(e.dataTransfer?.types ?? []).includes('Files');
+    const onEnter = (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      dragDepth.current++;
+      setDragging(true);
+    };
+    const onLeave = (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      dragDepth.current = Math.max(0, dragDepth.current - 1);
+      if (dragDepth.current === 0) setDragging(false);
+    };
+    const onDrop = (e: DragEvent) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      dragDepth.current = 0;
+      setDragging(false);
+      const file = Array.from(e.dataTransfer?.files ?? []).find((f) => f.type.startsWith('image/'));
+      if (file) void decodeImage(file);
+      else toast.error('请拖入二维码图片（PNG、JPG、WebP 等）。');
+    };
+    const onPaste = (e: ClipboardEvent) => {
+      const item = Array.from(e.clipboardData?.items ?? []).find((i) => i.kind === 'file' && i.type.startsWith('image/'));
+      const file = item?.getAsFile();
+      if (!file) return; // 文字粘贴保持浏览器默认行为
+      e.preventDefault();
+      void decodeImage(file);
+    };
+    window.addEventListener('dragenter', onEnter);
+    window.addEventListener('dragleave', onLeave);
+    window.addEventListener('drop', onDrop);
+    window.addEventListener('paste', onPaste);
+    return () => {
+      window.removeEventListener('dragenter', onEnter);
+      window.removeEventListener('dragleave', onLeave);
+      window.removeEventListener('drop', onDrop);
+      window.removeEventListener('paste', onPaste);
+    };
+  }, [decodeImage]);
 
   const parsed = useMemo((): { value: ParsedActivationCode | null; error: string | null } => {
     if (!code.trim()) return { value: null, error: null };
@@ -108,15 +182,61 @@ export function InstallPage({ navigate }: { navigate: (r: Route) => void }) {
               <CardTitle className="flex items-center gap-2">
                 <QrCode className="size-4" /> 激活码
               </CardTitle>
-              <CardDescription>粘贴二维码中的文字内容。激活码只保存在本页内存中，不会上传或写入日志。</CardDescription>
+              <CardDescription>扫描或拖入运营商给的二维码，也可以直接粘贴激活码文字。识别在本机完成，激活码只保存在本页内存中，不会上传或写入日志。</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div
+                className={cn(
+                  'flex flex-col items-center gap-3 rounded-lg border-2 border-dashed px-4 py-5 text-center transition-colors',
+                  dragging ? 'border-primary bg-primary/5' : 'border-border',
+                )}
+                data-testid="qr-dropzone"
+              >
+                <div className="text-sm text-muted-foreground">
+                  {decoding ? (
+                    <span className="inline-flex items-center gap-2">
+                      <LoaderCircle className="size-4 animate-spin" /> 正在识别二维码…
+                    </span>
+                  ) : dragging ? (
+                    '松开鼠标即可识别二维码'
+                  ) : (
+                    <>把二维码图片拖到页面任意位置，或按 <kbd className="rounded border bg-muted px-1 font-mono text-xs">Ctrl</kbd>+<kbd className="rounded border bg-muted px-1 font-mono text-xs">V</kbd> 粘贴截图</>
+                  )}
+                </div>
+                <div className="flex flex-wrap justify-center gap-2">
+                  <Button type="button" variant="outline" size="sm" onClick={() => setScanOpen(true)} disabled={locked || decoding}>
+                    <Camera /> 摄像头扫描
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" onClick={() => fileInput.current?.click()} disabled={locked || decoding}>
+                    <ImageUp /> 选择图片
+                  </Button>
+                  <input
+                    ref={fileInput}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    aria-label="选择二维码图片"
+                    data-testid="qr-file-input"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      e.target.value = '';
+                      if (file) void decodeImage(file);
+                    }}
+                  />
+                </div>
+              </div>
               <div className="grid gap-2">
-                <Label htmlFor="ac">激活码</Label>
+                <Label htmlFor="ac" className="justify-between">
+                  激活码
+                  {fromQr && code && <Badge variant="secondary">来自二维码</Badge>}
+                </Label>
                 <Textarea
                   id="ac"
                   value={code}
-                  onChange={(e) => setCode(e.target.value)}
+                  onChange={(e) => {
+                    setCode(e.target.value);
+                    setFromQr(false);
+                  }}
                   placeholder="LPA:1$rsp.example.com$XXXX-XXXX-XXXX"
                   className="font-mono text-sm"
                   rows={2}
@@ -278,6 +398,7 @@ export function InstallPage({ navigate }: { navigate: (r: Route) => void }) {
         </Alert>
       </RequireReady>
 
+      <QrScanDialog open={scanOpen} onOpenChange={setScanOpen} onResult={applyCode} />
       <ConfirmDialog
         open={showConfirm}
         onOpenChange={setShowConfirm}

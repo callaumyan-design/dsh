@@ -59,6 +59,7 @@ Web Bluetooth 只能在 **安全上下文** 中使用：`https://` 或 `http://l
 | Profile 列表 | 源码核对 · 待设备验证 | `lpac profile list`，含图标 |
 | 启用 / 停用 / 删除 / 修改昵称 | 源码核对 · 待设备验证 | 全部二次确认；删除需输入 ICCID 后 4 位；完成后自动重新读取 |
 | 激活码下载安装、进度显示 | 源码核对 · 待设备验证 | 下载前检查读卡器 Wi-Fi；用 `-s/-m/-c` 传参 |
+| 二维码导入激活码：拖入图片、选择图片、Ctrl+V 粘贴截图、摄像头扫描 | 已实现（浏览器测试通过） | 在本机解码（BarcodeDetector，Windows/Linux 退回 jsQR），图片与画面不上传；支持透明背景、反色、包在 Apple `esimsetup` 链接里的激活码。摄像头只用虚拟摄像头测过 |
 | 通知列表 / 发送全部 / 移除全部 | 源码核对 · 待设备验证 | 固件按序号处理的代码有缺陷，只提供“全部” |
 | SM-DS 发现 | 源码核对 · 待设备验证 | `lpac profile discovery` |
 | 设置读卡器 Wi-Fi | 源码核对 · 待设备验证 | 固件不回复，随后轮询确认 |
@@ -131,6 +132,7 @@ npm run check      # typecheck + test + build
 - 协议依据 [9esim/eLPA](https://github.com/9esim/eLPA)（MIT；其中 lpac 移植部分遵循 lpac 的许可）与
   [9esim/MiniToolFirmware](https://github.com/9esim/MiniToolFirmware)。
 - APDU JSON 协议参考 [iebb/NekokoLPA](https://github.com/iebb/NekokoLPA)（MIT）。
+- 二维码解码使用 [jsQR](https://github.com/cozmo/jsQR)（Apache-2.0），作为运行时依赖打包进应用。
 - ES10x 命令依据 GSMA SGP.22，并与 [estkme-group/lpac](https://github.com/estkme-group/lpac) 交叉核对。
-- 本项目没有复制上述项目的源代码。本项目代码以 MIT 许可发布。
+- 除上面列出的运行时依赖外，本项目没有复制上述项目的源代码。本项目代码以 MIT 许可发布。
 - 与 9eSIM 官方无关联。
