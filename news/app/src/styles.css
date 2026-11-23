@@ -113,14 +113,16 @@ button { font: inherit; color: inherit; }
 .tally { margin: 0; color: var(--muted); font-size: 0.875rem; font-variant-numeric: tabular-nums; }
 
 /* 分类 */
-.chips { display: flex; gap: 0.5rem; overflow-x: auto; padding-block: 0.25rem 1rem; scrollbar-width: none; }
-.chips.wrap { flex-wrap: wrap; overflow: visible; padding-bottom: 0; }
+/* 自动换行，全部门类一眼可见（不用左右滑） */
+.chips { display: flex; flex-wrap: wrap; gap: 0.5rem; padding-block: 0.25rem 1rem; }
+.chips.wrap { padding-bottom: 0; }
 .chip {
   flex: none; padding: 0.3rem 0.85rem; border-radius: 999px; cursor: pointer;
   background: var(--surface); border: 1px solid var(--line); color: var(--muted); font-size: 0.875rem;
 }
 .chip.on { background: var(--ink); border-color: var(--ink); color: var(--bg); }
 .chip .n { margin-left: 0.35rem; font-size: 0.75rem; opacity: 0.7; font-variant-numeric: tabular-nums; }
+.chip.empty { opacity: 0.45; cursor: default; }
 .chip.section { border-style: dashed; }
 .chip.section.on { border-style: solid; }
 .c-gadget { --cat: var(--c-gadget); } .c-ai { --cat: var(--c-ai); } .c-web { --cat: var(--c-web); } .c-chip { --cat: var(--c-chip); }
