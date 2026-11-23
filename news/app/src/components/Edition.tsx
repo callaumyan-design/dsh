@@ -4,7 +4,7 @@ import { useStore } from '../lib/store';
 import { sync } from '../lib/sync';
 import type { Brief, Edition, Story } from '../lib/types';
 import { formatDay, timeAgo } from '../lib/format';
-import { categoryOf, filterStories, follows, SECTIONS, TOPIC_CLASS } from '../lib/topics';
+import { CATEGORIES, categoryOf, filterStories, follows, SECTIONS, TOPIC_CLASS } from '../lib/topics';
 
 export function useEdition(date: string | null) {
   const [edition, setEdition] = useState<Edition | null>(null);
@@ -56,12 +56,23 @@ export function EditionView({ date }: { date: string | null }) {
         <button className={`chip${active === null ? ' on' : ''}`} onClick={() => setActive(null)} aria-pressed={active === null}>
           全部<span className="n">{total}</span>
         </button>
-        {[...counts].map(([c, n]) => (
-          <button key={c} className={`chip ${TOPIC_CLASS[c] ?? ''}${active === c ? ' on' : ''}`} onClick={() => setActive(active === c ? null : c)} aria-pressed={active === c}>
-            {c}
-            <span className="n">{n}</span>
-          </button>
-        ))}
+        {/* 关注的门类全部列出来；当天没有新闻的显示 0、不能点，这样一眼能看到所有门类 */}
+        {CATEGORIES.filter((c) => follows(followed, c)).map((c) => {
+          const n = counts.get(c) ?? 0;
+          return (
+            <button
+              key={c}
+              className={`chip ${TOPIC_CLASS[c] ?? ''}${active === c ? ' on' : ''}${n ? '' : ' empty'}`}
+              onClick={() => setActive(active === c ? null : c)}
+              aria-pressed={active === c}
+              disabled={!n}
+              title={n ? undefined : '今天这个门类没有新闻'}
+            >
+              {c}
+              <span className="n">{n}</span>
+            </button>
+          );
+        })}
         {sectionChips.map(([c, n]) => (
           <button key={c} className={`chip section${active === c ? ' on' : ''}`} onClick={() => setActive(active === c ? null : c)} aria-pressed={active === c}>
             {c}
