@@ -261,30 +261,44 @@ async function minimaxVideo(req: ChatRequest): Promise<ChatResult> {
   return { finishReason: 'stop' };
 }
 
-/** Alibaba DashScope Wan: the video-synthesis task API. */
+/**
+ * Alibaba Model Studio (DashScope) Wan video: the video-synthesis task API. Wan 3.0 and later take a list of media
+ * (first / last frame) with resolution and ratio; the older task-specific models (wan2.x-t2v / -i2v) take img_url and size.
+ */
 async function dashscopeVideo(req: ChatRequest): Promise<ChatResult> {
   const o = req.params.media ?? {};
   const { text, images } = mediaPrompt(req, false);
   if (!text && !images.length) mediaPrompt(req);
+  const legacy = /^wanx|(^|\/)wan[\d.]*-?(t2v|i2v|kf2v|flf2v|s2v)/i.test(req.model);
   const input: Record<string, unknown> = {};
   if (text) input.prompt = text;
-  if (o.negativePrompt) input.negative_prompt = o.negativePrompt;
   const parameters: Record<string, unknown> = { prompt_extend: true, watermark: false };
-  if (images[0]) {
-    input.img_url = images[0].dataUrl;
+  if (legacy) {
+    if (o.negativePrompt) input.negative_prompt = o.negativePrompt;
+    if (images[0]) {
+      input.img_url = images[0].dataUrl;
+      if (o.resolution) parameters.resolution = o.resolution.toUpperCase();
+    } else if (o.aspect || o.resolution) {
+      const sizes =
+        o.resolution === '480p' ? ['832*480', '480*832', '624*624'] : o.resolution === '1080p' ? ['1920*1080', '1080*1920', '1440*1440'] : ['1280*720', '720*1280', '960*960'];
+      parameters.size = closestSize(o.aspect ?? '16:9', sizes, '*');
+    }
+    if (o.seconds) parameters.duration = o.seconds;
+  } else {
+    if (images.length) {
+      input.media = images.slice(0, 2).map((img, i) => ({ type: i ? 'last_frame' : 'first_frame', url: img.dataUrl }));
+    }
     if (o.resolution) parameters.resolution = o.resolution.toUpperCase();
-  } else if (o.aspect || o.resolution) {
-    const sizes =
-      o.resolution === '480p' ? ['832*480', '480*832', '624*624'] : o.resolution === '1080p' ? ['1920*1080', '1080*1920', '1440*1440'] : ['1280*720', '720*1280', '960*960'];
-    parameters.size = closestSize(o.aspect ?? '16:9', sizes, '*');
+    if (o.aspect) parameters.ratio = closestAspect(o.aspect, ['21:9', '16:9', '4:3', '1:1', '3:4', '9:16']);
+    if (o.seconds) parameters.duration = Math.max(2, Math.min(30, Math.round(o.seconds)));
   }
-  if (o.seconds) parameters.duration = o.seconds;
   const body: Record<string, unknown> = { model: req.model, input, parameters };
   mergeExtra(body, req.provider.extraBody, req.params.extraBody);
   const out = await dashscopeTask(req, `${ORIGIN_PATH}/api/v1/services/aigc/video-generation/video-synthesis`, body);
-  if (!out.video_url) failed('The task finished without a video');
+  const url = out.video_url ?? out.results?.video_url;
+  if (!url) failed('The task finished without a video');
   req.onDelta({ progress: { stage: 'saving' } });
-  await saveOutput(req, { kind: 'video', url: out.video_url });
+  await saveOutput(req, { kind: 'video', url });
   return { finishReason: 'stop' };
 }
 

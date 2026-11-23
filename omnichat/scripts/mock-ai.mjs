@@ -354,6 +354,55 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
+  // ---------- Alibaba Model Studio (DashScope native API beside /compatible-mode/v1) ----------
+  if (p.startsWith('/compatible-mode/') || p.startsWith('/api/v1/')) {
+    if (req.headers.authorization !== 'Bearer sk-mock') return json(res, 401, { request_id: 'r', code: 'InvalidApiKey', message: 'No API-key provided.' });
+    // Like the real service: the compatible mode has no image endpoint.
+    if (p.startsWith('/compatible-mode/')) return json(res, 404, {});
+    const isAsync = req.headers['x-dashscope-async'] === 'enable';
+    const needAsync = () => json(res, 403, { request_id: 'r', code: 'AccessDenied', message: 'current user api does not support synchronous calls' });
+    const imageResult = (n, size) => ({
+      choices: Array.from({ length: n }, (_, i) => ({
+        finish_reason: 'stop',
+        message: { role: 'assistant', content: [{ image: `http://127.0.0.1:${port}/files/ds-${i}.png?size=${size ?? ''}`, type: 'image' }] },
+      })),
+    });
+    if (p === '/api/v1/services/aigc/multimodal-generation/generation') {
+      const body = await readBody(req);
+      const content = body.input?.messages?.[0]?.content ?? [];
+      log.push({ api: 'dashscope', path: p, model: body.model, async: isAsync, text: content.find((c) => c.text)?.text, images: content.filter((c) => c.image).length, parameters: body.parameters });
+      return json(res, 200, { request_id: 'r', output: imageResult(body.parameters?.n ?? 1, body.parameters?.size) });
+    }
+    if (p === '/api/v1/services/aigc/image-generation/generation' || p === '/api/v1/services/aigc/video-generation/video-synthesis') {
+      if (!isAsync) return needAsync();
+      const body = await readBody(req);
+      const video = p.endsWith('video-synthesis');
+      const content = body.input?.messages?.[0]?.content ?? [];
+      log.push({
+        api: 'dashscope',
+        path: p,
+        model: body.model,
+        async: true,
+        text: video ? body.input?.prompt : content.find((c) => c.text)?.text,
+        images: content.filter((c) => c.image).length,
+        media: body.input?.media?.map((m) => m.type),
+        parameters: body.parameters,
+      });
+      const id = `ds_${Math.random().toString(36).slice(2, 10)}`;
+      videoJobs.set(id, { polls: 0, video, n: body.parameters?.n ?? 1, size: body.parameters?.size });
+      return json(res, 200, { request_id: 'r', output: { task_id: id, task_status: 'PENDING' } });
+    }
+    const t = /^\/api\/v1\/tasks\/([^/]+)$/.exec(p);
+    if (t) {
+      const job = pollJob(t[1]);
+      if (!job) return json(res, 200, { request_id: 'r', output: { task_id: t[1], task_status: 'UNKNOWN' } });
+      if (job.polls < 3) return json(res, 200, { request_id: 'r', output: { task_id: t[1], task_status: job.polls < 2 ? 'PENDING' : 'RUNNING' } });
+      const output = job.video ? { video_url: `http://127.0.0.1:${port}/files/ds-video.mp4` } : imageResult(job.n, job.size);
+      return json(res, 200, { request_id: 'r', output: { task_id: t[1], task_status: 'SUCCEEDED', ...output } });
+    }
+    return json(res, 404, {});
+  }
+
   // ---------- Anthropic ----------
   if (p.startsWith('/anthropic/v1/')) {
     if (req.headers['x-api-key'] !== 'sk-ant-mock') return json(res, 401, { type: 'error', error: { type: 'authentication_error', message: 'invalid x-api-key' } });

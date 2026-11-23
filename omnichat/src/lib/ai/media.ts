@@ -46,12 +46,16 @@ export function mediaVendor(p: Provider): MediaVendor {
     [/bigmodel\.cn$|(^|\.)z\.ai$/, 'zhipu'],
     [/siliconflow\.(cn|com)$/, 'siliconflow'],
     [/minimaxi?\.(com|io|chat)$/, 'minimax'],
-    [/dashscope(-intl)?\.aliyuncs\.com$/, 'dashscope'],
+    // Alibaba Model Studio (Bailian / DashScope) under its various hosts: dashscope*.aliyuncs.com, workspace hosts on
+    // maas.aliyuncs.com, QwenCloud (maas.qwencloudapi.com, including Token Plan) and the Qianwen platform.
+    [/(^|\.)dashscope[\w-]*\.aliyuncs\.com$|\.maas\.aliyuncs\.com$|(^|\.)qwencloudapi\.com$|(^|\.)qianwenaiapi\.com$/, 'dashscope'],
     [/(^|\.)x\.ai$/, 'xai'],
     [/together\.(xyz|ai)$/, 'together'],
     [/(^|\.)openai\.com$|openai\.azure\.com$/, 'openai'],
   ];
   for (const [re, v] of byHost) if (re.test(host)) return v;
+  // DashScope's OpenAI-compatible path, whatever the host (gateways and private deployments of Model Studio).
+  if (/\/compatible-mode\/v\d/.test(p.baseUrl)) return 'dashscope';
   switch (p.presetId) {
     case 'openrouter':
       return 'openrouter';
@@ -123,6 +127,14 @@ export function closestSize(aspect: string | undefined, sizes: string[], sep = '
     }
   }
   return best;
+}
+
+/** "W*H" (or "WxH") with about `area` pixels in the given aspect ratio, each side a multiple of 16. */
+export function sizeForArea(aspect: string | undefined, area: number, sep = '*'): string {
+  const r = Math.max(1 / 8, Math.min(8, aspectValue(aspect)));
+  const w = Math.round(Math.sqrt(area * r) / 16) * 16;
+  const h = Math.round(Math.sqrt(area / r) / 16) * 16;
+  return `${w}${sep}${h}`;
 }
 
 /** Common aspect ratios a picker offers. */

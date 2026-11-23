@@ -8,9 +8,9 @@ import {
   closestSize,
   dataUrlToBlob,
   jsonOf,
+  sizeForArea,
   mediaPrompt,
   mediaVendor,
-  percentOf,
   poll,
   saveAll,
   withHistoryImages,
@@ -168,9 +168,24 @@ async function imagen(req: ChatRequest): Promise<ChatResult> {
 }
 
 const DASHSCOPE_WAN_SIZES = ['1024*1024', '1280*720', '720*1280', '1152*864', '864*1152', '1248*832', '832*1248'];
-const QWEN_IMAGE_SIZES = ['1328*1328', '1664*928', '928*1664', '1472*1140', '1140*1472'];
 
-/** Alibaba DashScope (Bailian) native image APIs: Qwen-Image (synchronous) and Wan text-to-image (a polled task). */
+/** Older Wan image models (wanx*, wan2.x-t2i / -i2i) take a prompt string; newer ones take messages. */
+export const legacyWanImage = (model: string) => /^wanx|(^|\/)wan[\d.]*-?(t2i|i2i)/i.test(model);
+
+/** Images in a DashScope result: messages-style (`choices`) or task-style (`results`). */
+function dashscopeImages(output: any): MediaOutput[] {
+  const outs: MediaOutput[] = [];
+  for (const c of output?.choices ?? []) {
+    for (const part of c?.message?.content ?? []) if (typeof part?.image === 'string') outs.push({ kind: 'image', url: part.image });
+  }
+  for (const r of output?.results ?? []) if (typeof r?.url === 'string') outs.push({ kind: 'image', url: r.url });
+  return outs;
+}
+
+/**
+ * Alibaba Model Studio (DashScope) native image APIs. Qwen-Image and Wan 2.6+ take one user message of images and a
+ * prompt (Qwen-Image synchronously, Wan as a task); older Wan models use the text2image / image2image tasks.
+ */
 async function dashscopeImage(req: ChatRequest): Promise<ChatResult> {
   const p = req.provider;
   const o = req.params.media ?? {};
@@ -179,42 +194,61 @@ async function dashscopeImage(req: ChatRequest): Promise<ChatResult> {
   const api = `${ORIGIN_PATH}/api/v1`;
   req.onDelta({ progress: { stage: 'running' } });
 
-  if (/qwen-image/.test(m)) {
-    const content: Record<string, unknown>[] = images.map((a) => ({ image: a.dataUrl }));
-    content.push({ text });
-    const parameters: Record<string, unknown> = { watermark: false };
-    if (!images.length) parameters.size = closestSize(o.aspect, QWEN_IMAGE_SIZES, '*');
-    if (o.negativePrompt) parameters.negative_prompt = o.negativePrompt;
-    if (o.count && o.count > 1 && !images.length) parameters.n = Math.min(4, o.count);
-    const body: Record<string, unknown> = { model: req.model, input: { messages: [{ role: 'user', content }] }, parameters };
+  if (legacyWanImage(m)) {
+    const input: Record<string, unknown> = { prompt: text };
+    if (o.negativePrompt) input.negative_prompt = o.negativePrompt;
+    const parameters: Record<string, unknown> = { n: Math.max(1, Math.min(4, o.count ?? 1)) };
+    let endpoint = 'text2image/image-synthesis';
+    if (images.length) {
+      endpoint = 'image2image/image-synthesis';
+      input.images = images.map((a) => a.dataUrl);
+    } else {
+      parameters.size = closestSize(o.aspect, DASHSCOPE_WAN_SIZES, '*');
+    }
+    const body: Record<string, unknown> = { model: req.model, input, parameters };
     mergeExtra(body, p.extraBody, req.params.extraBody);
+    await saveAll(req, dashscopeImages(await dashscopeTask(req, `${api}/services/aigc/${endpoint}`, body)));
+    return { finishReason: 'stop' };
+  }
+
+  const wan = /(^|\/)wan/.test(m);
+  const content: Record<string, unknown>[] = images.slice(0, wan ? 9 : 3).map((a) => ({ image: a.dataUrl }));
+  content.push({ text });
+  const parameters: Record<string, unknown> = { watermark: false };
+  if (o.count && o.count > 1) parameters.n = Math.min(wan ? 4 : 6, o.count);
+  if (wan) {
+    // Wan 2.7: "1K" / "2K" (default) / "4K" (pro, text-to-image only), or "W*H"; edits keep the input image's shape.
+    const pro = /pro/.test(m);
+    if (images.length) {
+      if (o.quality === 'low') parameters.size = '1K';
+    } else if (o.aspect) {
+      const side = o.quality === 'low' ? 1024 : o.quality === 'high' && pro ? 4096 : 2048;
+      parameters.size = sizeForArea(o.aspect, side * side);
+    } else if (o.quality) {
+      parameters.size = o.quality === 'low' ? '1K' : o.quality === 'high' && pro ? '4K' : '2K';
+    }
+  } else {
+    // Qwen-Image: "W*H" between 512*512 and 2048*2048 pixels; left out, the model picks.
+    if (!images.length && (o.aspect || o.quality)) {
+      const side = o.quality === 'low' ? 1024 : o.quality === 'high' ? 2048 : 1328;
+      parameters.size = sizeForArea(o.aspect, side * side);
+    }
+    if (o.negativePrompt) parameters.negative_prompt = o.negativePrompt;
+  }
+  const body: Record<string, unknown> = { model: req.model, input: { messages: [{ role: 'user', content }] }, parameters };
+  mergeExtra(body, p.extraBody, req.params.extraBody);
+  let output: any;
+  if (wan) {
+    // Wan images take a minute or two: run them as a task rather than holding one request open.
+    output = await dashscopeTask(req, `${api}/services/aigc/image-generation/generation`, body);
+  } else {
     const j = await jsonOf(
       await providerFetch(p, `${api}/services/aigc/multimodal-generation/generation`, { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(body), signal: req.signal }, req.fetch),
     );
     if (j.code && !j.output) throw new ProviderError(`${j.code} · ${j.message ?? ''}`);
-    const outs: MediaOutput[] = [];
-    for (const c of j.output?.choices ?? []) for (const part of c?.message?.content ?? []) if (part?.image) outs.push({ kind: 'image', url: part.image });
-    await saveAll(req, outs);
-    return { finishReason: 'stop' };
+    output = j.output;
   }
-
-  const input: Record<string, unknown> = { prompt: text };
-  if (o.negativePrompt) input.negative_prompt = o.negativePrompt;
-  const parameters: Record<string, unknown> = { n: Math.max(1, Math.min(4, o.count ?? 1)) };
-  let endpoint = 'text2image/image-synthesis';
-  if (images.length) {
-    endpoint = 'image2image/image-synthesis';
-    input.images = images.map((a) => a.dataUrl);
-  } else {
-    parameters.size = closestSize(o.aspect, DASHSCOPE_WAN_SIZES, '*');
-  }
-  const body: Record<string, unknown> = { model: req.model, input, parameters };
-  mergeExtra(body, p.extraBody, req.params.extraBody);
-  const results = await dashscopeTask(req, `${api}/services/aigc/${endpoint}`, body);
-  await saveAll(
-    req,
-    (results.results ?? []).filter((r: any) => r?.url).map((r: any): MediaOutput => ({ kind: 'image', url: r.url })),
-  );
+  await saveAll(req, dashscopeImages(output));
   return { finishReason: 'stop' };
 }
 
@@ -239,7 +273,7 @@ export async function dashscopeTask(req: ChatRequest, path: string, body: unknow
     if (status === 'FAILED' || status === 'CANCELED' || status === 'UNKNOWN') {
       throw new ProviderError(`${out.code ?? status} · ${out.message ?? 'The task failed'}`);
     }
-    return { done: false, progress: { stage: status === 'PENDING' ? 'queued' : 'running', percent: percentOf(out.task_metrics?.SUCCEEDED && out.task_metrics?.TOTAL ? out.task_metrics.SUCCEEDED / out.task_metrics.TOTAL : undefined) } };
+    return { done: false, progress: { stage: status === 'PENDING' ? 'queued' : 'running' } };
   });
 }
 

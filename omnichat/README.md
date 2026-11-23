@@ -170,7 +170,7 @@ docker exec omnichat node dist/server/index.mjs reset-password admin 新密码
 | Google Gemini | Gemini 图片模型（可多轮修改）、Imagen | Veo |
 | 火山方舟 · 豆包 | Seedream（含参考图） | Seedance |
 | 智谱 | CogView | CogVideoX |
-| 阿里云百炼 | 通义万相、Qwen-Image（原生接口，自动从兼容模式地址推出） | 通义万相 |
+| 阿里云百炼（含 QwenCloud / Token Plan 等网关地址） | Qwen-Image（含 3.0）、万相 2.7 及旧版万相（原生接口，自动从 `…/compatible-mode/v1` 地址推出） | 万相 3.0 及旧版万相 |
 | 硅基流动 | Kolors、Qwen-Image、FLUX 等 | Wan 等 |
 | MiniMax | image-01 | 海螺 Hailuo |
 | OpenRouter | 图片输出模型（Chat Completions） | – |

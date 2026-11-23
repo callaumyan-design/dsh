@@ -343,6 +343,31 @@ lg = await lastLog('predictLongRunning');
 check('Veo: the operation is polled and the file downloaded with the key', msg?.data.status === 'done' && msg.data.media?.[0]?.mime === 'video/mp4', msg?.data);
 check('Veo parameters', lg?.parameters?.aspectRatio === '9:16' && lg.parameters.durationSeconds === 4, lg);
 
+// Alibaba Model Studio through a gateway address that ends in /compatible-mode/v1 (e.g. QwenCloud Token Plan).
+await push([{ kind: 'provider', id: 'p-ds', data: { name: 'QwenCloud', type: 'openai', presetId: 'custom-openai', baseUrl: `${MOCK}/compatible-mode/v1`, models: [], apiKey: 'sk-mock' } }]);
+const dsBody = (id, model, extra) => ({ ...genBody('c-img', id, model, extra), targets: [{ providerId: 'p-ds', model }] });
+const dsLog = async () => (await (await fetch(`${MOCK}/__log`)).json()).filter((x) => x.api === 'dashscope').pop();
+await startAndLeave(dsBody('a-qwen', 'qwen-image-3.0-pro', ask('海报：秋天的猫', { params: { media: { aspect: '16:9', count: 2 } } })));
+msg = await done('c-img', 'a-qwen');
+lg = await dsLog();
+check('qwen-image-3.0-pro: native sync API under the same host, two images stored', msg?.data.status === 'done' && msg.data.media?.length === 2 && lg?.path === '/api/v1/services/aigc/multimodal-generation/generation' && lg.parameters?.size === '1776*992' && lg.parameters.n === 2 && lg.parameters.watermark === false, { data: msg?.data, lg });
+await startAndLeave(dsBody('a-wan27', 'wan2.7-image-pro', ask('雪山日出', { params: { media: { aspect: '1:1' } } })));
+msg = await done('c-img', 'a-wan27', 60_000);
+lg = await dsLog();
+check('wan2.7-image-pro: image-generation task, polled until done', msg?.data.status === 'done' && msg.data.media?.length === 1 && lg?.path === '/api/v1/services/aigc/image-generation/generation' && lg.async && lg.parameters?.size === '2048*2048', { data: msg?.data, lg });
+await startAndLeave(
+  dsBody('a-wan27e', 'wan2.7-image-pro', {
+    messages: [{ role: 'user', content: '把天空改成晚霞', attachments: [{ id: 'att2', kind: 'image', name: 'sky.png', mime: 'image/png', size: 68, dataUrl: RED_DOT }] }],
+  }),
+);
+msg = await done('c-img', 'a-wan27e', 60_000);
+lg = await dsLog();
+check('wan2.7-image-pro: an attached image is sent in the message for editing', msg?.data.status === 'done' && lg?.images === 1 && lg.text === '把天空改成晚霞' && !lg.parameters?.size, lg);
+await startAndLeave(dsBody('a-wan3v', 'wan3.0-video', ask('海浪', { params: { media: { aspect: '9:16', seconds: 10, resolution: '720p' } } })));
+msg = await done('c-img', 'a-wan3v', 60_000);
+lg = await dsLog();
+check('wan3.0-video: video-synthesis task with ratio, duration and resolution', msg?.data.status === 'done' && msg.data.media?.[0]?.kind === 'video' && lg?.parameters?.ratio === '9:16' && lg.parameters.duration === 10 && lg.parameters.resolution === '720P' && lg.text === '海浪', { data: msg?.data, lg });
+
 const up = await fetch(`${BASE}/api/media`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'image/png' }, body: Buffer.from(RED_DOT.split(',')[1], 'base64') });
 const upJson = await up.json().catch(() => null);
 check('the browser can upload media it generated', up.status === 200 && /^\/api\/media\/.+\.png$/.test(upJson?.url ?? ''), upJson);
