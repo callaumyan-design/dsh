@@ -7,7 +7,7 @@
 //      （在本机预览、或者放在没有版本号的地方时，这类文件也按"网络优先"处理。）
 // 其他一律不经手：站外请求（搜索引擎、壁纸、AI 接口）、本站的接口（/api/…，比如行情），
 // 以及同一个域名下别的应用（如 /duo/、/uq/）的页面和接口。
-const CACHE = "start-page-v15";
+const CACHE = "start-page-v16";
 
 // 页面本身：安装时预先存好
 const PAGES = [
@@ -19,6 +19,7 @@ const PAGES = [
   "assets/icons/icon-512.png",
   "assets/icons/apps/duo.svg",
   "assets/icons/apps/catgpt.svg",
+  "assets/icons/apps/news.svg",
   "assets/icons/apps/uq.svg",
   "assets/icons/apps/myuq.svg",
   "assets/icons/apps/flywire.svg",

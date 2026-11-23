@@ -255,12 +255,13 @@
 
 ## 应用栏里的应用
 
-一行放得下就排成一行；放不下就平均分成几行（手机上 12 个排成 4 + 4 + 4），由 `nav.js` 的 `fitRows()` 按宽度算。
+一行放得下就排成一行；放不下就平均分成几行（手机上 13 个排成 5 + 5 + 3），由 `nav.js` 的 `fitRows()` 按宽度算。
 
 | 应用 | 地址 | 说明 |
 | --- | --- | --- |
 | Duo 适配 | `./duo/`（本网站的子页面） | Duo 追踪器每天自动更新的报告（Claude 云端定时任务），见下面“Duo 适配” |
 | CatGPT | `https://chat.callaum.com/` | 另外部署在微软（Azure）的服务器上 |
+| 科技晨读 | `https://news.callaum.com/` | App 在 Cloudflare 上（Worker `news`），服务器在 Azure；代码在本仓库 main 分支的 `news/` 目录 |
 | UQ 校历 | `./uq/`（本网站的子目录） | 仓库里的 `uq/index.html`，是 UQ 校历分支上那个网页文件的副本 |
 | my.UQ | `https://portal.my.uq.edu.au/#/dashboard` | UQ 学生门户，图标是一顶学士帽 |
 | 飞汇地区比价 | `./flywire/`（本网站的子页面） | 另一个仓库每周自动更新的报告（Claude 云端定时任务），见下面“飞汇地区比价” |
