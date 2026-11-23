@@ -1,4 +1,4 @@
-// 每天北京时间 06:47 生成新一期（UTC 22:47）。也可以通过 POST /api/admin/run 手动触发。
+// 每天北京时间 06:47 生成新一期（UTC 22:47）。也可以通过 POST /api/jobs/run-edition 手动触发。
 import { app, output } from '@azure/functions';
 import { runDaily } from '../lib/runtime.js';
 
@@ -21,10 +21,11 @@ app.storageQueue('dailyFromQueue', {
   handler: (msg, context) => run(context, 'manual'),
 });
 
-// 手动触发：POST /api/admin/run?code=<函数密钥>。密钥在 Azure 门户 → 函数应用 → 应用密钥 里，或用
+// 手动触发：POST /api/jobs/run-edition?code=<函数密钥>。密钥在 Azure 门户 → 函数应用 → 应用密钥 里，或用
 //   az functionapp keys list -g dsh-news -n dsh-news --query functionKeys.default -o tsv
-app.http('adminRun', {
-  route: 'admin/run',
+// 注意：路由不能以 admin/ 开头，那是 Functions 自己的管理接口
+app.http('runEdition', {
+  route: 'jobs/run-edition',
   methods: ['POST'],
   authLevel: 'function',
   extraOutputs: [runQueue],
