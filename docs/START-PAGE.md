@@ -43,7 +43,7 @@
 
 入口在页面最下面显示成一排小应用图标，全部排成一行（放不下时可以左右滑动）。
 
-现在的五个应用用的是专门画的图标，文件在 `assets/icons/apps/`（白色图形、透明底的 svg）。
+现在的六个应用用的是专门画的图标，文件在 `assets/icons/apps/`（白色图形、透明底的 svg）。
 想给新入口也画一个：照着那里的文件做一张 120×120 的 svg，图形用白色，再把 `icon` 写成它的路径。
 **svg 里不要用 filter（投影、模糊）和 mask**：iPhone 的 Safari 会把带这些效果的 svg 图片按低分辨率画，图标会糊。
 要挖空就用 `clip-path`，要半透明就用 `fill-opacity` / `stroke-opacity`。
@@ -148,7 +148,7 @@
 2. 跨域白名单：`Access-Control-Allow-Origin: <起始页域名>`，`Access-Control-Allow-Headers: Content-Type, Authorization`，
    并正确回应 `OPTIONS` 预检请求。如果起始页和 CatGPT 部署在同一个域名下，就不需要这一条。
 
-## 五个应用在哪
+## 六个应用在哪
 
 | 应用 | 地址 | 说明 |
 | --- | --- | --- |
@@ -157,6 +157,7 @@
 | CatGPT | `https://chat.callaum.com/` | 另外部署在微软（Azure）的服务器上 |
 | WiFi Drop | `https://chat.callaum.com/drop/` | 和 CatGPT 在同一台服务器上 |
 | 砚录 | `https://ocr.callaum.com/` | 另外部署在 Cloudflare 上 |
+| 科技晨读 | `https://news.callaum.com/` | App 在 Cloudflare 上（Worker `news`），服务器在 Azure；代码在本仓库 main 分支的 `news/` 目录 |
 
 `duo/` 和 `uq/` 是副本，不会自动跟着原项目更新。原项目更新后，在仓库根目录运行：
 
@@ -218,4 +219,4 @@ node tools/deploy-cloudflare.mjs
 ## 图标来源
 
 `assets/js/icons.js` 里的图标取自 [Lucide](https://lucide.dev)（ISC 许可，见 `assets/icons/LICENSE-lucide.txt`）。
-`assets/icons/apps/` 里的五个应用图标是为这个网站单独画的。
+`assets/icons/apps/` 里的六个应用图标是为这个网站单独画的。
