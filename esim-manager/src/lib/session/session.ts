@@ -6,7 +6,7 @@ import type { ChipInfo, DownloadProgress, ElpaInfo, EuiccNotification, EuiccProf
 import { parseElpaInfo, parseWifiInfo } from '@/lib/euicc/parse';
 import { Logger } from '@/lib/log/logger';
 import { ApduJsonAdapter } from '@/lib/protocol/apdu/ApduJsonAdapter';
-import { CardNotInsertedError, DisconnectedError, ResponseTimeoutError, UnsupportedOperationError } from '@/lib/protocol/errors';
+import { CardNotInsertedError, DisconnectedError, LpacError, ResponseTimeoutError, UnsupportedOperationError } from '@/lib/protocol/errors';
 import { CommandValidationError, encodeCommand, LEGACY_COMMANDS, commandBuilders } from '@/lib/protocol/legacy/commands';
 import { LegacyElpaAdapter } from '@/lib/protocol/legacy/LegacyElpaAdapter';
 import type { IncomingMessage, MessageLink, SendOptions } from '@/lib/protocol/link';
@@ -76,9 +76,26 @@ export interface SessionState {
   operation: OperationState | null;
   /** 写操作进行中蓝牙断开：结果未知，提示用户核对，绝不自动重试。 */
   interrupted: { label: string; at: number } | null;
+  /** 最近一次下载的结果与事后核对（只读读取的 Profile / 通知）。 */
+  lastDownload: DownloadReport | null;
   errors: TrackedError[];
   stats: StreamStats;
   settings: SessionSettings;
+}
+
+export interface DownloadReport {
+  at: number;
+  ok: boolean;
+  /** 失败时固件报告的函数名。 */
+  failedStage: string | null;
+  /** 失败细节（已脱敏的错误信息）。 */
+  error: string | null;
+  /** 下载前卡上已有的 ICCID（在内存中，不记录日志）。 */
+  iccidsBefore: string[] | null;
+  /** 事后重新读取到、下载前不存在的 Profile。 */
+  newProfiles: EuiccProfile[];
+  /** 事后读取的通知列表；null 表示未能读取。 */
+  notificationsAfter: EuiccNotification[] | null;
 }
 
 export class BusyError extends Error {
@@ -163,6 +180,7 @@ export class SessionController {
       card: emptyCard(),
       operation: null,
       interrupted: null,
+      lastDownload: null,
       errors: [],
       stats: emptyStats(),
       settings: { autoIdentify: true, autoReadCard: true },
@@ -325,6 +343,7 @@ export class SessionController {
       device: emptyDevice(),
       card: emptyCard(),
       operation: null,
+      lastDownload: null,
       interrupted: op && op.write ? { label: op.label, at: Date.now() } : s.interrupted,
     }));
     if (op?.write) this.logger.error('app', `写操作「${op.label}」进行中蓝牙断开，结果未知。不会自动重试，请重新连接后刷新核对。`);
@@ -636,20 +655,42 @@ export class SessionController {
   }
 
   async downloadProfile(request: DownloadRequest): Promise<void> {
+    const iccidsBefore = this.state.card.profiles?.map((p) => p.iccid) ?? null;
     let ok = false;
+    let failure: unknown = null;
     try {
       await this.run('profile.download', '下载并安装 eSIM', true, (svc, setProgress) => svc.downloadProfile(request, { onProgress: setProgress }));
       ok = true;
+    } catch (error) {
+      failure = error;
+      throw error;
     } finally {
+      let notificationsAfter: EuiccNotification[] | null = null;
       if (this.transport.connected) {
+        // 无论成功失败都重新读取，让界面显示卡上的真实状态（都是只读命令）
         await this.refreshProfilesQuietly();
-        if (ok) {
+        const wroteToCard = ok || (failure instanceof LpacError && failure.functionName === 'es10b_load_bound_profile_package');
+        if (wroteToCard) {
           try {
-            await this.readNotifications();
+            notificationsAfter = await this.readNotifications();
           } catch {
             /* 已记录 */
           }
         }
+      }
+      const after = this.state.card.profiles ?? [];
+      const report: DownloadReport = {
+        at: Date.now(),
+        ok,
+        failedStage: failure instanceof LpacError ? failure.functionName : null,
+        error: failure ? redactText(errorMessage(failure)) : null,
+        iccidsBefore,
+        newProfiles: iccidsBefore ? after.filter((p) => !iccidsBefore.includes(p.iccid)) : [],
+        notificationsAfter,
+      };
+      this.update((s) => ({ ...s, lastDownload: report }));
+      if (!ok && report.newProfiles.length > 0) {
+        this.logger.warn('app', `下载报告失败，但卡上出现了 ${report.newProfiles.length} 个新的 Profile，请在 Profiles 页面核对。`);
       }
     }
   }

@@ -124,3 +124,21 @@ test('意外断开后界面复位并可重新连接', async ({ page }) => {
   await page.getByRole('button', { name: '重新连接' }).first().click();
   await expect(page.getByTestId('connection-pill').first()).toHaveAttribute('data-state', 'connected');
 });
+
+test('写入 eUICC 失败（unknown,unknown）：说明原因、自动只读核对、给出下一步', async ({ page }) => {
+  await withFakeBle(page, { downloadFailsAt: 'es10b_load_bound_profile_package' });
+  await connect(page);
+  await page.getByRole('link', { name: '安装 eSIM' }).click();
+  await page.locator('#ac').fill('LPA:1$rsp.example.com$ABCD');
+  await page.getByRole('button', { name: '下载并安装' }).click();
+  await page.getByRole('alertdialog').getByRole('button', { name: '开始下载' }).click();
+  await expect(page.getByText('安装失败').first()).toBeVisible();
+  await expect(page.getByText('没有拿到卡片返回的安装结果').first()).toBeVisible();
+  const report = page.getByTestId('download-report');
+  await expect(report).toContainText('卡上新出现的 Profile：没有');
+  await expect(report).toContainText('先别连续重试');
+  const handled = await page.evaluate(() => window.__fakeBle!.sim.handled);
+  expect(handled.slice(-3)).toEqual(['lpac profile download -s rsp.example.com -m ABCD', 'lpac profile list', 'lpac notification list']);
+  await report.getByRole('button', { name: '打开 USB 串口日志' }).click();
+  await expect(page.getByText('读卡器 USB 串口日志')).toBeVisible();
+});

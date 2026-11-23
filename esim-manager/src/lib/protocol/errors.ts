@@ -81,7 +81,49 @@ const FUNCTION_HINTS: Record<string, string> = {
   es11_authenticate_client: 'SM-DS 认证失败。',
 };
 
+/** eUICC 在 ProfileInstallationResult 中报告的 errorReason（SGP.22，lpac 的字符串形式）。 */
+export const BPP_ERROR_REASONS: Record<string, string> = {
+  incorrect_input_values: '输入值不正确',
+  invalid_signature: '签名无效',
+  invalid_transaction_id: '事务 ID 无效',
+  unsupported_crt_values: '不支持的 CRT 参数',
+  unsupported_remote_operation_type: '不支持的远程操作类型',
+  unsupported_profile_class: '卡片不支持该 Profile 类别',
+  scp03t_structure_error: 'SCP03t 结构错误',
+  scp03t_security_error: 'SCP03t 安全校验错误',
+  install_failed_due_to_iccid_already_exists_on_euicc: '卡上已存在相同 ICCID 的 Profile',
+  install_failed_due_to_insufficient_memory_for_profile: '卡片存储空间不足',
+  install_failed_due_to_interruption: '安装过程被中断',
+  install_failed_due_to_pe_processing_error: '卡片处理 Profile 元素时出错（Profile 内容与这张卡不兼容的常见表现）',
+  install_failed_due_to_iccid_mismatch: 'ICCID 不匹配',
+  test_profile_install_failed_due_to_invalid_naa_key: '测试 Profile 的 NAA 密钥无效',
+  ppr_not_allowed: '策略规则（PPR）不允许',
+  install_failed_due_to_unknown_error: '卡片报告未知错误',
+};
+
+/**
+ * es10b_load_bound_profile_package 的细节是 "<bppCommandId>,<errorReason>"。
+ * 固件（src/euicc/es10b.c）在每段发送前把两者设为 UNDEFINED，只有成功解析出卡片返回的
+ * ProfileInstallationResult/ErrorResult 才会覆盖——所以 "unknown,unknown" 表示
+ * **固件没有拿到卡片的安装结果**，而不是卡片说了“未知错误”。
+ */
+export function describeBppFailure(detail: string): string {
+  const [command = '', reason = ''] = detail.split(',');
+  if (command === 'unknown' && reason === 'unknown') {
+    return (
+      '把 Profile 写入 eUICC 时失败，而且固件没有拿到卡片返回的安装结果（unknown,unknown）。' +
+      '按固件源码，这只会在三种情况下出现：读卡器与卡片之间的 APDU 传输出错、卡片回复了非 9000/61xx 的状态字、或卡片的回复无法解析。' +
+      '这不是激活码格式或网页的问题——微信小程序调用的是同一段固件代码，所以表现相同。'
+    );
+  }
+  const reasonText = BPP_ERROR_REASONS[reason] ?? reason;
+  return `eUICC 拒绝安装：${reasonText}（阶段 ${command || '未知'}）。`;
+}
+
 export function describeLpacError(functionName: string, detail: string): string {
+  if (functionName === 'es10b_load_bound_profile_package' && detail.includes(',')) {
+    return `${describeBppFailure(detail)}（${functionName}：${detail}）`;
+  }
   const hint = FUNCTION_HINTS[functionName] ?? `lpac 返回错误：${functionName}`;
   return detail ? `${hint}（${functionName}：${detail}）` : `${hint}（${functionName}）`;
 }

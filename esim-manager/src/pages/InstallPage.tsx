@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { ConfirmDialog } from '@/components/app/ConfirmDialog';
 import { RequireReady } from '@/components/app/NotConnected';
 import { PageHeader } from '@/components/app/PageHeader';
+import { DownloadFailureReport } from '@/components/app/DownloadFailureReport';
 import { QrScanDialog } from '@/components/app/QrScanDialog';
 import { useAction } from '@/components/app/useAction';
 import { useSession, useSessionController } from '@/hooks/session';
@@ -34,7 +35,7 @@ const STEP_ORDER = [
 
 type Outcome = { ok: true } | { ok: false; message: string } | null;
 
-export function InstallPage({ navigate }: { navigate: (r: Route) => void }) {
+export function InstallPage({ navigate }: { navigate: (r: Route, query?: string) => void }) {
   const session = useSessionController();
   const wifi = useSession((s) => s.device.wifi);
   const op = useSession((s) => s.operation);
@@ -368,6 +369,7 @@ export function InstallPage({ navigate }: { navigate: (r: Route) => void }) {
                     <AlertDescription>{outcome.message}</AlertDescription>
                   </Alert>
                 )}
+                {outcome && !outcome.ok && !downloading && <DownloadFailureReport navigate={navigate} />}
               </CardContent>
             </Card>
           </div>

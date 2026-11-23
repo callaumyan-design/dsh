@@ -35,6 +35,8 @@ export interface SimOptions {
   euiccInitFails?: boolean;
   /** download 在哪一步失败（函数名）。 */
   downloadFailsAt?: string | null;
+  /** 在 load_bound_profile_package 报错的同时卡上其实已经装好了（用于测试事后核对）。 */
+  installDespiteError?: boolean;
   notifications?: Array<{ seqNumber: number; profileManagementOperation: string; notificationAddress: string; iccid: string }>;
 }
 
@@ -58,6 +60,7 @@ export class FirmwareSimulator {
   wifiConnected: boolean;
   euiccInitFails: boolean;
   downloadFailsAt: string | null;
+  installDespiteError: boolean;
   notifications: NonNullable<SimOptions['notifications']>;
   /** 每个被 message_handler 处理过的“包”（用于断言固件真正看到了什么）。 */
   readonly handled: string[] = [];
@@ -75,6 +78,7 @@ export class FirmwareSimulator {
     this.wifiConnected = options.wifiConnected ?? true;
     this.euiccInitFails = options.euiccInitFails ?? false;
     this.downloadFailsAt = options.downloadFailsAt ?? null;
+    this.installDespiteError = options.installDespiteError ?? false;
     this.notifications = options.notifications ?? [];
     this.profiles = options.profiles ?? [
       {
@@ -343,8 +347,18 @@ export class FirmwareSimulator {
     let step = 1;
     for (const fn of steps) {
       this.progress(fn, smdp, step++, 9);
-      if (this.downloadFailsAt === fn) return this.error(fn, fn.startsWith('es9p') ? 'http status 500' : '');
+      if (this.downloadFailsAt === fn) {
+        if (fn === 'es10b_load_bound_profile_package' && this.installDespiteError) this.installNew(matchingId);
+        // download.c：load 失败时细节为 "<bppCommandId>,<errorReason>"
+        return this.error(fn, fn.startsWith('es9p') ? 'http status 500' : fn === 'es10b_load_bound_profile_package' ? 'unknown,unknown' : '');
+      }
     }
+    this.installNew(matchingId);
+    this.lpa(0, 'success', 'downloadProfile', null);
+  }
+
+  private installNew(matchingId: string | null) {
+    const smdp = 'rsp.example.com';
     this.profiles.push({
       iccid: '8988247000123456789',
       isdpAid: 'A0000005591010FFFFFFFF8900001200',
@@ -357,7 +371,6 @@ export class FirmwareSimulator {
       profileClass: 'operational',
     });
     this.notifications.push({ seqNumber: this.notifications.length + 1, profileManagementOperation: 'install', notificationAddress: smdp, iccid: '8988247000123456789' });
-    this.lpa(0, 'success', 'downloadProfile', null);
   }
 
   private notificationCmd(sub: string | undefined, args: string[]) {

@@ -87,6 +87,11 @@ describe('LegacyElpaAdapter', () => {
     expect(sim.profiles).toHaveLength(3);
   });
 
+  it('BPP 写入失败的错误说明', () => {
+    expect(new LpacError('es10b_load_bound_profile_package', 'unknown,unknown', 'downloadProfile').message).toContain('没有拿到卡片返回的安装结果');
+    expect(new LpacError('es10b_load_bound_profile_package', 'load_profile_elements,install_failed_due_to_insufficient_memory_for_profile', 'downloadProfile').message).toContain('存储空间不足');
+  });
+
   it('没有回复（例如缺少程序名的 "chip info"）→ 超时', async () => {
     vi.useFakeTimers();
     const sim = new FirmwareSimulator();

@@ -138,6 +138,35 @@ describe('SessionController (Mock BLE)', () => {
     expect((err as LpacError).functionName).toBe('es9p_authenticate_client');
   });
 
+  it('写入 eUICC 失败（unknown,unknown）：解释原因，并只读核对 Profile 与通知', async () => {
+    const { session, sim } = setup({ downloadFailsAt: 'es10b_load_bound_profile_package' });
+    await session.connect();
+    const before = sim.handled.length;
+    const err = await session.downloadProfile({ activationCode: 'LPA:1$rsp.example.com$M' }).catch((e) => e);
+    expect(err).toBeInstanceOf(LpacError);
+    expect((err as Error).message).toContain('没有拿到卡片返回的安装结果');
+    expect(sim.handled.slice(before)).toEqual(['lpac profile download -s rsp.example.com -m M', 'lpac profile list', 'lpac notification list']);
+    const report = session.getSnapshot().lastDownload;
+    expect(report).toMatchObject({ ok: false, failedStage: 'es10b_load_bound_profile_package', newProfiles: [], notificationsAfter: [] });
+  });
+
+  it('报告失败但卡上其实装上了：事后核对能发现新 Profile', async () => {
+    const { session } = setup({ downloadFailsAt: 'es10b_load_bound_profile_package', installDespiteError: true });
+    await session.connect();
+    await session.downloadProfile({ activationCode: 'LPA:1$rsp.example.com$M' }).catch(() => undefined);
+    const report = session.getSnapshot().lastDownload;
+    expect(report?.newProfiles.map((p) => p.iccid)).toEqual(['8988247000123456789']);
+    expect(report?.notificationsAfter?.[0]?.operation).toBe('install');
+  });
+
+  it('SM-DP+ 阶段失败不读取通知（卡片尚未写入）', async () => {
+    const { session, sim } = setup({ downloadFailsAt: 'es9p_authenticate_client' });
+    await session.connect();
+    const before = sim.handled.length;
+    await session.downloadProfile({ activationCode: 'LPA:1$rsp.example.com$M' }).catch(() => undefined);
+    expect(sim.handled.slice(before)).toEqual(['lpac profile download -s rsp.example.com -m M', 'lpac profile list']);
+  });
+
   it('处理并移除全部通知', async () => {
     const { session } = setup({ notifications: [{ seqNumber: 1, profileManagementOperation: 'install', notificationAddress: 'a.com', iccid: '8986012345678901234' }] });
     await session.connect();

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Activity, Bug, FileDown, ListChecks, Play, Radio, ScrollText, Terminal, Trash2 } from 'lucide-react';
+import { Activity, Bug, FileDown, ListChecks, Play, Radio, ScrollText, Terminal, Trash2, Usb } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CompatibilityNotice } from '@/components/app/CompatibilityNotice';
 import { ConfirmDialog } from '@/components/app/ConfirmDialog';
 import { KeyValue, PageHeader } from '@/components/app/PageHeader';
+import { SerialLogPanel } from '@/components/app/SerialLogPanel';
 import { useAction } from '@/components/app/useAction';
 import { useLogs, useSession, useSessionController } from '@/hooks/session';
 import { FIRMWARE_TX_CHUNK_SIZE, MAX_COMMAND_BYTES, NUS_RX_UUID, NUS_SERVICE_UUID, NUS_TX_UUID } from '@/lib/ble/constants';
@@ -433,12 +434,17 @@ function ReferenceTab() {
   );
 }
 
+function initialTab(): string {
+  const m = window.location.hash.match(/[?&]tab=([a-z]+)/);
+  return m?.[1] ?? 'connection';
+}
+
 export function DiagnosticsPage() {
   return (
     <div className="space-y-6">
       <PageHeader title="诊断" description="连接细节、协议识别、通信统计、只读测试指令与日志。调试功能不会自动发送任何修改卡片状态的命令。" />
       <CompatibilityNotice compact />
-      <Tabs defaultValue="connection">
+      <Tabs defaultValue={initialTab()}>
         <TabsList className="flex h-auto w-full flex-wrap justify-start sm:w-fit">
           <TabsTrigger value="connection">
             <Radio /> 连接与协议
@@ -454,6 +460,9 @@ export function DiagnosticsPage() {
           </TabsTrigger>
           <TabsTrigger value="errors">
             <Bug /> 错误
+          </TabsTrigger>
+          <TabsTrigger value="serial">
+            <Usb /> USB 串口
           </TabsTrigger>
           <TabsTrigger value="reference">
             <ListChecks /> 命令表
@@ -473,6 +482,9 @@ export function DiagnosticsPage() {
         </TabsContent>
         <TabsContent value="errors">
           <ErrorsTab />
+        </TabsContent>
+        <TabsContent value="serial">
+          <SerialLogPanel />
         </TabsContent>
         <TabsContent value="reference">
           <ReferenceTab />
