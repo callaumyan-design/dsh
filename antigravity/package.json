@@ -1,0 +1,16 @@
+{
+  "name": "antigravity-zh",
+  "private": true,
+  "version": "1.0.0",
+  "description": "反重力：Google Antigravity 网页版的中文安卓应用（翻译脚本的测试）",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "devDependencies": {
+    "jsdom": "^31.0.1"
+  }
+}

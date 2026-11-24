@@ -1,0 +1,106 @@
+name: 反重力（安卓 APK）
+
+# 构建“反重力”：Google Antigravity 网页版的中文安卓应用（antigravity/）。
+# - 每次改动都会测试翻译脚本、检查代码并打包，APK 保存在这次运行的 Artifacts 里。
+# - 推到 main 并且版本号（app/build.gradle.kts 里的 versionName）是新的，就发布到 Releases，
+#   标签 antigravity-v版本号，手机上打开 Releases 页面就能下载安装。
+# - 正式签名的密码放在仓库 Secrets → Actions 的 AG_KEYSTORE_PASSWORD。没有它时只打调试签名的测试包，不发布
+#   （调试签名的包不能覆盖安装正式版）。
+# - 只改翻译词典（antigravity/i18n/zh-CN.json）不用发新版：应用会自己从 main 分支下载新词典。
+on:
+  push:
+    paths:
+      - 'antigravity/**'
+      - '.github/workflows/antigravity-android.yml'
+  pull_request:
+    paths:
+      - 'antigravity/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.apk.outputs.version }}
+      signed: ${{ steps.apk.outputs.signed }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: antigravity/package-lock.json
+      - name: 测试翻译脚本和词典
+        working-directory: antigravity
+        run: |
+          npm ci
+          npm test
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: 检查代码并打包
+        working-directory: antigravity/android
+        env:
+          AG_KEYSTORE_PASSWORD: ${{ secrets.AG_KEYSTORE_PASSWORD }}
+        run: ./gradlew --no-daemon lint assembleRelease
+
+      - name: 整理安装包
+        id: apk
+        env:
+          AG_KEYSTORE_PASSWORD: ${{ secrets.AG_KEYSTORE_PASSWORD }}
+        run: |
+          version=$(sed -n 's/^ *versionName = "\(.*\)"$/\1/p' antigravity/android/app/build.gradle.kts)
+          [ -n "$version" ] || { echo "::error::没读到 versionName"; exit 1; }
+          mkdir -p out
+          cp antigravity/android/app/build/outputs/apk/release/app-release.apk "out/antigravity-zh-$version.apk"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [ -n "$AG_KEYSTORE_PASSWORD" ]; then
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::没有配置 AG_KEYSTORE_PASSWORD：这是调试签名的测试包，不会发布到 Releases"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: antigravity-zh-apk
+          path: out/*.apk
+          if-no-files-found: error
+
+  release:
+    needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && needs.build.outputs.signed == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: antigravity-zh-apk
+          path: out
+      - name: 发布到 Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          tag="antigravity-v$VERSION"
+          if gh release view "$tag" -R "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "已经发布过 $tag，跳过。要发新版，先把 versionCode 和 versionName 调大。"
+            exit 0
+          fi
+          cat > notes.md <<'EOF'
+          Google Antigravity 网页版（antigravity.google.com）的中文安卓应用。非官方，与 Google 无关。
+
+          在手机上下载下面的 APK 安装即可；从旧版本升级直接覆盖安装，不用重新登录。
+          使用说明见仓库里的 antigravity/README.md。
+          EOF
+          gh release create "$tag" out/*.apk -R "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" --title "反重力 安卓版 $VERSION" --notes-file notes.md

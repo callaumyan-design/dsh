@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 原创图标：一颗悬浮的小球，下面是它的影子和向上的气流 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- 小球 -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M54,30m-11,0a11,11 0,1 1,22 0a11,11 0,1 1,-22 0" />
+    <!-- 向上的气流 -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M44,58 L54,50 L64,58"
+        android:strokeWidth="3.5"
+        android:strokeAlpha="0.85"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M47,67 L54,61.5 L61,67"
+        android:strokeWidth="3"
+        android:strokeAlpha="0.55"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <!-- 影子 -->
+    <path
+        android:fillAlpha="0.4"
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M54,77m-14,0a14,3.5 0,1 1,28 0a14,3.5 0,1 1,-28 0" />
+</vector>
