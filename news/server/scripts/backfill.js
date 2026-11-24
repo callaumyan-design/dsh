@@ -2,6 +2,7 @@
 // 补录过去几天的新闻：每天一期，写进“往期”。不推送通知，已有的期默认不覆盖。
 //
 //   node scripts/backfill.js [天数，默认 15] [--force] [--dry-run]
+//   node scripts/backfill.js --dates 2026-11-12,2026-11-17   只重做这几天（会覆盖）
 //
 // 需要的环境变量和服务器一样：AzureWebJobsStorage（存储）和 AI_*（见 news/README.md）。
 // 一般通过 GitHub Actions 的“科技晨读（补录往期）”运行，它会从 Azure 读取这些设置。
@@ -13,12 +14,14 @@ import { collectHistory, editionWindow, githubForWindow, sliceForEdition } from 
 
 const args = process.argv.slice(2);
 const days = Number(args.find((a) => /^\d+$/.test(a)) ?? 15);
-const force = args.includes('--force');
+const only = (args[args.indexOf('--dates') + 1] ?? '').split(',').filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d));
+const force = args.includes('--force') || only.length > 0;
 const dryRun = args.includes('--dry-run');
 
 const today = editionDate(new Date());
 const dates = [];
-for (let i = days; i >= 1; i--) dates.push(editionDate(new Date(new Date(`${today}T12:00:00+08:00`).getTime() - i * 86400_000)));
+if (only.length) dates.push(...only.sort());
+else for (let i = days; i >= 1; i--) dates.push(editionDate(new Date(new Date(`${today}T12:00:00+08:00`).getTime() - i * 86400_000)));
 
 const store = dryRun ? null : await azureStore(process.env.AzureWebJobsStorage);
 const existing = new Set(store ? (await store.listEditions(400)).map((e) => e.date) : []);

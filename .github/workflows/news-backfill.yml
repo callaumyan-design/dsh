@@ -12,6 +12,10 @@ on:
         description: '已有的期也重新生成（会覆盖）'
         type: boolean
         default: false
+      dates:
+        description: '只重做这几天，逗号分隔，如 2026-11-12,2026-11-17（填了就忽略上面两项，并覆盖）'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -62,7 +66,13 @@ jobs:
         env:
           DAYS: ${{ inputs.days }}
           FORCE: ${{ inputs.force && '--force' || '' }}
-        run: node scripts/backfill.js "$DAYS" $FORCE
+          DATES: ${{ inputs.dates }}
+        run: |
+          if [ -n "$DATES" ]; then
+            node scripts/backfill.js --dates "$DATES"
+          else
+            node scripts/backfill.js "$DAYS" $FORCE
+          fi
       - name: 补录后的期
         if: always()
         run: curl -s "https://${APP_NAME}.azurewebsites.net/api/v1/editions" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{for(const e of JSON.parse(s))console.log(e.date,e.storyCount,e.headline??"")})'
