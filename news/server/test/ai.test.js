@@ -69,6 +69,20 @@ test('OpenAI 兼容接口：地址、密钥、JSON 模式', async () => {
   await assert.rejects(bad.generateJson({ system: 's', prompt: 'p', schema }), /HTTP 401/);
 });
 
+test('OpenAI 兼容接口：返回的 JSON 不合法时重新请求', async () => {
+  let n = 0;
+  const fetchImpl = async () => {
+    n++;
+    const content = n < 3 ? '{"a" 1}' : '{"a":7}';
+    return Response.json({ choices: [{ finish_reason: 'stop', message: { content } }] });
+  };
+  const ai = openaiProvider({ AI_MODEL: 'deepseek-chat' }, { fetchImpl });
+  assert.deepEqual(await ai.generateJson({ system: 's', prompt: 'p', schema }), { a: 7 });
+  assert.equal(n, 3);
+  n = -10; // 一直不合法
+  await assert.rejects(ai.generateJson({ system: 's', prompt: 'p', schema }), /连续 3 次/);
+});
+
 test('自定义接口', async () => {
   let sent;
   const fetchImpl = async (url, init) => { sent = { url, body: JSON.parse(init.body) }; return Response.json({ result: { a: 9 } }); };

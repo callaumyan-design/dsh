@@ -8,6 +8,8 @@ export function authHeaders(env) {
   return { [header]: header.toLowerCase() === 'authorization' ? `Bearer ${key}` : key };
 }
 
+const JSON_ATTEMPTS = 3;
+
 export function openaiProvider(env, { fetchImpl = fetch } = {}) {
   const base = (env.AI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '');
   const url = /\/chat\/completions(\?|$)/.test(base) ? base : `${base}/chat/completions`;
@@ -32,17 +34,24 @@ export function openaiProvider(env, { fetchImpl = fetch } = {}) {
       if (mode === 'json_object') body.response_format = { type: 'json_object' };
       if (mode === 'json_schema') body.response_format = { type: 'json_schema', json_schema: { name: 'result', schema, strict: true } };
 
-      const res = await fetchImpl(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeaders(env) },
-        body: JSON.stringify(body),
-        signal: AbortSignal.timeout(300_000),
-      });
-      if (!res.ok) throw new Error(`AI 接口返回 HTTP ${res.status}：${(await res.text()).slice(0, 300)}`);
-      const data = await res.json();
-      const choice = data.choices?.[0];
-      if (choice?.finish_reason === 'length') throw new Error('AI 输出被长度上限截断');
-      return extractJson(choice?.message?.content);
+      // 有的模型偶尔会输出不合法的 JSON（DeepSeek 实测约 1/7 的概率），再请求一次通常就好了
+      for (let attempt = 1; ; attempt++) {
+        const res = await fetchImpl(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeaders(env) },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(300_000),
+        });
+        if (!res.ok) throw new Error(`AI 接口返回 HTTP ${res.status}：${(await res.text()).slice(0, 300)}`);
+        const data = await res.json();
+        const choice = data.choices?.[0];
+        if (choice?.finish_reason === 'length') throw new Error('AI 输出被长度上限截断');
+        try {
+          return extractJson(choice?.message?.content);
+        } catch (err) {
+          if (attempt >= JSON_ATTEMPTS) throw new Error(`AI 连续 ${JSON_ATTEMPTS} 次没有返回合法的 JSON：${err.message}`);
+        }
+      }
     },
   };
 }
