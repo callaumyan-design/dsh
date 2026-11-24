@@ -26,16 +26,30 @@ export function editionWindow(date) {
 export async function waybackSnapshots(url, from, to, { fetchImpl = fetch, perDay = true } = {}) {
   const q = new URL(`${WAYBACK}/cdx/search/cdx`);
   q.search = new URLSearchParams({ url, from: waybackTs(from), to: waybackTs(to), output: 'json', filter: 'statuscode:200', fl: 'timestamp', ...(perDay ? { collapse: 'timestamp:8' } : {}) });
-  const res = await fetchImpl(q, { headers: UA, signal: AbortSignal.timeout(60_000) });
-  if (!res.ok) throw new Error(`Wayback 查询 HTTP ${res.status}`);
-  const rows = await res.json();
+  const rows = JSON.parse(await getText(q, fetchImpl));
   return rows.slice(1).map(([ts]) => ts).sort();
 }
 
-async function getText(url, fetchImpl) {
-  const res = await fetchImpl(url, { headers: UA, signal: AbortSignal.timeout(60_000), redirect: 'follow' });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.text();
+// 互联网档案馆经常短暂拒绝连接或限流（实测会出现 fetch failed），失败时等一会儿再试，最多 4 次
+export const RETRY_WAITS = [3000, 8000, 20000];
+/** 测试用：把重试等待改短 */
+export function setRetryWaits(waits) {
+  RETRY_WAITS.splice(0, RETRY_WAITS.length, ...waits);
+}
+async function getText(url, fetchImpl, waits = RETRY_WAITS) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const res = await fetchImpl(url, { headers: UA, signal: AbortSignal.timeout(60_000), redirect: 'follow' });
+      if (res.ok) return await res.text();
+      const err = new Error(`HTTP ${res.status}`);
+      err.retry = res.status === 429 || res.status >= 500;
+      throw err;
+    } catch (err) {
+      const retry = err.retry ?? true; // 网络错误（fetch failed、超时）也重试
+      if (!retry || attempt >= waits.length) throw err;
+      await sleep(waits[attempt]);
+    }
+  }
 }
 const snapshotUrl = (ts, url) => `${WAYBACK}/web/${ts}id_/${url}`;
 

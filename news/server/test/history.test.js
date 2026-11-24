@@ -1,7 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { collectHistory, editionWindow, githubForWindow, sliceForEdition, waybackTs } from '../src/lib/sources/history.js';
+import { collectHistory, editionWindow, githubForWindow, setRetryWaits, sliceForEdition, waybackTs } from '../src/lib/sources/history.js';
+
+setRetryWaits([0, 0, 0]);
 
 const fx = (f) => fs.readFileSync(new URL(`./fixtures/${f}`, import.meta.url), 'utf8');
 const rss = (items) => `<?xml version="1.0"?><rss version="2.0"><channel><title>t</title>${items
@@ -41,7 +43,7 @@ test('收集：现在的订阅源 + 翻页 + 档案快照，去重并只保留�
 
 test('收集：单个来源出错只记录，不中断', async () => {
   const src = { id: 'x', name: 'X', url: 'https://x/feed', lang: 'zh', section: 'news' };
-  const fetchImpl = async (url) => (String(url).includes('cdx') ? new Response('busy', { status: 503 }) : new Response('down', { status: 500 }));
+  const fetchImpl = async (url) => (String(url).includes('cdx') ? new Response('busy', { status: 503 }) : new Response('gone', { status: 404 }));
   const { items, report } = await collectHistory({ from: new Date(0), to: new Date(), sources: [src], fetchImpl, delayMs: 0, log: {} });
   assert.equal(items.length, 0);
   assert.equal(report[0].errors.length, 2);
@@ -60,4 +62,31 @@ test('GitHub 热榜：取这一期时间段里最晚的快照', async () => {
   assert.match(fetched, /\/web\/20261119200000id_\/https:\/\/github\.com\/trending$/);
   const none = await githubForWindow(editionWindow('2026-11-20'), { fetchImpl: async () => Response.json([['timestamp']]) });
   assert.deepEqual(none, []);
+});
+
+test('档案馆暂时连不上时自动重试', async () => {
+  let n = 0;
+  const fetchImpl = async (url) => {
+    const u = String(url);
+    if (u.includes('cdx')) {
+      n++;
+      if (n === 1) throw new TypeError('fetch failed');
+      if (n === 2) return new Response('slow down', { status: 429 });
+      return Response.json([['timestamp'], ['20261119200000']]);
+    }
+    return new Response(fx('trending-daily.html'));
+  };
+  const items = await githubForWindow(editionWindow('2026-11-20'), { fetchImpl });
+  assert.equal(n, 3);
+  assert.equal(items.length, 3);
+});
+
+test('404 不重试', async () => {
+  let n = 0;
+  const fetchImpl = async () => {
+    n++;
+    return new Response('nope', { status: 404 });
+  };
+  await assert.rejects(githubForWindow(editionWindow('2026-11-20'), { fetchImpl }), /HTTP 404/);
+  assert.equal(n, 1);
 });
