@@ -7,6 +7,7 @@ on:
     paths:
       - 'news/server/src/lib/sources/**'
       - 'news/server/scripts/probe-sources.js'
+      - 'news/server/scripts/probe-history.js'
       - '.github/workflows/news-probe.yml'
 
 permissions:
@@ -27,3 +28,5 @@ jobs:
           cache-dependency-path: news/server/package-lock.json
       - run: npm ci
       - run: node scripts/probe-sources.js
+      - name: 历史新闻能补到哪天
+        run: node scripts/probe-history.js 16

@@ -37,6 +37,8 @@ export interface Edition {
   github: Brief[];
   sourceStatus: { id: string; name: string; ok: boolean; count: number; error?: string }[];
   aiErrors: { step: string; message: string }[];
+  /** 事后补录的期：根据档案和各媒体的历史页面整理 */
+  backfilled?: { coversFrom: string; coversTo: string };
 }
 
 export interface EditionIndexEntry {
