@@ -26,9 +26,10 @@ function srcOf(m: GeneratedMedia): string | Promise<string> {
   return p;
 }
 
-export function useMediaSrc(m: GeneratedMedia): { src: string; failed: boolean } {
+export function useMediaSrc(m: GeneratedMedia): { src: string; failed: boolean; retry(): void } {
   const first = srcOf(m);
   const [state, setState] = useState<{ src: string; failed: boolean }>(() => ({ src: typeof first === 'string' ? first : '', failed: false }));
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     const s = srcOf(m);
     if (typeof s === 'string') {
@@ -43,8 +44,8 @@ export function useMediaSrc(m: GeneratedMedia): { src: string; failed: boolean }
     return () => {
       live = false;
     };
-  }, [m.url, m.dataUrl]); // eslint-disable-line react-hooks/exhaustive-deps
-  return state;
+  }, [m.url, m.dataUrl, attempt]); // eslint-disable-line react-hooks/exhaustive-deps
+  return { ...state, retry: () => setAttempt((n) => n + 1) };
 }
 
 async function blobOf(m: GeneratedMedia): Promise<Blob> {
@@ -106,15 +107,22 @@ function Tool({ title, onClick, children }: { title: string; onClick(): void; ch
 
 function ImageItem({ m, single, onOpen }: { m: GeneratedMedia; single: boolean; onOpen(m: GeneratedMedia): void }) {
   const t = useT();
-  const { src, failed } = useMediaSrc(m);
+  const { src, failed, retry } = useMediaSrc(m);
   const [broken, setBroken] = useState(false);
   return (
     <div className={cn('group relative overflow-hidden rounded-xl border border-line bg-muted', single ? 'max-w-md' : '')} data-generated-image="">
       {failed || broken ? (
-        <div className="flex aspect-square items-center justify-center gap-1.5 p-4 text-xs text-fg-subtle">
+        <button
+          type="button"
+          onClick={() => {
+            setBroken(false);
+            retry();
+          }}
+          className="flex aspect-square w-full items-center justify-center gap-1.5 p-4 text-xs text-fg-subtle hover:text-fg"
+        >
           <AlertTriangle className="size-4" />
           {t('media.loadFailed')}
-        </div>
+        </button>
       ) : src ? (
         <button type="button" className="block w-full" onClick={() => onOpen(m)} title={m.revisedPrompt}>
           <img src={src} alt={m.revisedPrompt ?? ''} className="block h-auto w-full" loading="lazy" onError={() => setBroken(true)} />
@@ -146,14 +154,14 @@ function ImageItem({ m, single, onOpen }: { m: GeneratedMedia; single: boolean; 
 
 function VideoItem({ m }: { m: GeneratedMedia }) {
   const t = useT();
-  const { src, failed } = useMediaSrc(m);
+  const { src, failed, retry } = useMediaSrc(m);
   return (
     <div className="group relative max-w-xl overflow-hidden rounded-xl border border-line bg-black" data-generated-video="">
       {failed ? (
-        <div className="flex aspect-video items-center justify-center gap-1.5 text-xs text-white/70">
+        <button type="button" onClick={retry} className="flex aspect-video w-full items-center justify-center gap-1.5 text-xs text-white/70 hover:text-white">
           <AlertTriangle className="size-4" />
           {t('media.loadFailed')}
-        </div>
+        </button>
       ) : src ? (
         <video src={src} controls playsInline preload="metadata" className="block max-h-[70vh] w-full" />
       ) : (

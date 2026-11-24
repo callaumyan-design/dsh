@@ -466,7 +466,7 @@ export const zh = {
   'media.reference': '用作参考图',
   'media.referenceAdded': '已放进输入框，描述一下想怎么改',
   'media.open': '查看大图',
-  'media.loadFailed': '加载失败',
+  'media.loadFailed': '加载失败，点按重试',
   'media.external': '这是服务商的临时链接，可能会过期',
   'media.revised': '模型改写后的提示词',
   'media.options': '生成选项',
@@ -484,4 +484,6 @@ export const zh = {
   'media.negativeHint': '不希望出现在画面里的内容（部分模型支持）。',
   'media.default': '默认',
   'chatSettings.media': '图片 / 视频生成',
+  'update.ready': 'CatGPT 已更新',
+  'update.reload': '刷新',
 };

@@ -468,7 +468,7 @@ export const en: Record<keyof typeof zh, string> = {
   'media.reference': 'Use as reference',
   'media.referenceAdded': 'Added to the composer — describe the change you want',
   'media.open': 'View full size',
-  'media.loadFailed': 'Could not load',
+  'media.loadFailed': 'Could not load — tap to retry',
   'media.external': 'Link from the provider; it may expire',
   'media.revised': 'Prompt as revised by the model',
   'media.options': 'Options',
@@ -486,4 +486,6 @@ export const en: Record<keyof typeof zh, string> = {
   'media.negativeHint': 'What should not appear (some models take it).',
   'media.default': 'Default',
   'chatSettings.media': 'Image / video generation',
+  'update.ready': 'CatGPT has been updated',
+  'update.reload': 'Reload',
 };

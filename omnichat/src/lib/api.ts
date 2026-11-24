@@ -1,4 +1,5 @@
 // HTTP client for the OmniChat server.
+import { noteServerBuild } from './version';
 
 const TOKEN_KEY = 'omnichat.token';
 
@@ -61,6 +62,7 @@ export async function api<T = unknown>(path: string, opts: ApiOptions = {}): Pro
     if ((err as Error).name === 'AbortError') throw err;
     throw new ApiError(0, 'Network error');
   }
+  noteServerBuild(res.headers.get('x-app-build'));
   const text = await res.text();
   let data: unknown = null;
   try {
@@ -80,7 +82,10 @@ export async function api<T = unknown>(path: string, opts: ApiOptions = {}): Pro
 export function authFetch(path: string, init: RequestInit = {}): Promise<Response> {
   const headers = new Headers(init.headers);
   if (token) headers.set('authorization', `Bearer ${token}`);
-  return fetch(path, { ...init, headers });
+  return fetch(path, { ...init, headers }).then((res) => {
+    noteServerBuild(res.headers.get('x-app-build'));
+    return res;
+  });
 }
 
 /** Raw fetch to the server's AI proxy, preserving streaming. */

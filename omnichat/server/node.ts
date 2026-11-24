@@ -63,6 +63,10 @@ const upstreamFetch = ((input: string | URL, init?: RequestInit) =>
   undiciFetch(input, { ...(init as object), dispatcher } as Parameters<typeof undiciFetch>[1])) as unknown as typeof fetch;
 
 const trustProxy = bool(env.TRUST_PROXY);
+const staticDir = env.STATIC_DIR ? path.resolve(env.STATIC_DIR) : fileURLToPath(new URL('../client', import.meta.url));
+const indexHtml = fs.existsSync(path.join(staticDir, 'index.html')) ? fs.readFileSync(path.join(staticDir, 'index.html'), 'utf8') : null;
+// The web app's build id (stamped into index.html by vite.config.ts).
+const build = indexHtml ? /<meta name="catgpt-build" content="([^"]+)"/.exec(indexHtml)?.[1] : undefined;
 // Generated images and videos: <data>/media/<user>/<id>.<ext>.
 const media = fileMediaStore(path.join(dataDir, 'media'));
 const app = createApp({
@@ -87,6 +91,7 @@ const app = createApp({
   // Replies run on the server, so they finish (and are saved) even if the page is closed mid-answer.
   generation: bool(env.BACKGROUND_GENERATION, true) ? engine : undefined,
   media,
+  build,
   // Daily snapshots in <data>/backups; BACKUP_AZURE_URL (or the Azure VM tag "backup") adds an off-site copy.
   backups: bool(env.BACKUP_DISABLED)
     ? undefined
@@ -98,12 +103,7 @@ const app = createApp({
       }),
 });
 
-const staticDir = env.STATIC_DIR
-  ? path.resolve(env.STATIC_DIR)
-  : fileURLToPath(new URL('../client', import.meta.url));
-
-if (fs.existsSync(path.join(staticDir, 'index.html'))) {
-  const indexHtml = fs.readFileSync(path.join(staticDir, 'index.html'), 'utf8');
+if (indexHtml) {
   app.use(
     '/*',
     serveStatic({

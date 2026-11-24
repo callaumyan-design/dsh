@@ -1,4 +1,5 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { RefreshCw } from 'lucide-react';
 import { AuthPage } from '@/components/AuthPage';
 import { ChatView } from '@/components/chat/ChatView';
 import { Sidebar } from '@/components/layout/Sidebar';
@@ -10,6 +11,8 @@ import { hasOpenOverlay } from '@/components/ui/primitives';
 import { applyTheme, cachedTheme } from '@/lib/theme';
 import { initAuth, useAuth } from '@/store/auth';
 import { useData } from '@/store/data';
+import { useComposer } from '@/store/composer';
+import { onUpdateAvailable } from '@/lib/version';
 import { stopGeneration, useChat } from '@/store/chat';
 import { openConversation, openSettings, toast, useUI } from '@/store/ui';
 import { useLang, useT } from '@/i18n';
@@ -89,6 +92,45 @@ function useLeaveGuard() {
   }, []);
 }
 
+/**
+ * Pages stay open for days (phones resume them rather than reloading), so after an update they would keep running
+ * old code that can't show what the new server sends. Reload as soon as a newer build is reported, unless that
+ * would lose something: an unsent draft, an open dialog, or a reply this page is streaming itself. Then offer it.
+ */
+function UpdateNotice() {
+  const t = useT();
+  const [ready, setReady] = useState(false);
+  useEffect(() => onUpdateAvailable(() => setReady(true)), []);
+  useEffect(() => {
+    if (!ready) return;
+    const tryReload = () => {
+      const { drafts, busy } = useComposer.getState();
+      const unsent = busy || Object.values(drafts).some((d) => d.text.trim() || d.attachments.length);
+      const streamingHere = Object.values(useChat.getState().streaming).some((x) => !x.remote);
+      if (!unsent && !streamingHere && !hasOpenOverlay()) window.location.reload();
+    };
+    tryReload();
+    // Otherwise try again whenever the page comes back to the foreground.
+    const h = () => document.visibilityState === 'visible' && tryReload();
+    document.addEventListener('visibilitychange', h);
+    return () => document.removeEventListener('visibilitychange', h);
+  }, [ready]);
+  if (!ready) return null;
+  return (
+    <div className="safe-top pointer-events-none fixed inset-x-0 top-0 z-[60] flex justify-center pt-2">
+      <button
+        type="button"
+        onClick={() => window.location.reload()}
+        className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-line bg-elevated px-3.5 py-1.5 text-sm text-fg shadow-pop hover:bg-muted"
+      >
+        <RefreshCw className="size-3.5 text-accent" />
+        {t('update.ready')}
+        <span className="font-medium text-accent">{t('update.reload')}</span>
+      </button>
+    </div>
+  );
+}
+
 function Shell() {
   useShortcuts();
   useSyncNotices();
@@ -121,6 +163,7 @@ export default function App() {
       {phase === 'authed' && <Shell />}
       <Toasts />
       <Dialogs />
+      <UpdateNotice />
     </>
   );
 }

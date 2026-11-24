@@ -56,6 +56,8 @@ export interface AppOptions {
   generation?: GenerationEngine;
   /** Where generated images and videos are stored (self-hosted only); without it they stay inline in messages. */
   media?: MediaBackend;
+  /** Build id of the web app being served; sent with every API response so pages running an older build reload. */
+  build?: string;
 }
 
 export interface SyncLimits {
@@ -161,6 +163,13 @@ export function createApp(opts: AppOptions) {
     await ensureSchema(db);
     c.set('db', db);
     await next();
+    if (opts.build) {
+      try {
+        c.res.headers.set('x-app-build', opts.build);
+      } catch {
+        /* immutable headers */
+      }
+    }
   });
 
   async function getConfig(db: DB, key: string): Promise<string | null> {
