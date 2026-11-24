@@ -82,10 +82,20 @@ public class MainActivity extends Activity {
     private static final int MAX_MISSING = 1000;
     private static final String REPO_URL =
             "https://github.com/callaumyan-design/dsh/tree/main/antigravity";
-    /** 注入脚本和网页消息通道只对 Antigravity 自己的网页开放。 */
+    /**
+     * 注入脚本和网页消息通道只对 Antigravity 自己的网页开放。
+     * 远程控制（连到你自己电脑）的对话界面是嵌在页面里的 iframe，来自 antigravity.static.usercontent.goog。
+     */
     private static final Set<String> AG_ORIGINS =
             Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
-                    "https://antigravity.google.com", "https://*.antigravity.google.com")));
+                    "https://antigravity.google.com",
+                    "https://*.antigravity.google.com",
+                    "https://antigravity.static.usercontent.goog")));
+    /** 某些旧版 WebView 不认通配符时退回用的列表。 */
+    private static final Set<String> AG_ORIGINS_EXACT =
+            Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
+                    "https://antigravity.google.com",
+                    "https://antigravity.static.usercontent.goog")));
 
     private final Handler main = new Handler(Looper.getMainLooper());
     private final Set<String> missing = new LinkedHashSet<>();
@@ -345,7 +355,7 @@ public class MainActivity extends Activity {
                 origins = AG_ORIGINS;
                 scriptHandler = WebViewCompat.addDocumentStartJavaScript(web, script, origins);
             } catch (IllegalArgumentException e) {
-                origins = Collections.singleton("https://antigravity.google.com");
+                origins = AG_ORIGINS_EXACT;
                 scriptHandler = WebViewCompat.addDocumentStartJavaScript(web, script, origins);
             }
             documentStartSupported = true;
@@ -366,7 +376,7 @@ public class MainActivity extends Activity {
             WebViewCompat.addWebMessageListener(web, "AgBridge", AG_ORIGINS, listener);
         } catch (IllegalArgumentException e) {
             WebViewCompat.addWebMessageListener(web, "AgBridge",
-                    Collections.singleton("https://antigravity.google.com"), listener);
+                    AG_ORIGINS_EXACT, listener);
         }
     }
 

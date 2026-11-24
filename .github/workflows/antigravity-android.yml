@@ -1,7 +1,8 @@
-name: 反重力（安卓 APK）
+name: 反重力（安卓 APK、电脑扩展、油猴脚本）
 
-# 构建“反重力”：Google Antigravity 网页版的中文安卓应用（antigravity/）。
-# - 每次改动都会测试翻译脚本、检查代码并打包，APK 保存在这次运行的 Artifacts 里。
+# 构建“反重力”：Google Antigravity 网页版的中文界面（antigravity/）——安卓应用、Chrome/Edge 扩展、油猴脚本。
+# - 每次改动都会测试翻译脚本、检查代码并打包，安装包保存在这次运行的 Artifacts 里。
+# - dist/antigravity-zh.user.js 由 web/build.mjs 生成并提交（油猴脚本从 main 分支的这个文件自动更新），这里检查它没过期。
 # - 推到 main 并且版本号（app/build.gradle.kts 里的 versionName）是新的，就发布到 Releases，
 #   标签 antigravity-v版本号，手机上打开 Releases 页面就能下载安装。
 # - 正式签名的密码放在仓库 Secrets → Actions 的 AG_KEYSTORE_PASSWORD。没有它时只打调试签名的测试包，不发布
@@ -34,11 +35,17 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: antigravity/package-lock.json
-      - name: 测试翻译脚本和词典
+      - name: 测试翻译脚本和词典，生成扩展和油猴脚本
         working-directory: antigravity
         run: |
           npm ci
           npm test
+          node web/build.mjs
+          if ! git diff --quiet -- dist/antigravity-zh.user.js; then
+            echo "::error::dist/antigravity-zh.user.js 没有更新：在 antigravity/ 里运行 node web/build.mjs 后一起提交"
+            git diff --stat -- dist/antigravity-zh.user.js
+            exit 1
+          fi
 
       - uses: actions/setup-java@v4
         with:
@@ -61,6 +68,8 @@ jobs:
           [ -n "$version" ] || { echo "::error::没读到 versionName"; exit 1; }
           mkdir -p out
           cp antigravity/android/app/build/outputs/apk/release/app-release.apk "out/antigravity-zh-$version.apk"
+          cp antigravity/dist/antigravity-zh-extension.zip "out/antigravity-zh-extension-$version.zip"
+          cp antigravity/dist/antigravity-zh.user.js out/antigravity-zh.user.js
           echo "version=$version" >> "$GITHUB_OUTPUT"
           if [ -n "$AG_KEYSTORE_PASSWORD" ]; then
             echo "signed=true" >> "$GITHUB_OUTPUT"
@@ -72,7 +81,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: antigravity-zh-apk
-          path: out/*.apk
+          path: out/*
           if-no-files-found: error
 
   release:
@@ -97,10 +106,12 @@ jobs:
             exit 0
           fi
           cat > notes.md <<'EOF'
-          Google Antigravity 网页版（antigravity.google.com）的中文安卓应用。非官方，与 Google 无关。
+          Google Antigravity 网页版（antigravity.google.com）的中文界面。非官方，与 Google 无关。
 
-          在手机上下载下面的 APK 安装即可；从旧版本升级直接覆盖安装，不用重新登录。
-          使用说明见仓库里的 antigravity/README.md。
+          - 安卓：下载 .apk 安装；从旧版本升级直接覆盖安装，不用重新登录。
+          - Windows / Mac（Chrome、Edge）：下载 extension 压缩包，解压后在扩展程序页面“加载已解压的扩展程序”。
+          - iPhone / iPad（Safari）、Firefox：用 Userscripts / Tampermonkey 安装 .user.js。
+          详细步骤见仓库里的 antigravity/README.md。
           EOF
-          gh release create "$tag" out/*.apk -R "$GITHUB_REPOSITORY" \
-            --target "$GITHUB_SHA" --title "反重力 安卓版 $VERSION" --notes-file notes.md
+          gh release create "$tag" out/* -R "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" --title "反重力 $VERSION（安卓、电脑、iPhone）" --notes-file notes.md

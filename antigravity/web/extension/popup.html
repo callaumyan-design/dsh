@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>反重力中文</title>
+<style>
+  :root { --bg: #ffffff; --fg: #1f1f1f; --muted: #5f6368; --line: #e3e3e3; --accent: #1a73e8; color-scheme: light; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #1f1f1f; --fg: #e8eaed; --muted: #9aa0a6; --line: #3c4043; --accent: #8ab4f8; color-scheme: dark; } }
+  body { margin: 0; width: 280px; background: var(--bg); color: var(--fg); font: 14px/1.5 system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; }
+  header { display: flex; align-items: center; gap: 10px; padding: 14px 16px 10px; }
+  header img { width: 28px; height: 28px; border-radius: 6px; }
+  header strong { font-size: 15px; }
+  .row { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; border-top: 1px solid var(--line); }
+  .muted { color: var(--muted); font-size: 12px; }
+  button { width: 100%; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--fg); font: inherit; cursor: pointer; text-align: left; }
+  button:hover { border-color: var(--accent); }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .actions { display: grid; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--line); }
+  #status { min-height: 18px; padding: 0 16px 12px; color: var(--muted); font-size: 12px; }
+  footer { padding: 8px 16px 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <img src="icon48.png" alt="">
+  <div><strong>反重力中文</strong><div class="muted" id="version"></div></div>
+</header>
+<label class="row">
+  <span>中文界面</span>
+  <input type="checkbox" id="enabled">
+</label>
+<div class="row"><span>翻译词典</span><span class="muted" id="dict"></span></div>
+<div class="actions">
+  <button id="check">检查词典更新</button>
+  <button id="missing">复制未翻译的词条</button>
+</div>
+<div id="status" role="status"></div>
+<footer>非官方扩展，与 Google 无关。只在 Antigravity 网页版（含远程控制界面）上翻译界面文字，对话内容和代码保持原样。</footer>
+<script src="dict.js"></script>
+<script src="popup.js"></script>
+</body>
+</html>
