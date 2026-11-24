@@ -102,6 +102,9 @@ export function EditionView({ date }: { date: string | null }) {
       )}
 
       <footer className="colophon">
+        {edition.backfilled && (
+          <p className="backfill-note">这一期是事后补录的：根据互联网档案馆的存档和各媒体的历史页面整理，部分来源（尤其是中文媒体）可能不全。</p>
+        )}
         <p>
           生成于 {new Date(edition.generatedAt).toLocaleString('zh-CN', { hour12: false })}，共 {edition.sourceStatus.filter((s) => s.ok).length}/{edition.sourceStatus.length} 个来源可用。
         </p>

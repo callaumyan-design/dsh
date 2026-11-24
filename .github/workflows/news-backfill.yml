@@ -1,0 +1,68 @@
+name: 科技晨读（补录往期）
+
+# 手动运行：把过去几天的新闻补录成“往期”，每天一期。不推送通知；已有的期默认跳过。
+# 用的 AI 和存储与服务器相同（从 Azure 函数应用 dsh-news 的设置里读取）。
+on:
+  workflow_dispatch:
+    inputs:
+      days:
+        description: '往前补几天'
+        default: '15'
+      force:
+        description: '已有的期也重新生成（会覆盖）'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AZURE_CLIENT_ID: 06dd2226-3553-45bd-ac80-e3718156c761
+  AZURE_TENANT_ID: cde716e5-a8b0-48e3-bd3e-931a8e2b984f
+  AZURE_SUBSCRIPTION_ID: ed4212a2-13ac-43a4-aa1f-d748cc68919f
+  APP_NAME: dsh-news
+  RESOURCE_GROUP: dsh-news
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    defaults:
+      run:
+        working-directory: news/server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: news/server/package-lock.json
+      - run: npm ci
+      - name: 现有的期
+        run: curl -s "https://${APP_NAME}.azurewebsites.net/api/v1/editions" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{for(const e of JSON.parse(s))console.log(e.date,e.storyCount,e.headline??"")})'
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+      - name: 读取服务器的存储和 AI 设置
+        run: |
+          az functionapp config appsettings list -g "$RESOURCE_GROUP" -n "$APP_NAME" -o json > /tmp/settings.json
+          node -e '
+            const fs = require("fs");
+            const want = ["AzureWebJobsStorage","AI_PROVIDER","AI_MODEL","AI_BASE_URL","AI_API_KEY","AI_AUTH_HEADER","AI_JSON_MODE","AI_MAX_TOKENS"];
+            for (const { name, value } of JSON.parse(fs.readFileSync("/tmp/settings.json", "utf8"))) {
+              if (!want.includes(name) || !value) continue;
+              if (/Storage|KEY/.test(name)) console.log(`::add-mask::${value}`);
+              fs.appendFileSync(process.env.GITHUB_ENV, `${name}<<__END__\n${value}\n__END__\n`);
+            }'
+          rm /tmp/settings.json
+      - name: 补录
+        env:
+          DAYS: ${{ inputs.days }}
+          FORCE: ${{ inputs.force && '--force' || '' }}
+        run: node scripts/backfill.js "$DAYS" $FORCE
+      - name: 补录后的期
+        if: always()
+        run: curl -s "https://${APP_NAME}.azurewebsites.net/api/v1/editions" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{for(const e of JSON.parse(s))console.log(e.date,e.storyCount,e.headline??"")})'

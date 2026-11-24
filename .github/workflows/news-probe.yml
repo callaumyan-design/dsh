@@ -8,6 +8,7 @@ on:
       - 'news/server/src/lib/sources/**'
       - 'news/server/scripts/probe-sources.js'
       - 'news/server/scripts/probe-history.js'
+      - 'news/server/scripts/backfill.js'
       - '.github/workflows/news-probe.yml'
 
 permissions:
@@ -30,3 +31,5 @@ jobs:
       - run: node scripts/probe-sources.js
       - name: 历史新闻能补到哪天
         run: node scripts/probe-history.js 16
+      - name: 补录试跑（不调用 AI、不写数据）
+        run: node scripts/backfill.js 15 --dry-run
