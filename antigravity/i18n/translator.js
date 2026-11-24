@@ -32,7 +32,10 @@ function __agInstallTranslator(win, config, dict) {
     '.material-symbols-outlined', '.material-symbols-rounded', '.material-symbols-sharp',
     '.google-symbols', '.google-material-icons', '[class*="material-symbols"]', '[class*="material-icons"]',
     '.monaco-editor', '.cm-editor', '.CodeMirror', '.ProseMirror', '.xterm', '.terminal',
-    '[class*="markdown"]', '[class*="Markdown"]', '[class*="prose"]',
+    // 智能体写的 Markdown（回复、实施计划、演练等制品）和你自己发的消息
+    '[data-markdown-root]', '[data-markdown-virtualized]', '[data-markdown-block-index]',
+    '[data-testid="user-message-content"]',
+    '[class*="markdown"]', '[class*="Markdown"]', '.prose',
     '[class*="code-block"]', '[class*="codeblock"]', '[class*="CodeBlock"]', '[class*="diff-"]'
   ].join(',');
   // 属性只跳过代码区和明确标了不翻译的地方（输入框的占位提示要翻译）
@@ -44,6 +47,8 @@ function __agInstallTranslator(win, config, dict) {
   var strings;
   var lower;
   var patterns;
+  var cache = new Map();
+  var MAX_PATTERN_TEXT = 120;
   var enabled = !config || config.enabled !== false;
 
   function norm(s) {
@@ -59,6 +64,7 @@ function __agInstallTranslator(win, config, dict) {
     strings = Object.create(null);
     lower = Object.create(null);
     patterns = [];
+    cache.clear();
     var src = (d && d.strings) || {};
     for (var k in src) {
       if (!Object.prototype.hasOwnProperty.call(src, k) || typeof src[k] !== 'string') continue;
@@ -70,7 +76,7 @@ function __agInstallTranslator(win, config, dict) {
     var list = (d && d.patterns) || [];
     for (var i = 0; i < list.length; i++) {
       try {
-        patterns.push({ re: new RegExp(list[i].re), to: String(list[i].to) });
+        patterns.push({ re: new RegExp(list[i].re), to: String(list[i].to), strict: list[i].strict === true });
       } catch (e) {
         // 写错的规则跳过
       }
@@ -88,9 +94,12 @@ function __agInstallTranslator(win, config, dict) {
       hit = lower[text.toLowerCase()];
       if (hit !== undefined) return hit;
     }
-    for (var i = 0; i < patterns.length; i++) {
+    // 规则只用在短文字上：带数字、名称的界面文字都很短，长段落只做整段对照
+    for (var i = 0; text.length <= MAX_PATTERN_TEXT && i < patterns.length; i++) {
       var m = patterns[i].re.exec(text);
-      if (m) return expand(patterns[i].to, m, depth);
+      if (!m) continue;
+      var out = expand(patterns[i], m, depth);
+      if (out != null) return out;
     }
     if (depth < 3) {
       var t = /^(.+?)\s*(\.\.\.|[:.?!])$/.exec(text);
@@ -102,24 +111,38 @@ function __agInstallTranslator(win, config, dict) {
     return null;
   }
 
-  // 规则里的 {1} 表示“把第 1 组也翻译了”，$1 表示原样放回
-  function expand(to, m, depth) {
-    return to.replace(/\{(\d)\}|\$(\d)/g, function (all, t, raw) {
+  // 规则里的 {1} 表示“把第 1 组也翻译了”，$1 表示原样放回。
+  // strict 规则要求每个 {n} 都翻得出来，否则整条不用（避免把项目名、文件名改得半中半英）。
+  function expand(p, m, depth) {
+    var failed = false;
+    var out = p.to.replace(/\{(\d)\}|\$(\d)/g, function (all, t, raw) {
       if (raw) return m[+raw] || '';
       var g = m[+t] || '';
-      if (depth >= 3) return g;
-      var n = norm(g);
-      var tr = lookup(n, depth + 1);
-      if (tr == null) tr = lower[n.toLowerCase()];
+      var tr = null;
+      if (depth < 3) {
+        var n = norm(g);
+        tr = lookup(n, depth + 1);
+        if (tr == null) tr = lower[n.toLowerCase()];
+      }
+      if (tr == null) failed = true;
       return tr != null ? tr : g;
     });
+    return failed && p.strict ? null : out;
+  }
+
+  function cachedLookup(core) {
+    if (cache.has(core)) return cache.get(core);
+    var tr = lookup(core, 0);
+    if (cache.size > 5000) cache.clear();
+    cache.set(core, tr);
+    return tr;
   }
 
   function translateString(s) {
     var m = /^(\s*)([\s\S]*?)(\s*)$/.exec(s);
     var core = norm(m[2]);
     if (!core || core.length > MAX_TEXT || !LATIN.test(core)) return null;
-    var tr = lookup(core, 0);
+    var tr = cachedLookup(core);
     return tr == null ? null : { text: m[1] + tr + m[3], core: core };
   }
 

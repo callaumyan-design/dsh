@@ -80,9 +80,25 @@ test('大小写不同、结尾带标点的写法也能对上', () => {
 });
 
 test('只有一部分对得上的句子不动', () => {
-  const { document } = install('<p id="a">Settings for this project are saved</p><span id="b">Settings and more</span>');
+  const { document } = install('<p id="a">Settings for this project are saved</p><span id="b">Settings and frobnication</span>');
   assert.equal(text(document, '#a'), 'Settings for this project are saved');
-  assert.equal(text(document, '#b'), 'Settings and more');
+  assert.equal(text(document, '#b'), 'Settings and frobnication');
+});
+
+test('通用组合规则只在每一部分都翻得出来时才用', () => {
+  const { window } = install('');
+  const t = (s) => window.__agI18n.translate(s);
+  assert.equal(t('Hide Sidebar'), '隐藏侧边栏');
+  assert.equal(t('Settings (3)'), '设置（3）');
+  assert.equal(t('Status: Running'), '状态：运行中');
+  assert.equal(t('Skills and Rules'), '技能和规则');
+  assert.equal(t('Hide my-panel'), null, '名称部分翻不出来，整条不动');
+  assert.equal(t('Frobnicator (3)'), null);
+  assert.equal(t('Foo: Bar'), null);
+  // 不要求全部翻出来的具体规则照常工作
+  assert.equal(t('Edited main.py'), '已编辑 main.py');
+  assert.equal(t('+3 attachments'), '另外 3 个附件');
+  assert.equal(t('Daily at 9:00 AM'), '每天 上午 9:00');
 });
 
 test('带数字、时间的规则', () => {
@@ -128,6 +144,33 @@ test('代码、编辑器、输入框、对话正文、图标字体里的文字�
   assert.equal(text(document, '#md'), 'DoneAccept');
   assert.equal(text(document, '#no'), 'Settings');
   assert.equal(text(document, '#lower'), 'settings', '全小写的单词可能是图标名，不按大小写放宽匹配');
+});
+
+test('Antigravity 的智能体回复、制品正文、你发的消息都不翻译', () => {
+  const { document } = install(`
+    <div data-testid="agent-response">
+      <h6 id="said">Agent said</h6>
+      <div data-markdown-root id="md"><div data-markdown-block-index="0"><h2>Overview</h2><p>Done</p></div></div>
+      <button id="btn">Copy</button>
+    </div>
+    <div data-testid="user-message-content" id="user">Continue</div>
+    <span class="google-symbols" id="icon">settings</span>
+    <p class="m-0 max-w-prose text-sm" id="err">Network error</p>
+  `);
+  assert.equal(text(document, '#md'), 'OverviewDone');
+  assert.equal(text(document, '#user'), 'Continue');
+  assert.equal(text(document, '#icon'), 'settings');
+  assert.equal(text(document, '#btn'), '复制', '回复旁边的按钮照常翻译');
+  assert.equal(text(document, '#err'), '网络错误', 'Tailwind 的 max-w-prose 不是正文');
+});
+
+test('大量翻不出来的文字也处理得很快', () => {
+  const words = ['alpha', 'Bravo', 'charlie and delta', 'Echo (fox)', 'Golf: hotel', 'India · juliet', 'Kilo / lima'];
+  const html = Array.from({ length: 3000 }, (_, i) => `<span>${words[i % words.length]} ${i} and more text ${i % 13}</span>`).join('');
+  const start = Date.now();
+  const { document } = install(html);
+  assert.ok(Date.now() - start < 5000, `用了 ${Date.now() - start} ms`);
+  assert.equal(document.querySelectorAll('span').length, 3000);
 });
 
 test('占位提示、按钮提示、无障碍标签也翻译', () => {
