@@ -7,6 +7,7 @@
 | `/` | 项目目录页（自动生成） | `site-index.yml` |
 | `/quadrant/` | 四象限任务计划 | `quadrant.yml` |
 | `/weekly/` | GitHub 热榜周刊 | `weekly.yml`（出刊：`weekly-issue.yml`） |
+| `/ip/` | IP 检测 | `ip.yml` |
 
 ## 为什么互不干扰
 

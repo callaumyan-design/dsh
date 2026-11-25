@@ -8,5 +8,10 @@
     "path": "weekly",
     "title": "GitHub 热榜周刊",
     "description": "每周 GitHub Trending 周榜前十名，附中文点评"
+  },
+  {
+    "path": "ip",
+    "title": "IP 检测",
+    "description": "查看你的公网 IP、归属地、运营商、IP 类型和风险值，也能查任意 IP 或域名"
   }
 ]

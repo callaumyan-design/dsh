@@ -1,0 +1,46 @@
+name: IP 检测
+
+# 纯静态页面，不需要构建：测试通过后把 ip/site 原样发布到 /ip/。
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'ip/**'
+      - '.github/workflows/ip.yml'
+  pull_request:
+    paths:
+      - 'ip/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: ip
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm test
+      - if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ip-site
+          path: ip/site
+
+  publish:
+    needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/publish-pages.yml
+    with:
+      project: ip
+      artifact: ip-site
