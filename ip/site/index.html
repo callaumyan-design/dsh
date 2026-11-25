@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>IP 检测</title>
+<meta name="description" content="查看你的公网 IP、归属地、运营商、IP 类型和风险值，也能查任意 IP 或域名">
+<meta name="referrer" content="no-referrer">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+<script type="module" src="app.js"></script>
+</head>
+<body>
+<main>
+  <header>
+    <!-- 上一级就是所在网站的首页：GitHub Pages 上是“我的小工具”，callaum.com 上是起始页 -->
+    <a class="back" href="../">← 首页</a>
+    <h1>IP 检测</h1>
+  </header>
+
+  <form id="form" role="search" autocomplete="off">
+    <label class="sr-only" for="q">IP 或域名</label>
+    <input id="q" name="q" type="text" inputmode="url" spellcheck="false" autocapitalize="off"
+           placeholder="输入 IP 或域名，留空查自己">
+    <button type="submit">查询</button>
+    <button type="button" id="self" class="secondary">查自己</button>
+  </form>
+
+  <section class="card" id="result" aria-live="polite">
+    <p class="message message-note">正在查询…</p>
+  </section>
+
+  <section class="card" id="views" hidden>
+    <h2>不同网站看到的 IP</h2>
+    <dl class="info"></dl>
+    <p class="views-note muted">用了分流代理时，国内和国外网站看到的 IP 通常不一样。</p>
+  </section>
+
+  <footer>
+    数据来自 <a href="https://ipquery.io/" rel="noopener">ipquery.io</a>、<a href="https://ipleak.net/" rel="noopener">ipleak.net</a>、<a href="https://www.ipip.net/" rel="noopener">IPIP.net</a>、Cloudflare 和 ipify，结果仅供参考。查询由你的浏览器直接发给这些服务，不经过本站。
+  </footer>
+</main>
+</body>
+</html>

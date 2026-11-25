@@ -1,0 +1,14 @@
+{
+  "name": "ip-check",
+  "private": true,
+  "version": "1.0.0",
+  "description": "IP 检测：查看公网 IP、归属地、运营商、IP 类型和风险值",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "preview": "python3 -m http.server 8080 --directory site"
+  }
+}
