@@ -31,3 +31,8 @@
 本地预览：`npm run preview`，然后打开 <http://localhost:8080/>（页面用了 ES 模块，直接双击 `index.html` 打不开）。
 
 推到 main 后由 `.github/workflows/ip.yml` 测试并发布到 `/ip/`。
+
+## 放到起始页（callaum.com）
+
+`site/` 里的文件原样复制到任何网站的子目录就能用：只有本站自己的脚本和样式，没有内联代码，起始页那种严格的 CSP 也不受影响；返回链接指向上一级（`../`）。
+`homepage-icon.svg` 是给起始页导航用的图标（白色图形、透明底，和起始页其他应用图标一个画法）。
